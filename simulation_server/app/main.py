@@ -16,6 +16,7 @@ from simulation_server.app.assembler.router import router as assembler_router
 from simulation_server.app.analyzer.router import router as analyzer_router
 from simulation_server.app.viewer.router import router as viewer_router
 from simulation_server.app.jobs_router import router as jobs_router
+from simulation_server.app.simulator.router import router as webots_router
 
 app = FastAPI(
     title="NL2Bot Simulation Server",
@@ -37,6 +38,7 @@ app.include_router(renderer_router, prefix="/api/v1", tags=["renderer"])
 app.include_router(assembler_router, prefix="/api/v1", tags=["assembler"])
 app.include_router(analyzer_router, prefix="/api/v1", tags=["analyzer"])
 app.include_router(viewer_router, prefix="/api/v1/viewer", tags=["viewer"])
+app.include_router(webots_router, prefix="/api/v1", tags=["webots"])
 
 # Serve viewer static files
 viewer_static = Path(__file__).parent / "viewer" / "static"
@@ -54,7 +56,7 @@ async def capabilities():
     return {
         "render": True,
         "assemble": True,
-        "physics": False,  # PyBullet not yet integrated
+        "physics": True,  # Webots simulation integrated
         "printability": True,
         "viewer": True,
         "ballistics_training": False,

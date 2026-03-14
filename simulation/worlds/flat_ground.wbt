@@ -1,0 +1,300 @@
+#VRML_SIM R2023b utf8
+# NL2Bot — Flat Ground Test World
+# This is a template world. The PROTO converter (proto_converter.py) will
+# generate a proper robot model from SCAD/STL output. The DEF TANK below
+# is a placeholder with basic geometry for early integration testing.
+
+WorldInfo {
+  title "NL2Bot Flat Ground"
+  basicTimeStep 16
+  contactProperties [
+    ContactProperties {
+      material1 "rubber"
+      material2 "ground"
+      coulombFriction [1.2]
+      bounce 0.1
+    }
+  ]
+}
+
+Viewpoint {
+  orientation -0.3 0.0 0.95 0.8
+  position -0.8 -1.2 0.6
+  follow "TANK"
+}
+
+TexturedBackground {
+}
+
+TexturedBackgroundLight {
+}
+
+RectangleArena {
+  floorSize 10 10
+  floorTileSize 1 1
+  floorAppearance PBRAppearance {
+    baseColor 0.6 0.6 0.6
+    roughness 0.8
+    metalness 0.0
+  }
+  wallHeight 0.05
+  contactMaterial "ground"
+}
+
+DEF TANK Robot {
+  translation 0 0 0.05
+  rotation 0 0 1 0
+  name "tank"
+  controller "tank_controller"
+  supervisor TRUE
+  children [
+    # --- Hull (chassis) ---
+    DEF HULL Solid {
+      translation 0 0 0
+      children [
+        DEF HULL_SHAPE Shape {
+          appearance PBRAppearance {
+            baseColor 0.25 0.35 0.2
+            roughness 0.7
+            metalness 0.2
+          }
+          geometry Box {
+            size 0.3 0.14 0.08
+          }
+        }
+      ]
+      name "hull"
+      contactMaterial "rubber"
+      boundingObject USE HULL_SHAPE
+      physics Physics {
+        density -1
+        mass 0.8
+      }
+    }
+
+    # --- Left Track Motor + Wheel ---
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 1 0
+        anchor -0.05 0.08 -0.02
+      }
+      device [
+        RotationalMotor {
+          name "left_motor"
+          maxVelocity 10.0
+          maxTorque 5.0
+        }
+        PositionSensor {
+          name "left_encoder"
+        }
+      ]
+      endPoint Solid {
+        translation -0.05 0.08 -0.02
+        children [
+          Shape {
+            appearance PBRAppearance {
+              baseColor 0.15 0.15 0.15
+              roughness 0.9
+            }
+            geometry Cylinder {
+              height 0.02
+              radius 0.03
+            }
+          }
+        ]
+        name "left_wheel"
+        boundingObject Cylinder {
+          height 0.02
+          radius 0.03
+        }
+        physics Physics {
+          density -1
+          mass 0.05
+        }
+      }
+    }
+
+    # --- Right Track Motor + Wheel ---
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 1 0
+        anchor -0.05 -0.08 -0.02
+      }
+      device [
+        RotationalMotor {
+          name "right_motor"
+          maxVelocity 10.0
+          maxTorque 5.0
+        }
+        PositionSensor {
+          name "right_encoder"
+        }
+      ]
+      endPoint Solid {
+        translation -0.05 -0.08 -0.02
+        children [
+          Shape {
+            appearance PBRAppearance {
+              baseColor 0.15 0.15 0.15
+              roughness 0.9
+            }
+            geometry Cylinder {
+              height 0.02
+              radius 0.03
+            }
+          }
+        ]
+        name "right_wheel"
+        boundingObject Cylinder {
+          height 0.02
+          radius 0.03
+        }
+        physics Physics {
+          density -1
+          mass 0.05
+        }
+      }
+    }
+
+    # --- Turret Rotation Joint ---
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 0 1
+        anchor 0.02 0 0.04
+      }
+      device [
+        RotationalMotor {
+          name "turret_motor"
+          maxVelocity 2.0
+          maxTorque 3.0
+          minPosition -3.14159
+          maxPosition 3.14159
+        }
+        PositionSensor {
+          name "turret_sensor"
+        }
+      ]
+      endPoint Solid {
+        translation 0.02 0 0.04
+        children [
+          # Turret body
+          DEF TURRET_SHAPE Shape {
+            appearance PBRAppearance {
+              baseColor 0.3 0.4 0.25
+              roughness 0.7
+              metalness 0.2
+            }
+            geometry Cylinder {
+              height 0.04
+              radius 0.045
+            }
+          }
+
+          # --- Barrel Elevation Joint ---
+          HingeJoint {
+            jointParameters HingeJointParameters {
+              axis 0 1 0
+              anchor 0.045 0 0.01
+            }
+            device [
+              RotationalMotor {
+                name "barrel_motor"
+                maxVelocity 1.0
+                maxTorque 2.0
+                minPosition -0.1745
+                maxPosition 0.7854
+              }
+              PositionSensor {
+                name "barrel_sensor"
+              }
+            ]
+            endPoint Solid {
+              translation 0.045 0 0.01
+              rotation 0 1 0 0
+              children [
+                Shape {
+                  appearance PBRAppearance {
+                    baseColor 0.2 0.25 0.15
+                    roughness 0.6
+                    metalness 0.3
+                  }
+                  geometry Cylinder {
+                    height 0.12
+                    radius 0.008
+                  }
+                }
+              ]
+              name "barrel"
+              boundingObject Cylinder {
+                height 0.12
+                radius 0.008
+              }
+              physics Physics {
+                density -1
+                mass 0.02
+              }
+            }
+          }
+
+          # Turret camera
+          Camera {
+            translation 0.05 0 0.02
+            rotation 0 0 1 0
+            name "turret_cam"
+            width 320
+            height 240
+            fieldOfView 1.0
+          }
+        ]
+        name "turret"
+        boundingObject USE TURRET_SHAPE
+        physics Physics {
+          density -1
+          mass 0.15
+        }
+      }
+    }
+
+    # --- Hull Camera ---
+    Camera {
+      translation 0.16 0 0.02
+      rotation 0 0 1 0
+      name "hull_cam"
+      width 320
+      height 240
+      fieldOfView 1.2
+    }
+
+    # --- Distance Sensor (ToF) ---
+    DistanceSensor {
+      translation 0.16 0 0
+      rotation 0 0 1 0
+      name "tof_sensor"
+      type "infra-red"
+      lookupTable [
+        0 0 0
+        2.0 2000 0.01
+      ]
+    }
+
+    # --- IMU ---
+    InertialUnit {
+      name "imu"
+    }
+
+    Accelerometer {
+      name "accelerometer"
+    }
+
+    Gyro {
+      name "gyro"
+    }
+  ]
+  boundingObject Box {
+    size 0.3 0.14 0.08
+  }
+  physics Physics {
+    density -1
+    mass 1.0
+  }
+}

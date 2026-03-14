@@ -1,0 +1,283 @@
+// Track/Bogey Assembly for M1A1 Tank
+// Each side: side plate, 6 road wheels, drive sprocket, idler wheel,
+// track guide rails, and N20 motor mount
+// All dimensions in millimeters
+
+use <../libs/common.scad>
+use <../libs/m4_hardware.scad>
+
+$fn = 64;
+
+// --- Part Selector ---
+part = "assembly"; // "left", "right", "sprocket", "assembly"
+
+// --- Track Assembly Dimensions ---
+SIDE_PLATE_LENGTH = 150;
+SIDE_PLATE_WIDTH  = 25;  // matches TRACK_WIDTH
+SIDE_PLATE_HEIGHT = 30;
+SIDE_PLATE_WALL   = 1.6;
+
+// Road wheels
+ROAD_WHEEL_COUNT    = 6;
+ROAD_WHEEL_DIA      = 20;
+ROAD_WHEEL_THICK    = 8;
+ROAD_WHEEL_SPACING  = 22;
+ROAD_WHEEL_AXLE_DIA = 3;
+// First road wheel center X offset from front of side plate
+ROAD_WHEEL_X_START  = 12;
+// Vertical center of road wheels (from bottom of side plate)
+ROAD_WHEEL_Z        = ROAD_WHEEL_DIA / 2 + 2;
+
+// Drive sprocket (rear)
+SPROCKET_DIA        = 22;
+SPROCKET_THICK      = 10;
+SPROCKET_TEETH      = 8;
+SPROCKET_TOOTH_H    = 2.5;  // Tooth height (radial)
+SPROCKET_SHAFT_DIA  = 3;    // M3 for N20 motor coupling
+SPROCKET_X          = SIDE_PLATE_LENGTH - 10;
+SPROCKET_Z          = SIDE_PLATE_HEIGHT / 2;
+
+// Idler wheel (front)
+IDLER_DIA           = 18;
+IDLER_THICK         = 8;
+IDLER_AXLE_DIA      = 3;
+IDLER_X             = 10;
+IDLER_Z             = SIDE_PLATE_HEIGHT / 2;
+IDLER_SLOT_LENGTH   = 6;  // Tension adjustment slot
+
+// Track guide rails
+RAIL_WIDTH          = 3;
+RAIL_HEIGHT         = 2;
+
+// N20 motor mount
+N20_BODY_DIA        = 12;
+N20_MOUNT_DEPTH     = 25;
+N20_BRACKET_WALL    = 2;
+N20_BRACKET_WIDTH   = N20_BODY_DIA + 2 * N20_BRACKET_WALL;  // 16
+N20_BRACKET_HEIGHT  = N20_BODY_DIA + 2 * N20_BRACKET_WALL;  // 16
+N20_BRACKET_LENGTH  = N20_MOUNT_DEPTH + N20_BRACKET_WALL;    // 27
+
+// M4 bolt holes for hull attachment (3 per side, evenly spaced)
+BOLT_COUNT          = 3;
+BOLT_SPACING        = (SIDE_PLATE_LENGTH - 20) / (BOLT_COUNT - 1);
+BOLT_X_START        = 10;
+BOLT_Z              = SIDE_PLATE_HEIGHT - 8;
+
+// Hull spacing for assembly view
+HULL_W = 90;   // HULL_WIDTH from common.scad
+
+// --- Modules ---
+
+// Single road wheel
+module road_wheel() {
+    difference() {
+        cylinder(d = ROAD_WHEEL_DIA, h = ROAD_WHEEL_THICK, center = true);
+        cylinder(d = ROAD_WHEEL_AXLE_DIA, h = ROAD_WHEEL_THICK + 1, center = true);
+    }
+}
+
+// Drive sprocket with simplified triangular teeth
+module drive_sprocket() {
+    difference() {
+        union() {
+            // Base disc
+            cylinder(d = SPROCKET_DIA, h = SPROCKET_THICK, center = true);
+            // Teeth
+            for (i = [0 : SPROCKET_TEETH - 1]) {
+                rotate([0, 0, i * 360 / SPROCKET_TEETH])
+                    translate([SPROCKET_DIA / 2, 0, 0])
+                        // Triangular tooth profile as a cylinder approximation
+                        cylinder(d1 = 4, d2 = 1.5, h = SPROCKET_THICK, center = true, $fn = 3);
+            }
+        }
+        // M3 shaft hole
+        cylinder(d = SPROCKET_SHAFT_DIA, h = SPROCKET_THICK + 1, center = true);
+        // D-flat for motor coupling (cut a flat on one side of the shaft hole)
+        translate([SPROCKET_SHAFT_DIA / 2 + 0.3, 0, 0])
+            cube([1, SPROCKET_SHAFT_DIA, SPROCKET_THICK + 1], center = true);
+    }
+}
+
+// Idler wheel
+module idler_wheel() {
+    difference() {
+        cylinder(d = IDLER_DIA, h = IDLER_THICK, center = true);
+        cylinder(d = IDLER_AXLE_DIA, h = IDLER_THICK + 1, center = true);
+    }
+}
+
+// Track guide rail (runs full length along inner face of side plate)
+module track_guide_rail() {
+    cube([SIDE_PLATE_LENGTH, RAIL_WIDTH, RAIL_HEIGHT]);
+}
+
+// N20 motor mount bracket — extends inward from rear of side plate
+module n20_motor_mount() {
+    difference() {
+        // Bracket body
+        translate([0, 0, -N20_BRACKET_HEIGHT / 2])
+            cube([N20_BRACKET_LENGTH, N20_BRACKET_WIDTH, N20_BRACKET_HEIGHT]);
+        // Motor cradle bore (perpendicular to side plate, along Y axis)
+        translate([N20_BRACKET_WALL, N20_BRACKET_WIDTH / 2, 0])
+            rotate([0, 0, 0])
+                translate([0, 0, 0])
+                    rotate([0, 90, 0])
+                        cylinder(d = N20_BODY_DIA, h = N20_MOUNT_DEPTH + 0.1);
+        // Motor shaft exit hole
+        translate([-0.1, N20_BRACKET_WIDTH / 2, 0])
+            rotate([0, 90, 0])
+                cylinder(d = SPROCKET_SHAFT_DIA + 1, h = N20_BRACKET_WALL + 0.2);
+    }
+}
+
+// Tension adjustment slot (elongated hole) for idler axle
+module tension_slot() {
+    hull() {
+        cylinder(d = IDLER_AXLE_DIA + 0.4, h = SIDE_PLATE_WALL + 0.2, center = true);
+        translate([IDLER_SLOT_LENGTH, 0, 0])
+            cylinder(d = IDLER_AXLE_DIA + 0.4, h = SIDE_PLATE_WALL + 0.2, center = true);
+    }
+}
+
+// Left side plate with all features
+module side_plate_left() {
+    difference() {
+        union() {
+            // Main side plate (hollow box)
+            difference() {
+                cube([SIDE_PLATE_LENGTH, SIDE_PLATE_WIDTH, SIDE_PLATE_HEIGHT]);
+                translate([SIDE_PLATE_WALL, SIDE_PLATE_WALL, SIDE_PLATE_WALL])
+                    cube([
+                        SIDE_PLATE_LENGTH - 2 * SIDE_PLATE_WALL,
+                        SIDE_PLATE_WIDTH - 2 * SIDE_PLATE_WALL,
+                        SIDE_PLATE_HEIGHT - 2 * SIDE_PLATE_WALL
+                    ]);
+            }
+
+            // Track guide rails on inner face (Y = SIDE_PLATE_WIDTH side faces hull)
+            // Bottom rail
+            translate([0, SIDE_PLATE_WIDTH - RAIL_WIDTH, SIDE_PLATE_WALL])
+                track_guide_rail();
+            // Top rail
+            translate([0, SIDE_PLATE_WIDTH - RAIL_WIDTH, SIDE_PLATE_HEIGHT - SIDE_PLATE_WALL - RAIL_HEIGHT])
+                track_guide_rail();
+
+            // N20 motor mount bracket extending inward from rear
+            translate([SIDE_PLATE_LENGTH - N20_BRACKET_WALL, SIDE_PLATE_WIDTH, SPROCKET_Z])
+                rotate([0, 0, 0])
+                    translate([0, 0, 0])
+                        n20_motor_mount_positioned();
+        }
+
+        // M4 bolt holes for hull attachment (through inner wall, top region)
+        for (i = [0 : BOLT_COUNT - 1]) {
+            translate([BOLT_X_START + i * BOLT_SPACING, SIDE_PLATE_WIDTH - 0.05, BOLT_Z])
+                rotate([-90, 0, 0])
+                    rotate([180, 0, 0])
+                        m4_hole(depth = SIDE_PLATE_WALL + 0.1);
+        }
+
+        // Road wheel axle holes (through outer wall)
+        for (i = [0 : ROAD_WHEEL_COUNT - 1]) {
+            translate([ROAD_WHEEL_X_START + i * ROAD_WHEEL_SPACING, -0.05, ROAD_WHEEL_Z])
+                rotate([-90, 0, 0])
+                    cylinder(d = ROAD_WHEEL_AXLE_DIA + 0.4, h = SIDE_PLATE_WALL + 0.1);
+        }
+
+        // Sprocket axle hole (through outer wall)
+        translate([SPROCKET_X, -0.05, SPROCKET_Z])
+            rotate([-90, 0, 0])
+                cylinder(d = SPROCKET_SHAFT_DIA + 0.4, h = SIDE_PLATE_WALL + 0.1);
+
+        // Idler tension slot (through outer wall)
+        translate([IDLER_X, SIDE_PLATE_WALL / 2, IDLER_Z])
+            rotate([0, 0, 0])
+                translate([-IDLER_SLOT_LENGTH / 2, 0, 0])
+                    rotate([90, 0, 0])
+                        rotate([0, 0, 0])
+                            tension_slot_through();
+    }
+}
+
+// Tension slot cut through side plate outer wall
+module tension_slot_through() {
+    hull() {
+        cylinder(d = IDLER_AXLE_DIA + 0.4, h = SIDE_PLATE_WALL + 0.2, center = true);
+        translate([IDLER_SLOT_LENGTH, 0, 0])
+            cylinder(d = IDLER_AXLE_DIA + 0.4, h = SIDE_PLATE_WALL + 0.2, center = true);
+    }
+}
+
+// N20 motor mount positioned to extend inward (along +Y) from rear of plate
+module n20_motor_mount_positioned() {
+    // Bracket extends along +Y (toward hull center)
+    // Motor axis along X (perpendicular to side plate face)
+    difference() {
+        translate([-(N20_BRACKET_LENGTH - N20_BRACKET_WALL), 0, -N20_BRACKET_HEIGHT / 2])
+            cube([N20_BRACKET_LENGTH, N20_MOUNT_DEPTH + N20_BRACKET_WALL, N20_BRACKET_HEIGHT]);
+        // Motor cradle bore along X axis
+        translate([-(N20_MOUNT_DEPTH + 0.05), (N20_MOUNT_DEPTH + N20_BRACKET_WALL) / 2, 0])
+            rotate([0, 90, 0])
+                rotate([90, 0, 0])
+                    rotate([0, 0, 0])
+                        translate([0, 0, 0])
+                            rotate([90, 0, 0])
+                                translate([0, 0, -(N20_MOUNT_DEPTH + N20_BRACKET_WALL) / 2])
+                                    cylinder(d = N20_BODY_DIA, h = N20_MOUNT_DEPTH + 0.1);
+        // Shaft pass-through to sprocket
+        translate([0.05, (N20_MOUNT_DEPTH + N20_BRACKET_WALL) / 2, 0])
+            rotate([0, -90, 0])
+                cylinder(d = SPROCKET_SHAFT_DIA + 1, h = N20_BRACKET_LENGTH + 0.2);
+    }
+}
+
+// Complete left track assembly with wheels
+module track_assembly_left() {
+    // Side plate with all cutouts and brackets
+    side_plate_left();
+
+    // Road wheels on outer face
+    for (i = [0 : ROAD_WHEEL_COUNT - 1]) {
+        translate([ROAD_WHEEL_X_START + i * ROAD_WHEEL_SPACING,
+                   -ROAD_WHEEL_THICK / 2, ROAD_WHEEL_Z])
+            rotate([90, 0, 0])
+                rotate([0, 0, 0])
+                    translate([0, 0, 0])
+                        road_wheel();
+    }
+
+    // Drive sprocket at rear
+    translate([SPROCKET_X, -SPROCKET_THICK / 2, SPROCKET_Z])
+        rotate([90, 0, 0])
+            drive_sprocket();
+
+    // Idler wheel at front
+    translate([IDLER_X, -IDLER_THICK / 2, IDLER_Z])
+        rotate([90, 0, 0])
+            idler_wheel();
+}
+
+// Right side is a mirror of the left
+module track_assembly_right() {
+    translate([0, HULL_W + 2 * SIDE_PLATE_WIDTH, 0])
+        mirror([0, 1, 0])
+            track_assembly_left();
+}
+
+// --- Part Selection ---
+
+if (part == "left") {
+    track_assembly_left();
+} else if (part == "right") {
+    // Show right side at origin for printing
+    mirror([0, 1, 0])
+        track_assembly_left();
+} else if (part == "sprocket") {
+    drive_sprocket();
+} else if (part == "assembly") {
+    // Both sides at correct spacing
+    // Left track: Y = 0 (outer face at Y = -wheel offset)
+    track_assembly_left();
+    // Right track: mirrored, spaced at hull_width + 2*track_width
+    track_assembly_right();
+}

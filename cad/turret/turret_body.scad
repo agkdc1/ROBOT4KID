@@ -1,8 +1,11 @@
 // M1A1 Abrams — Turret Body
 // Fits within Bambu A1 Mini build volume (180x180x180mm)
+// Integrated: turret ESP32-CAM, VL53L1X ToF sensor, slip-ring void, wire duct
 
 use <../libs/common.scad>
 use <../libs/m4_hardware.scad>
+use <../libs/m3_hardware.scad>
+use <../libs/electronics.scad>
 
 // --- Turret Parameters ---
 turret_width = 95;
@@ -22,6 +25,16 @@ barrel_bore = 14;            // Bore for barrel bayonet mount
 // ESP32-CAM gunner camera window
 cam_window_width = 30;
 cam_window_height = 25;
+
+// VL53L1X ToF sensor window (co-axial with barrel)
+tof_window_dia = 6;             // Aperture for laser
+
+// Slip-ring void (wire pass-through from hull)
+slip_ring_dia = 22;
+
+// Wire duct (internal channel from slip-ring to electronics)
+duct_width = 10;
+duct_depth = 8;
 
 $fn = 64;
 
@@ -90,14 +103,59 @@ module camera_window() {
         cube([wall + 0.2, cam_window_width, cam_window_height]);
 }
 
+module tof_window() {
+    // VL53L1X laser aperture, co-axial with barrel, below camera window
+    translate([turret_length - wall - 0.1, turret_width/2, turret_height * 0.35])
+        rotate([0, 90, 0])
+            cylinder(h=wall + 0.2, d=tof_window_dia);
+}
+
+module turret_cam_mount() {
+    // ESP32-CAM mount inside turret, behind camera window
+    // Camera lens faces forward through the window
+    translate([turret_length - 45, turret_width/2 - 13.5, turret_height * 0.4 + 2])
+        esp32cam_mount(standoff_h=3);
+}
+
+module turret_tof_mount() {
+    // VL53L1X ToF sensor mount, below camera, laser faces forward
+    translate([turret_length - 25, turret_width/2 - 9, turret_height * 0.25])
+        vl53l1x_mount(standoff_h=3);
+}
+
+module turret_slip_ring_void() {
+    // Wire pass-through at bottom center of turret ring
+    translate([turret_length/2, turret_width/2, -ring_height - 0.05])
+        cylinder(h=ring_height + wall + 0.1, d=slip_ring_dia);
+}
+
+module turret_wire_duct() {
+    // Internal wire channel from slip-ring void to camera/sensor area
+    translate([turret_length/2, turret_width/2 - duct_width/2, wall])
+        cube([turret_length/2 - 15, duct_width, duct_depth]);
+}
+
 module turret_body() {
     difference() {
         union() {
             turret_shell();
             turret_ring_bottom();
             gun_trunnion();
+            turret_cam_mount();
+            turret_tof_mount();
         }
         camera_window();
+        tof_window();
+        turret_slip_ring_void();
+    }
+
+    // Wire duct as raised channel walls (additive)
+    translate([0, 0, 0]) {
+        rib_t = 1.2;
+        translate([turret_length/2, turret_width/2 - duct_width/2 - rib_t, wall])
+            cube([turret_length/2 - 15, rib_t, duct_depth]);
+        translate([turret_length/2, turret_width/2 + duct_width/2, wall])
+            cube([turret_length/2 - 15, rib_t, duct_depth]);
     }
 }
 

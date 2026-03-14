@@ -1,8 +1,11 @@
 // M1A1 Abrams — Hull Chassis
 // Split into front and rear halves for Bambu A1 Mini build volume
+// Integrated: hull camera mount, slip-ring void, electronics bay mounting
 
 use <../libs/common.scad>
 use <../libs/m4_hardware.scad>
+use <../libs/m3_hardware.scad>
+use <../libs/electronics.scad>
 
 // --- Hull Parameters ---
 hull_length = 150;          // Per half (total 300mm)
@@ -27,6 +30,18 @@ battery_height = 30;
 motor_mount_width = 30;
 motor_mount_depth = 40;
 motor_mount_height = 25;
+
+// Slip-ring void
+slip_ring_dia = 22;             // For wire pass-through to turret
+
+// Hull camera (ESP32-CAM)
+hull_cam_width = 30;            // Window width
+hull_cam_height = 25;           // Window height
+
+// Electronics bay mounting (4x M3 in rear hull floor)
+ebay_mount_inset = 6;
+ebay_mount_x = 138;             // Electronics bay length
+ebay_mount_y = 86;              // Electronics bay width
 
 // Part selector — set via CLI: -D 'part="front"'
 part = "assembly";  // "front" | "rear" | "assembly"
@@ -79,13 +94,23 @@ module motor_mount() {
     }
 }
 
+module hull_cam_mount() {
+    // ESP32-CAM cradle at front of hull (driver camera, fixed position)
+    // Recessed behind the armor window
+    translate([wall + 2, hull_width/2 - 13.5, hull_height * 0.5 + 2])
+        esp32cam_mount(standoff_h=3);
+}
+
 module hull_front() {
     difference() {
-        hull_base(hull_length);
+        union() {
+            hull_base(hull_length);
+            hull_cam_mount();
+        }
 
-        // ESP32-CAM front window
-        translate([wall - 0.1, hull_width/2 - 15, hull_height * 0.5])
-            cube([wall + 0.2, 30, 25]);
+        // ESP32-CAM front window (lens aperture)
+        translate([wall - 0.1, hull_width/2 - hull_cam_width/2, hull_height * 0.5])
+            cube([wall + 0.2, hull_cam_width, hull_cam_height]);
     }
 
     // Motor mounts (front pair)
@@ -106,6 +131,21 @@ module hull_front() {
         rotate([0, 90, 0]) m4_hole(depth=10);
 }
 
+module ebay_floor_mounts() {
+    // M3 threaded holes in hull floor for electronics bay mounting
+    ebay_ox = (hull_length - ebay_mount_x) / 2;
+    ebay_oy = (hull_width - ebay_mount_y) / 2;
+    positions = [
+        [ebay_ox + ebay_mount_inset,                  ebay_oy + ebay_mount_inset],
+        [ebay_ox + ebay_mount_x - ebay_mount_inset,   ebay_oy + ebay_mount_inset],
+        [ebay_ox + ebay_mount_inset,                  ebay_oy + ebay_mount_y - ebay_mount_inset],
+        [ebay_ox + ebay_mount_x - ebay_mount_inset,   ebay_oy + ebay_mount_y - ebay_mount_inset]
+    ];
+    for (p = positions)
+        translate([p[0], p[1], -0.05])
+            m3_hole(depth=wall + 0.1);
+}
+
 module hull_rear() {
     difference() {
         hull_base(hull_length);
@@ -121,15 +161,18 @@ module hull_rear() {
             rotate([0, 90, 0]) m4_hole(depth=10);
         translate([-5, hull_width*3/4, hull_height*2/3])
             rotate([0, 90, 0]) m4_hole(depth=10);
+
+        // Slip-ring void at turret ring center
+        translate([hull_length/2, hull_width/2, hull_height - 0.05])
+            cylinder(h=turret_ring_height + 0.2, d=slip_ring_dia);
+
+        // Electronics bay mounting holes in floor
+        ebay_floor_mounts();
     }
 
     // Turret ring (centered on rear half)
     translate([hull_length/2, hull_width/2, hull_height])
         turret_ring();
-
-    // Battery compartment
-    translate([hull_length/2 - battery_length/2, hull_width/2 - battery_width/2 - wall, wall])
-        battery_compartment();
 }
 
 module hull_assembly() {
