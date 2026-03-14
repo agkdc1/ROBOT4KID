@@ -13,6 +13,9 @@ OPENSCAD_BIN = os.getenv("OPENSCAD_BIN", "openscad")
 OPENSCAD_TIMEOUT = int(os.getenv("OPENSCAD_TIMEOUT", "120"))
 USE_XVFB = os.getenv("USE_XVFB", "true").lower() == "true"
 
+# API Key for service-to-service auth
+SIM_API_KEY = os.getenv("SIM_API_KEY", "")
+
 # Server
 HOST = os.getenv("SIM_HOST", "0.0.0.0")
 PORT = int(os.getenv("SIM_PORT", "8100"))

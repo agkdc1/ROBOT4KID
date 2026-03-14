@@ -8,17 +8,17 @@
 - **Phase 4 (Embedded Firmware)**: COMPLETE — PlatformIO dual-env, hull_node + turret_node firmware, shared protocol, config
 - **Phase 5 (Flutter Control App)**: COMPLETE — project selection screen, MJPEG camera with PIP toggle, USB gamepad support (2 sticks + 4 buttons), FCS crosshair overlay with barrel angle control, trajectory equation, shot recording for RL training, CI/CD deploy scripts
 - **Phase 6 (FCS / Ballistics)**: PARTIAL — trajectory equation with 5 tunable coefficients (gravity, drag, hop-up, motion, bias), server-side gradient descent training endpoint, shot data upload from tablet. Needs: real camera ball tracking, PyTorch RL upgrade, edge AI deployment.
-- **Phase 7 (Webots Simulation)**: PARTIAL — Webots world template, tank/supervisor controllers, PROTO converter, WebSocket telemetry bridge, API endpoints. Needs: end-to-end testing, Docker compose, live Three.js viewer mode.
+- **Phase 7 (Webots Simulation)**: COMPLETE — Webots world template, tank/supervisor controllers, PROTO converter, WebSocket telemetry bridge, API endpoints, pipeline integration (auto-runs after URDF assembly). Needs: end-to-end testing, Docker compose, live Three.js viewer mode.
+- **Phase 7.5 (Service Deployment)**: COMPLETE — NSSM Windows services, API key auth for simulation server, dotenv loading, .env.example, PowerShell service management script, iterative refinement loop (simulation feedback → LLM redesign).
 - **Phase 8**: NOT STARTED — full integration, production deployment
 
 ## Next Steps
-1. Fetch secrets: `./system/fetch_secrets.sh` (or manually set `.env`)
-2. Install deps: `cd planning_server && pip install -r requirements.txt`
-3. Install Webots (R2023b+) and set `WEBOTS_HOME` env var
-4. Start both servers and test end-to-end
+1. Configure `.env` (copy from `.env.example` or fetch from GCP: `./system/fetch_secrets.sh`)
+2. Install services: `.\system\services.ps1 install` (requires admin)
+3. Start services: `.\system\services.ps1 start`
+4. Install Webots (R2023b+) and set `WEBOTS_HOME` env var
 5. Run LLM evaluation: `python -m tests.test_llm_pipeline --provider claude --step all`
-6. Test Webots simulation: `POST /api/v1/webots/start` with a job ID
-7. Test full pipeline: NL prompt → LLM generates RobotSpec → SCAD rendering → URDF → Webots PROTO → simulation
+6. Test full pipeline: NL prompt → RobotSpec → SCAD → STL → URDF → Webots PROTO → simulation → refinement
 
 ## Architecture
 - **Two-server architecture**: Planning Server (port 8000) + Simulation Server (port 8100)
@@ -26,15 +26,32 @@
 - **The Simulation Server is standalone**: It knows nothing about LLMs, users, or conversations. It accepts a `SimulationRequest` JSON and returns `SimulationFeedback`.
 - **Dual LLM**: Claude Sonnet (primary — 3D modeling, planning, structured generation) + Gemini (secondary — simpler tasks, expansion). Provider abstraction in `planning_server/app/pipeline/llm.py`.
 - **Webots Integration**: Physics simulation via Webots. Controllers communicate over TCP (binary protocol port 10200, JSON supervisor port 10201). WebSocket bridge streams telemetry at 30Hz.
+- **Service Deployment**: NSSM Windows services, Cloudflare Tunnel for external HTTPS access, API key auth for inter-service communication.
+- **Iterative Refinement**: Simulation feedback is sent back to the LLM to fix design issues (max 2 rounds by default). Controlled by `MAX_REFINEMENT_ITERATIONS` env var.
 
 ## GCP Infrastructure
 - **Project**: `nl2bot-f7e604` (account: ahnchoonghyun@gmail.com)
 - **Backup Bucket**: `nl2bot-f7e604-backup` (us-west1, free tier)
-- **Secrets**: `anthropic-api-key`, `gemini-api-key`, `jwt-secret-key` in Secret Manager
+- **Secrets**: `anthropic-api-key`, `gemini-api-key`, `jwt-secret-key`, `sim-api-key`, `nl2bot-admin-password`, `nl2bot-domains` in Secret Manager
 - **Terraform**: `infra/terraform/` — manages project, APIs, bucket, secrets
 - **Backup/Restore**: `system/backup.sh`, `system/restore.sh`, `system/fetch_secrets.sh`
 
 ## Running the Servers
+
+### As Windows Services (recommended)
+```powershell
+# Install and start all services (Planning, Simulation, Cloudflare Tunnel)
+.\system\services.ps1 install
+.\system\services.ps1 start
+
+# Check status
+.\system\services.ps1 status
+
+# View logs
+.\system\services.ps1 logs
+```
+
+### Manual (development)
 ```bash
 # Fetch secrets from GCP (creates .env automatically)
 ./system/fetch_secrets.sh

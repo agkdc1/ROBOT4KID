@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 
 import httpx
 
@@ -18,10 +19,21 @@ class SimulationClient:
     def __init__(self, base_url: str | None = None):
         self.base_url = (base_url or config.SIMULATION_SERVER_URL).rstrip("/")
 
+    def _auth_headers(self) -> dict:
+        """Return auth headers if API key is configured."""
+        api_key = getattr(config, 'SIM_API_KEY', '') or os.getenv('SIM_API_KEY', '')
+        if api_key:
+            return {"X-API-Key": api_key}
+        return {}
+
     async def health_check(self) -> dict:
         """Check if the simulation server is healthy."""
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{self.base_url}/api/v1/health", timeout=10)
+            response = await client.get(
+                f"{self.base_url}/api/v1/health",
+                timeout=10,
+                headers=self._auth_headers(),
+            )
             response.raise_for_status()
             return response.json()
 
@@ -45,6 +57,7 @@ class SimulationClient:
                 f"{self.base_url}/api/v1/simulate",
                 json=request.model_dump(),
                 timeout=30,
+                headers=self._auth_headers(),
             )
             response.raise_for_status()
             return response.json()
@@ -55,6 +68,7 @@ class SimulationClient:
             response = await client.get(
                 f"{self.base_url}/api/v1/jobs/{job_id}",
                 timeout=10,
+                headers=self._auth_headers(),
             )
             response.raise_for_status()
             return response.json()
@@ -65,6 +79,42 @@ class SimulationClient:
             response = await client.get(
                 f"{self.base_url}/api/v1/jobs/{job_id}/feedback",
                 timeout=10,
+                headers=self._auth_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def start_webots(self, job_id: str, convert_urdf: bool = True) -> dict:
+        """Start Webots simulation for a job."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/api/v1/webots/start",
+                json={"job_id": job_id, "convert_urdf": convert_urdf},
+                timeout=30,
+                headers=self._auth_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def stop_webots(self) -> dict:
+        """Stop Webots simulation."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/api/v1/webots/stop",
+                json={},
+                timeout=10,
+                headers=self._auth_headers(),
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_webots_status(self) -> dict:
+        """Get Webots simulation status."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/api/v1/webots/status",
+                timeout=10,
+                headers=self._auth_headers(),
             )
             response.raise_for_status()
             return response.json()

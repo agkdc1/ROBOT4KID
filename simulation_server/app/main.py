@@ -3,14 +3,19 @@
 import sys
 from pathlib import Path
 
+# Load .env before anything reads os.getenv
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+
 # Add project root to path so shared schemas are importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from simulation_server.app import config
+from simulation_server.app.auth import require_api_key
 from simulation_server.app.renderer.router import router as renderer_router
 from simulation_server.app.assembler.router import router as assembler_router
 from simulation_server.app.analyzer.router import router as analyzer_router
@@ -32,13 +37,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount routers
-app.include_router(jobs_router, prefix="/api/v1", tags=["jobs"])
-app.include_router(renderer_router, prefix="/api/v1", tags=["renderer"])
-app.include_router(assembler_router, prefix="/api/v1", tags=["assembler"])
-app.include_router(analyzer_router, prefix="/api/v1", tags=["analyzer"])
-app.include_router(viewer_router, prefix="/api/v1/viewer", tags=["viewer"])
-app.include_router(webots_router, prefix="/api/v1", tags=["webots"])
+# Mount routers (all require API key auth)
+app.include_router(jobs_router, prefix="/api/v1", tags=["jobs"], dependencies=[Depends(require_api_key)])
+app.include_router(renderer_router, prefix="/api/v1", tags=["renderer"], dependencies=[Depends(require_api_key)])
+app.include_router(assembler_router, prefix="/api/v1", tags=["assembler"], dependencies=[Depends(require_api_key)])
+app.include_router(analyzer_router, prefix="/api/v1", tags=["analyzer"], dependencies=[Depends(require_api_key)])
+app.include_router(viewer_router, prefix="/api/v1/viewer", tags=["viewer"], dependencies=[Depends(require_api_key)])
+app.include_router(webots_router, prefix="/api/v1", tags=["webots"], dependencies=[Depends(require_api_key)])
 
 # Serve viewer static files
 viewer_static = Path(__file__).parent / "viewer" / "static"

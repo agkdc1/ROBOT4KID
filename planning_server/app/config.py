@@ -32,6 +32,7 @@ GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
 
 # Simulation Server
 SIMULATION_SERVER_URL = os.getenv("SIMULATION_SERVER_URL", "http://localhost:8100")
+SIM_API_KEY = os.getenv("SIM_API_KEY", "")
 
 # Auth
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "CHANGE-ME-IN-PRODUCTION-use-openssl-rand-hex-32")

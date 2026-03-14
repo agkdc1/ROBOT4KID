@@ -6,6 +6,9 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

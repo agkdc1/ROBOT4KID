@@ -67,3 +67,6 @@ service-account*.json
 
 # Docker
 .docker/
+
+# Service logs
+logs/
