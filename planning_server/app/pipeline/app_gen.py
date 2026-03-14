@@ -1,10 +1,8 @@
-"""Flutter app generation module — generates Dart code via Claude API."""
+"""Flutter app generation module — generates Dart code via LLM."""
 
 import logging
 
-from anthropic import AsyncAnthropic
-
-from planning_server.app import config
+from planning_server.app.pipeline.llm import Provider, generate_text
 from shared.schemas.robot_spec import RobotSpec
 
 logger = logging.getLogger(__name__)
@@ -34,23 +32,19 @@ async def generate_app_code(
     robot_spec: RobotSpec,
     component: str = "main",
     model: str | None = None,
+    provider: Provider = Provider.CLAUDE,
 ) -> str:
     """Generate Flutter/Dart code for a specific app component.
 
     Args:
         robot_spec: Full robot specification.
         component: Which component to generate (main, control_screen, joystick, etc.).
-        model: Claude model to use.
+        model: Model override.
+        provider: LLM provider to use.
 
     Returns:
         Dart source code string.
     """
-    if not config.ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY not set")
-
-    client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
-    model = model or config.CLAUDE_MODEL_FAST
-
     prompt = f"""Generate Flutter/Dart code for the {component} component of the control app for "{robot_spec.name}".
 
 Robot details:
@@ -63,28 +57,13 @@ Robot details:
 Generate the {component} file.
 """
 
-    for attempt in range(config.CLAUDE_MAX_RETRIES):
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=8192,
-                system=APP_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            )
+    code = await generate_text(
+        prompt=prompt,
+        system=APP_SYSTEM_PROMPT,
+        provider=provider,
+        model=model,
+        max_tokens=8192,
+    )
 
-            code = response.content[0].text.strip()
-            if code.startswith("```"):
-                lines = code.split("\n")
-                code = "\n".join(lines[1:])
-                if code.endswith("```"):
-                    code = code[:-3].strip()
-
-            logger.info(f"Generated app code for {component}: {len(code)} chars")
-            return code
-
-        except Exception as e:
-            logger.warning(f"App gen attempt {attempt + 1} failed: {e}")
-            if attempt == config.CLAUDE_MAX_RETRIES - 1:
-                raise ValueError(f"App generation failed: {e}")
-
-    raise ValueError("App generation failed")
+    logger.info(f"Generated app code for {component}: {len(code)} chars")
+    return code

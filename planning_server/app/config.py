@@ -17,11 +17,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DATA_DIR / 'db.s
 HOST = os.getenv("PLAN_HOST", "0.0.0.0")
 PORT = int(os.getenv("PLAN_PORT", "8000"))
 
-# Claude API
+# Claude API (primary — 3D modeling, planning, complex generation)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL_FAST = os.getenv("CLAUDE_MODEL_FAST", "claude-sonnet-4-6-20250514")
 CLAUDE_MODEL_SMART = os.getenv("CLAUDE_MODEL_SMART", "claude-opus-4-6-20250514")
 CLAUDE_MAX_RETRIES = int(os.getenv("CLAUDE_MAX_RETRIES", "3"))
+
+# Gemini API (secondary — simpler tasks, expansion)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+# GCP
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
 
 # Simulation Server
 SIMULATION_SERVER_URL = os.getenv("SIMULATION_SERVER_URL", "http://localhost:8100")

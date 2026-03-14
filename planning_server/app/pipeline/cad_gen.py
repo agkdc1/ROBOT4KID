@@ -1,10 +1,8 @@
-"""CAD generation module — uses Claude API to generate OpenSCAD code for parts."""
+"""CAD generation module — generates OpenSCAD code for parts via LLM."""
 
 import logging
 
-from anthropic import AsyncAnthropic
-
-from planning_server.app import config
+from planning_server.app.pipeline.llm import Provider, generate_text
 from shared.schemas.robot_spec import PartSpec, PrinterProfile
 
 logger = logging.getLogger(__name__)
@@ -37,6 +35,7 @@ async def generate_scad_for_part(
     printer: PrinterProfile,
     context: str = "",
     model: str | None = None,
+    provider: Provider = Provider.CLAUDE,
 ) -> str:
     """Generate OpenSCAD code for a single part.
 
@@ -44,17 +43,12 @@ async def generate_scad_for_part(
         part: The part specification.
         printer: Printer profile for design constraints.
         context: Additional context (e.g., related parts, assembly notes).
-        model: Claude model to use.
+        model: Model override.
+        provider: LLM provider to use.
 
     Returns:
         OpenSCAD code string.
     """
-    if not config.ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY not set")
-
-    client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
-    model = model or config.CLAUDE_MODEL_FAST
-
     prompt = f"""Generate OpenSCAD code for this part:
 
 Part ID: {part.id}
@@ -74,30 +68,13 @@ Printer constraints:
 Generate complete, renderable OpenSCAD code for this part.
 """
 
-    for attempt in range(config.CLAUDE_MAX_RETRIES):
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=4096,
-                system=SCAD_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            )
+    code = await generate_text(
+        prompt=prompt,
+        system=SCAD_SYSTEM_PROMPT,
+        provider=provider,
+        model=model,
+        max_tokens=4096,
+    )
 
-            code = response.content[0].text.strip()
-
-            # Strip markdown fences if present
-            if code.startswith("```"):
-                lines = code.split("\n")
-                code = "\n".join(lines[1:])
-                if code.endswith("```"):
-                    code = code[:-3].strip()
-
-            logger.info(f"Generated SCAD for {part.id}: {len(code)} chars")
-            return code
-
-        except Exception as e:
-            logger.warning(f"SCAD generation attempt {attempt + 1} failed for {part.id}: {e}")
-            if attempt == config.CLAUDE_MAX_RETRIES - 1:
-                raise ValueError(f"SCAD generation failed for {part.id}: {e}")
-
-    raise ValueError(f"SCAD generation failed for {part.id}")
+    logger.info(f"Generated SCAD for {part.id}: {len(code)} chars")
+    return code

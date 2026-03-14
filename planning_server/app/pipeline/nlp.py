@@ -1,11 +1,8 @@
-"""NLP parsing module — uses Claude API to parse natural language into RobotSpec."""
+"""NLP parsing module — parses natural language into RobotSpec via LLM."""
 
-import json
 import logging
 
-from anthropic import AsyncAnthropic
-
-from planning_server.app import config
+from planning_server.app.pipeline.llm import Provider, generate_with_tool
 from shared.schemas.robot_spec import RobotSpec
 
 logger = logging.getLogger(__name__)
@@ -45,48 +42,30 @@ Default printer: Bambu Lab A1 Mini (180x180x180mm, PLA, 0.4mm nozzle, 0.2mm laye
 async def parse_nl_to_robot_spec(
     prompt: str,
     model: str | None = None,
+    provider: Provider = Provider.CLAUDE,
 ) -> RobotSpec:
-    """Parse a natural language prompt into a RobotSpec using Claude API.
+    """Parse a natural language prompt into a RobotSpec using LLM.
 
     Args:
         prompt: Natural language description of the robot.
-        model: Claude model to use (defaults to fast model).
+        model: Model override.
+        provider: LLM provider to use.
 
     Returns:
         Parsed RobotSpec.
 
     Raises:
-        ValueError: If Claude's response cannot be parsed.
+        ValueError: If the response cannot be parsed.
     """
-    if not config.ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY not set. Configure it in environment variables.")
+    result = await generate_with_tool(
+        prompt=prompt,
+        system=SYSTEM_PROMPT,
+        tool=ROBOT_SPEC_TOOL,
+        tool_name="robot_specification",
+        provider=provider,
+        model=model,
+    )
 
-    client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
-    model = model or config.CLAUDE_MODEL_FAST
-
-    for attempt in range(config.CLAUDE_MAX_RETRIES):
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=8192,
-                system=SYSTEM_PROMPT,
-                tools=[ROBOT_SPEC_TOOL],
-                tool_choice={"type": "tool", "name": "robot_specification"},
-                messages=[{"role": "user", "content": prompt}],
-            )
-
-            # Extract tool_use block
-            for block in response.content:
-                if block.type == "tool_use" and block.name == "robot_specification":
-                    spec = RobotSpec.model_validate(block.input)
-                    logger.info(f"Parsed RobotSpec: {spec.name} with {len(spec.parts)} parts")
-                    return spec
-
-            raise ValueError("No robot_specification tool_use in response")
-
-        except Exception as e:
-            logger.warning(f"NLP parse attempt {attempt + 1} failed: {e}")
-            if attempt == config.CLAUDE_MAX_RETRIES - 1:
-                raise ValueError(f"Failed to parse after {config.CLAUDE_MAX_RETRIES} attempts: {e}")
-
-    raise ValueError("NLP parsing failed")
+    spec = RobotSpec.model_validate(result)
+    logger.info(f"Parsed RobotSpec: {spec.name} with {len(spec.parts)} parts")
+    return spec

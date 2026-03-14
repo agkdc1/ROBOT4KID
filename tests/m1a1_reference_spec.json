@@ -1,0 +1,271 @@
+{
+  "name": "M1A1 Abrams",
+  "version": "1.0.0",
+  "description": "1/10 scale M1A1 Abrams tank — 3D printable, dual ESP32-CAM, tablet-controlled",
+  "printer": {
+    "name": "Bambu Lab A1 Mini",
+    "build_volume_mm": [180.0, 180.0, 180.0],
+    "nozzle_diameter_mm": 0.4,
+    "layer_height_mm": 0.2,
+    "material": "PLA",
+    "wall_thickness_mm": 1.2,
+    "tolerance_mm": 0.2
+  },
+  "parts": [
+    {
+      "id": "hull_front",
+      "name": "Hull Chassis Front",
+      "scad_file": "chassis/hull.scad",
+      "category": "chassis",
+      "dimensions_mm": [150.0, 90.0, 80.0],
+      "requires_splitting": false,
+      "mass_grams": 85.0,
+      "color": "#5a6e3a"
+    },
+    {
+      "id": "hull_rear",
+      "name": "Hull Chassis Rear",
+      "scad_file": "chassis/hull.scad",
+      "category": "chassis",
+      "dimensions_mm": [150.0, 90.0, 80.0],
+      "requires_splitting": false,
+      "mass_grams": 90.0,
+      "color": "#5a6e3a"
+    },
+    {
+      "id": "track_left",
+      "name": "Left Track Assembly",
+      "scad_file": "chassis/track_assembly.scad",
+      "category": "chassis",
+      "dimensions_mm": [170.0, 25.0, 60.0],
+      "requires_splitting": false,
+      "mass_grams": 45.0,
+      "color": "#333333"
+    },
+    {
+      "id": "track_right",
+      "name": "Right Track Assembly",
+      "scad_file": "chassis/track_assembly.scad",
+      "category": "chassis",
+      "dimensions_mm": [170.0, 25.0, 60.0],
+      "requires_splitting": false,
+      "mass_grams": 45.0,
+      "color": "#333333"
+    },
+    {
+      "id": "battery_compartment",
+      "name": "Battery Compartment",
+      "scad_file": "chassis/battery_compartment.scad",
+      "category": "chassis",
+      "dimensions_mm": [74.0, 44.0, 34.0],
+      "requires_splitting": false,
+      "mass_grams": 15.0,
+      "color": "#444444"
+    },
+    {
+      "id": "motor_mount_left",
+      "name": "Left Motor Mount",
+      "scad_file": "chassis/motor_mount.scad",
+      "category": "chassis",
+      "dimensions_mm": [40.0, 30.0, 25.0],
+      "requires_splitting": false,
+      "mass_grams": 8.0,
+      "color": "#555555"
+    },
+    {
+      "id": "motor_mount_right",
+      "name": "Right Motor Mount",
+      "scad_file": "chassis/motor_mount.scad",
+      "category": "chassis",
+      "dimensions_mm": [40.0, 30.0, 25.0],
+      "requires_splitting": false,
+      "mass_grams": 8.0,
+      "color": "#555555"
+    },
+    {
+      "id": "electronics_bay",
+      "name": "Electronics Bay",
+      "scad_file": "chassis/electronics_bay.scad",
+      "category": "chassis",
+      "dimensions_mm": [80.0, 60.0, 30.0],
+      "requires_splitting": false,
+      "mass_grams": 12.0,
+      "color": "#444444"
+    },
+    {
+      "id": "turret_body",
+      "name": "Turret Body",
+      "scad_file": "turret/turret_body.scad",
+      "category": "turret",
+      "dimensions_mm": [120.0, 95.0, 50.0],
+      "requires_splitting": false,
+      "mass_grams": 65.0,
+      "color": "#4a5e2a"
+    },
+    {
+      "id": "gun_barrel",
+      "name": "Gun Barrel",
+      "scad_file": "turret/gun_barrel.scad",
+      "category": "turret",
+      "dimensions_mm": [138.0, 16.0, 16.0],
+      "requires_splitting": false,
+      "mass_grams": 12.0,
+      "color": "#3a4e1a"
+    },
+    {
+      "id": "servo_mount",
+      "name": "Barrel Elevation Servo Mount",
+      "scad_file": "turret/servo_mount.scad",
+      "category": "turret",
+      "dimensions_mm": [30.0, 25.0, 20.0],
+      "requires_splitting": false,
+      "mass_grams": 5.0,
+      "color": "#555555"
+    }
+  ],
+  "joints": [
+    {
+      "name": "hull_split",
+      "type": "fixed",
+      "parent_part": "hull_front",
+      "child_part": "hull_rear",
+      "axis": [1.0, 0.0, 0.0],
+      "origin_xyz": [150.0, 0.0, 0.0],
+      "origin_rpy": [0.0, 0.0, 0.0],
+      "fastener": "m4_screw"
+    },
+    {
+      "name": "turret_rotation",
+      "type": "revolute",
+      "parent_part": "hull_rear",
+      "child_part": "turret_body",
+      "axis": [0.0, 0.0, 1.0],
+      "origin_xyz": [75.0, 45.0, 80.0],
+      "origin_rpy": [0.0, 0.0, 0.0],
+      "limits": {"lower": -3.14, "upper": 3.14, "effort": 5.0, "velocity": 1.0},
+      "fastener": "press_fit"
+    },
+    {
+      "name": "barrel_elevation",
+      "type": "revolute",
+      "parent_part": "turret_body",
+      "child_part": "gun_barrel",
+      "axis": [0.0, 1.0, 0.0],
+      "origin_xyz": [105.0, 47.5, 30.0],
+      "origin_rpy": [0.0, 0.0, 0.0],
+      "limits": {"lower": -0.17, "upper": 0.35, "effort": 2.0, "velocity": 0.5},
+      "fastener": "m4_screw"
+    },
+    {
+      "name": "track_left_mount",
+      "type": "fixed",
+      "parent_part": "hull_front",
+      "child_part": "track_left",
+      "axis": [1.0, 0.0, 0.0],
+      "origin_xyz": [0.0, -25.0, 10.0],
+      "origin_rpy": [0.0, 0.0, 0.0],
+      "fastener": "m4_screw"
+    },
+    {
+      "name": "track_right_mount",
+      "type": "fixed",
+      "parent_part": "hull_front",
+      "child_part": "track_right",
+      "axis": [1.0, 0.0, 0.0],
+      "origin_xyz": [0.0, 90.0, 10.0],
+      "origin_rpy": [0.0, 0.0, 0.0],
+      "fastener": "m4_screw"
+    }
+  ],
+  "electronics": [
+    {
+      "id": "hull_esp32cam",
+      "type": "ESP32-CAM",
+      "host_part": "hull_front",
+      "mount_position_mm": [5.0, 45.0, 50.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": []
+    },
+    {
+      "id": "hull_motor_driver",
+      "type": "L9110",
+      "host_part": "electronics_bay",
+      "mount_position_mm": [10.0, 10.0, 5.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": [
+        {"pin": "A-IA", "wire_to": "GPIO12", "wire_color": "red"},
+        {"pin": "A-IB", "wire_to": "GPIO13", "wire_color": "orange"},
+        {"pin": "B-IA", "wire_to": "GPIO14", "wire_color": "yellow"},
+        {"pin": "B-IB", "wire_to": "GPIO15", "wire_color": "green"}
+      ]
+    },
+    {
+      "id": "hull_gyro",
+      "type": "MPU6050",
+      "host_part": "electronics_bay",
+      "mount_position_mm": [40.0, 30.0, 5.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": [
+        {"pin": "SDA", "wire_to": "GPIO2", "wire_color": "blue"},
+        {"pin": "SCL", "wire_to": "GPIO4", "wire_color": "purple"}
+      ]
+    },
+    {
+      "id": "turret_esp32cam",
+      "type": "ESP32-CAM",
+      "host_part": "turret_body",
+      "mount_position_mm": [110.0, 47.5, 25.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": []
+    },
+    {
+      "id": "turret_elevation_servo",
+      "type": "SG90 Servo",
+      "host_part": "servo_mount",
+      "mount_position_mm": [15.0, 12.5, 10.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": [
+        {"pin": "SIGNAL", "wire_to": "GPIO12", "wire_color": "white"}
+      ]
+    },
+    {
+      "id": "turret_rotation_motor",
+      "type": "N20 Gear Motor",
+      "host_part": "hull_rear",
+      "mount_position_mm": [75.0, 45.0, 70.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": [
+        {"pin": "M+", "wire_to": "GPIO13", "wire_color": "red"},
+        {"pin": "M-", "wire_to": "GPIO14", "wire_color": "black"}
+      ]
+    },
+    {
+      "id": "turret_tof_sensor",
+      "type": "VL53L0X",
+      "host_part": "turret_body",
+      "mount_position_mm": [115.0, 47.5, 40.0],
+      "mount_orientation_rpy": [0.0, 0.0, 0.0],
+      "connections": [
+        {"pin": "SDA", "wire_to": "GPIO2", "wire_color": "blue"},
+        {"pin": "SCL", "wire_to": "GPIO4", "wire_color": "purple"}
+      ]
+    }
+  ],
+  "firmware_config": {
+    "wifi_ssid": "TANK_CTRL",
+    "wifi_password": "tank1234",
+    "hull_camera_port": 81,
+    "turret_camera_port": 81,
+    "websocket_port": 80,
+    "uart_baud": 115200,
+    "motor_pwm_freq": 5000,
+    "servo_min_us": 544,
+    "servo_max_us": 2400
+  },
+  "metadata": {
+    "scale": "1:10",
+    "real_vehicle": "M1A1 Abrams Main Battle Tank",
+    "target_weight_grams": 500,
+    "battery": "2S LiPo 7.4V 1300mAh"
+  }
+}

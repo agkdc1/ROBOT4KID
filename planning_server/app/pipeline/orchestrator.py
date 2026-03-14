@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 from planning_server.app import config
+from planning_server.app.pipeline.llm import Provider
 from planning_server.app.pipeline.nlp import parse_nl_to_robot_spec
 from planning_server.app.pipeline.cad_gen import generate_scad_for_part
 from planning_server.app.simulation_client.client import SimulationClient

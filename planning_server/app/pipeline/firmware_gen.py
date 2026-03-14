@@ -1,10 +1,8 @@
-"""Firmware generation module — generates ESP32 C++ code via Claude API."""
+"""Firmware generation module — generates ESP32 C++ code via LLM."""
 
 import logging
 
-from anthropic import AsyncAnthropic
-
-from planning_server.app import config
+from planning_server.app.pipeline.llm import Provider, generate_text
 from shared.schemas.robot_spec import RobotSpec
 
 logger = logging.getLogger(__name__)
@@ -30,23 +28,19 @@ async def generate_firmware(
     robot_spec: RobotSpec,
     node: str = "hull",
     model: str | None = None,
+    provider: Provider = Provider.CLAUDE,
 ) -> str:
     """Generate firmware code for the specified node.
 
     Args:
         robot_spec: Full robot specification.
         node: "hull" or "turret".
-        model: Claude model to use.
+        model: Model override.
+        provider: LLM provider to use.
 
     Returns:
         C++ source code string.
     """
-    if not config.ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY not set")
-
-    client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
-    model = model or config.CLAUDE_MODEL_FAST
-
     fw_config = robot_spec.firmware_config
     electronics = [e for e in robot_spec.electronics if node in e.id.lower() or node in e.host_part.lower()]
 
@@ -83,28 +77,13 @@ Requirements for {node} node:
 - Receive commands via UART Serial2 from hull
 """
 
-    for attempt in range(config.CLAUDE_MAX_RETRIES):
-        try:
-            response = await client.messages.create(
-                model=model,
-                max_tokens=8192,
-                system=FIRMWARE_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-            )
+    code = await generate_text(
+        prompt=prompt,
+        system=FIRMWARE_SYSTEM_PROMPT,
+        provider=provider,
+        model=model,
+        max_tokens=8192,
+    )
 
-            code = response.content[0].text.strip()
-            if code.startswith("```"):
-                lines = code.split("\n")
-                code = "\n".join(lines[1:])
-                if code.endswith("```"):
-                    code = code[:-3].strip()
-
-            logger.info(f"Generated firmware for {node}: {len(code)} chars")
-            return code
-
-        except Exception as e:
-            logger.warning(f"Firmware gen attempt {attempt + 1} failed: {e}")
-            if attempt == config.CLAUDE_MAX_RETRIES - 1:
-                raise ValueError(f"Firmware generation failed: {e}")
-
-    raise ValueError("Firmware generation failed")
+    logger.info(f"Generated firmware for {node}: {len(code)} chars")
+    return code
