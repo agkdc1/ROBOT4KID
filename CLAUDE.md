@@ -6,8 +6,9 @@
 - **Phase 2 (Planning Server MVP)**: COMPLETE — FastAPI skeleton, JWT auth, user registration + admin approval, project CRUD, dual LLM integration (Claude primary + Gemini secondary), pipeline orchestrator, HTMX web UI
 - **Phase 3 (M1A1 Test Case)**: PARTIAL — hull.scad, turret_body.scad, gun_barrel.scad, m4_hardware.scad, common.scad written. Reference spec and test/eval script created. Needs remaining sub-components (track_assembly, battery_compartment, motor_mount, servo_mount, electronics_bay).
 - **Phase 4 (Embedded Firmware)**: COMPLETE — PlatformIO dual-env, hull_node + turret_node firmware, shared protocol, config
-- **Phase 5 (Flutter Control App)**: COMPLETE — dual joystick, HUD overlay, button panel, WebSocket connection service, command protocol
-- **Phase 6-7**: NOT STARTED — ballistics/edge AI, integration, docker compose testing
+- **Phase 5 (Flutter Control App)**: COMPLETE — project selection screen, MJPEG camera with PIP toggle, USB gamepad support (2 sticks + 4 buttons), FCS crosshair overlay with barrel angle control, trajectory equation, shot recording for RL training, CI/CD deploy scripts
+- **Phase 6 (FCS / Ballistics)**: PARTIAL — trajectory equation with 5 tunable coefficients (gravity, drag, hop-up, motion, bias), server-side gradient descent training endpoint, shot data upload from tablet. Needs: real camera ball tracking, PyTorch RL upgrade, edge AI deployment.
+- **Phase 7**: NOT STARTED — full integration, docker compose testing
 
 ## Next Steps
 1. Fetch secrets: `./system/fetch_secrets.sh` (or manually set `.env`)
@@ -76,6 +77,21 @@ cd simulation_server && .venv/bin/python -m uvicorn app.main:app --port 8100 --r
 - **Gemini** (secondary): `GEMINI_API_KEY`, model: `gemini-2.5-flash`
 - All pipeline modules accept a `provider` parameter: `Provider.CLAUDE` or `Provider.GEMINI`
 - Provider abstraction: `planning_server/app/pipeline/llm.py` — `generate_text()` and `generate_with_tool()`
+
+## Cockpit / Control App
+- **Tablet**: Galaxy Tab A 8.0 2019 (USB Type-C, configurable in settings)
+- **Joystick**: USB HID gamepad — 2 analog sticks + 4 buttons (A=fire, B=view toggle, X=FCS toggle, Y=spare)
+- **Camera**: Chassis camera = main view, turret camera = PIP. Press VIEW to swap.
+- **FCS**: Crosshair centered on turret view, movable in middle 1/3 vertically. Barrel angle adjusts with crosshair. FCS computes trajectory based on range, ball speed, hop-up, chassis speed, turret angle.
+- **Trajectory Equation**: `angle = gravity_comp + drag_comp - hopup_comp + motion_comp + bias` (5 tunable coefficients)
+- **RL Training**: Shot data uploaded to server every 5 shots. Server runs gradient descent on coefficients. Updated coefficients deployed back to tablet.
+- **Deploy**: `.\system\deploy_app.ps1` (Windows) or `./system/deploy_app.sh` (bash). Builds APK and installs via ADB.
+
+## FCS API Endpoints
+- `GET /api/v1/fcs/coefficients` — current trajectory coefficients
+- `POST /api/v1/fcs/shots` — upload shot records
+- `POST /api/v1/fcs/train` — trigger RL training
+- `DELETE /api/v1/fcs/shots` — clear shot buffer
 
 ## Design Rules (Bambu A1 Mini)
 - Build volume: 180x180x180mm

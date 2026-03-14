@@ -1,45 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/tank_state.dart';
+import '../models/fcs_state.dart';
 
 class ButtonPanel extends StatelessWidget {
-  const ButtonPanel({super.key});
+  final VoidCallback? onFire;
+  final VoidCallback? onCameraToggle;
+  final VoidCallback? onFcsToggle;
+  final VoidCallback? onSpare;
+
+  const ButtonPanel({
+    super.key,
+    this.onFire,
+    this.onCameraToggle,
+    this.onFcsToggle,
+    this.onSpare,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final fcs = context.watch<FcsState>();
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _ControlButton(
           icon: Icons.local_fire_department,
-          label: 'FIRE',
+          label: 'FIRE (A)',
           color: Colors.red,
-          onPressed: () {
-            // Send fire command
-          },
+          onPressed: onFire,
         ),
         const SizedBox(width: 12),
         _ControlButton(
           icon: Icons.camera_alt,
-          label: 'CAMERA',
+          label: 'VIEW (B)',
           color: Colors.blue,
-          onPressed: () {
-            context.read<TankState>().toggleCamera();
-          },
+          onPressed: onCameraToggle,
         ),
         const SizedBox(width: 12),
         _ControlButton(
-          icon: Icons.inventory,
-          label: 'RESUPPLY',
-          color: Colors.green,
-          onPressed: () {},
+          icon: Icons.gps_fixed,
+          label: fcs.fcsActive ? 'FCS ON' : 'FCS (X)',
+          color: fcs.fcsActive ? Colors.greenAccent : Colors.amber,
+          onPressed: onFcsToggle,
         ),
         const SizedBox(width: 12),
         _ControlButton(
           icon: Icons.build,
-          label: 'SPARE',
+          label: 'SPARE (Y)',
           color: Colors.orange,
-          onPressed: () {},
+          onPressed: onSpare,
         ),
       ],
     );

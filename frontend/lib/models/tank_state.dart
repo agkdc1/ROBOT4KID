@@ -14,7 +14,7 @@ class TankState extends ChangeNotifier {
 
   // Turret controls
   double turretX = 0.0;    // -1.0 to 1.0 (rotation)
-  double turretY = 0.0;    // -1.0 to 1.0 (elevation)
+  double turretY = 0.0;    // -1.0 to 1.0 (elevation / crosshair)
   int turretAngle = 0;     // 0-360 degrees
   int barrelElevation = 0; // -10 to 45 degrees
 
@@ -24,9 +24,14 @@ class TankState extends ChangeNotifier {
   double roll = 0.0;
   int rangeMm = 0;         // ToF reading
   int batteryPct = 100;
+  double chassisSpeedMs = 0.0; // estimated chassis speed in m/s
 
-  // Camera
-  int cameraMode = 0;      // 0=driver, 1=gunner, 2=split
+  // Camera — 0=chassis main + turret PIP, 1=turret main + chassis PIP
+  int cameraMode = 0;
+  bool get cameraSwapped => cameraMode == 1;
+
+  // Active project
+  String activeProjectId = 'm1a1_tank';
 
   void updateDrive(double x, double y) {
     throttle = y;
@@ -44,6 +49,9 @@ class TankState extends ChangeNotifier {
     leftMotorSpeed = (left * 100).round().clamp(-100, 100);
     rightMotorSpeed = (right * 100).round().clamp(-100, 100);
 
+    // Estimate chassis speed (average of motor speeds, scaled)
+    chassisSpeedMs = ((leftMotorSpeed + rightMotorSpeed) / 200.0).abs() * 2.0; // max ~2 m/s
+
     notifyListeners();
   }
 
@@ -51,11 +59,17 @@ class TankState extends ChangeNotifier {
     turretX = x;
     turretY = y;
 
-    // Map to turret angle and elevation
+    // X controls turret horizontal rotation
     turretAngle = (turretAngle + (x * 5).round()) % 360;
     if (turretAngle < 0) turretAngle += 360;
-    barrelElevation = (barrelElevation + (y * 2).round()).clamp(-10, 45);
 
+    // Y is passed to FCS for crosshair control (not direct barrel control anymore)
+    // Barrel elevation is set by FCS
+    notifyListeners();
+  }
+
+  void setBarrelElevation(int elevation) {
+    barrelElevation = elevation.clamp(-10, 45);
     notifyListeners();
   }
 
@@ -80,7 +94,7 @@ class TankState extends ChangeNotifier {
   }
 
   void toggleCamera() {
-    cameraMode = (cameraMode + 1) % 3;
+    cameraMode = cameraMode == 0 ? 1 : 0;
     notifyListeners();
   }
 }

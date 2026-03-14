@@ -20,6 +20,7 @@ from planning_server.app.auth.router import router as auth_router
 from planning_server.app.auth.admin_router import router as admin_router
 from planning_server.app.projects.router import router as projects_router
 from planning_server.app.pipeline.router import router as pipeline_router
+from planning_server.app.fcs.router import router as fcs_router
 from planning_server.app.web_ui import router as web_router
 
 
@@ -66,6 +67,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(pipeline_router, prefix="/api/v1")
+app.include_router(fcs_router)
 
 # Web UI
 app.include_router(web_router)

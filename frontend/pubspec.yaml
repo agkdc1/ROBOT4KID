@@ -1,7 +1,7 @@
 name: nl2bot_controller
-description: NL2Bot Tank Control Console — 10-inch tablet app
+description: NL2Bot Robot Control Console — tablet app with FCS
 publish_to: 'none'
-version: 0.1.0
+version: 0.2.0
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -12,6 +12,7 @@ dependencies:
   provider: ^6.1.1
   web_socket_channel: ^2.4.0
   http: ^1.2.0
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
