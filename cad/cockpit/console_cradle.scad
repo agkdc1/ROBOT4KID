@@ -1,13 +1,16 @@
 // Cockpit Console Cradle — Galaxy Tab A 8.0 (2019) + USB Gamepad
+// Integrated network/power hub: GL.iNet router, Anker power bank, Sabrent USB hub
 // Split into left and right halves for Bambu A1 Mini build volume
 // CONSOLE_WIDTH (270mm) exceeds 180mm, so halves join at center line
 
 use <../libs/common.scad>
 use <../libs/m3_hardware.scad>
 use <../libs/m4_hardware.scad>
+use <../libs/electronics.scad>
 
-// --- Console Dimensions (from common.scad) ---
-// CONSOLE_WIDTH = 270, CONSOLE_DEPTH = 180, CONSOLE_HEIGHT = 60
+// --- Console Dimensions (override CONSOLE_HEIGHT from common.scad) ---
+// CONSOLE_WIDTH = 270, CONSOLE_DEPTH = 180 (from common.scad)
+CONSOLE_HEIGHT_LOCAL = 80;  // Increased from 60mm to fit stacked components
 
 // --- Tablet Dimensions (Galaxy Tab A 8.0 2019) ---
 tablet_w = 210;                     // Width
@@ -33,6 +36,7 @@ cable_channel_h = 5;                // Cable routing channel depth
 // --- Structural ---
 wall = 1.6;                         // Wall thickness
 half_width = CONSOLE_WIDTH / 2;     // 135mm per half (< 180mm build limit)
+console_h = CONSOLE_HEIGHT_LOCAL;   // Use local override (80mm)
 
 // --- Split Joint ---
 key_size = 4;                       // Alignment key diameter
@@ -57,9 +61,60 @@ zip_slot_h = 3;                     // Zip-tie slot depth into wall
 
 // --- M3 Accessory Mount ---
 m3_insert_depth = 6;                // Threaded insert hole depth
-m3_mount_z1 = CONSOLE_HEIGHT * 0.3; // Lower accessory hole
-m3_mount_z2 = CONSOLE_HEIGHT * 0.7; // Upper accessory hole
+m3_mount_z1 = console_h * 0.3;     // Lower accessory hole
+m3_mount_z2 = console_h * 0.7;     // Upper accessory hole
 m3_mount_y_inset = 10;              // Inset from front/back
+
+// --- Network/Power Hub Components ---
+// GL.iNet GL-MT300N-V2 Router: 58x58x25mm
+router_l = GLINET_L;                // 58mm
+router_w = GLINET_W;                // 58mm
+router_h = GLINET_H;               // 25mm
+router_tol = 0.4;                   // Friction-fit tolerance
+router_wall = 2.0;                  // Cradle wall thickness
+
+// Anker PowerCore Slim 10000: 149x68x14mm
+pbank_l = ANKER_SLIM_L;            // 149mm
+pbank_w = ANKER_SLIM_W;            // 68mm
+pbank_h = ANKER_SLIM_H;            // 14mm
+pbank_tol = 0.4;                    // Friction-fit tolerance
+pbank_wall = 2.0;                   // Cradle wall thickness
+
+// Sabrent HB-UM43 USB Hub: 85x30x15mm
+hub_l = SABRENT_HUB_L;             // 85mm
+hub_w = SABRENT_HUB_W;             // 30mm
+hub_h = SABRENT_HUB_H;             // 15mm
+hub_rail_w = 1.5;                   // Rail mount width
+
+// --- Hub Component Positions (full console coords, origin at front-left) ---
+// Router: back-left corner, on bottom layer
+router_x = wall + 3;                               // 3mm inset from left inner wall
+router_y = CONSOLE_DEPTH - wall - router_w - 3;    // 3mm from back inner wall
+router_z = wall;                                    // Sitting on floor
+
+// USB Hub: along back wall, right of router
+hub_x = router_x + router_l + router_tol + 2*router_wall + 5;  // 5mm gap after router cradle
+hub_y = CONSOLE_DEPTH - wall - hub_w - 3;          // 3mm from back inner wall
+hub_z = wall;                                       // Sitting on floor
+
+// Power Bank: front bottom, underneath gamepad dock area
+pbank_x = wall + 3;                                 // 3mm from left inner wall
+pbank_y = wall + 3;                                 // 3mm from front inner wall
+pbank_z = wall;                                     // Sitting on floor
+
+// --- Port Cutout Dimensions ---
+router_port_w = 15;                 // Ethernet + USB pass-through width
+router_port_h = 20;                 // Ethernet + USB pass-through height
+pbank_port_w = 12;                  // USB-C charging port width
+pbank_port_h = 8;                   // USB-C charging port height
+hub_port_w = 70;                    // USB-A ports width
+hub_port_h = 12;                    // USB-A ports height
+hub_switch_w = 10;                  // Power switch cutout width
+hub_switch_h = 8;                   // Power switch cutout height
+
+// --- Internal Cable Duct ---
+duct_width = 8;                     // Wire duct channel width
+duct_depth = 6;                     // Wire duct channel depth
 
 // --- Part Selector ---
 // Set via CLI: -D 'part="left"'
@@ -75,11 +130,11 @@ module cradle_base_half() {
     // One half of the outer shell (left or right)
     // Origin at the split seam edge, extends in +X direction
     difference() {
-        rounded_cube([half_width, CONSOLE_DEPTH, CONSOLE_HEIGHT], r=3);
+        rounded_cube([half_width, CONSOLE_DEPTH, console_h], r=3);
 
         // Hollow interior
         translate([wall, wall, wall])
-            cube([half_width - wall, CONSOLE_DEPTH - 2 * wall, CONSOLE_HEIGHT]);
+            cube([half_width - wall, CONSOLE_DEPTH - 2 * wall, console_h]);
     }
 }
 
@@ -89,14 +144,11 @@ module tablet_cradle_cutout() {
     tablet_x = (CONSOLE_WIDTH - recess_w) / 2;
     tablet_y = CONSOLE_DEPTH - recess_d - 20;  // 20mm from back wall
 
-    translate([tablet_x, tablet_y, CONSOLE_HEIGHT - pocket_depth])
+    translate([tablet_x, tablet_y, console_h - pocket_depth])
     rotate([tablet_angle, 0, 0]) {
         // Tablet pocket (open at bottom/USB-C side)
         translate([-1, 0, 0])
             cube([recess_w + 2, recess_d + 10, pocket_depth + lip_h + 5]);
-
-        // Re-add retaining lips by subtracting slightly less on 3 sides
-        // (Lips are created in the positive module below)
     }
 }
 
@@ -106,7 +158,7 @@ module tablet_pocket_shape() {
     tablet_x = (CONSOLE_WIDTH - recess_w) / 2;
     tablet_y = CONSOLE_DEPTH - recess_d - 20;
 
-    translate([tablet_x, tablet_y, CONSOLE_HEIGHT - pocket_depth])
+    translate([tablet_x, tablet_y, console_h - pocket_depth])
     rotate([tablet_angle, 0, 0]) {
         // Main pocket
         cube([recess_w, recess_d, pocket_depth]);
@@ -124,7 +176,7 @@ module tablet_lips() {
     tablet_y = CONSOLE_DEPTH - recess_d - 20;
     lip_inset = 1.5;  // How far lip extends over tablet
 
-    translate([tablet_x, tablet_y, CONSOLE_HEIGHT - pocket_depth])
+    translate([tablet_x, tablet_y, console_h - pocket_depth])
     rotate([tablet_angle, 0, 0])
     translate([0, 0, pocket_depth]) {
         // Left lip
@@ -149,7 +201,7 @@ module gamepad_dock() {
     translate([
         (CONSOLE_WIDTH - gamepad_channel_w) / 2,
         dock_y + (gamepad_d - gamepad_channel_d) / 2,
-        CONSOLE_HEIGHT - gamepad_channel_h
+        console_h - gamepad_channel_h
     ])
         cube([gamepad_channel_w, gamepad_channel_d, gamepad_channel_h + 0.1]);
 
@@ -157,7 +209,7 @@ module gamepad_dock() {
     translate([
         CONSOLE_WIDTH / 2 - cable_channel_w / 2,
         dock_y + gamepad_d,
-        CONSOLE_HEIGHT - cable_channel_h
+        console_h - cable_channel_h
     ])
         cube([cable_channel_w, CONSOLE_DEPTH - recess_d - 20 - dock_y - gamepad_d, cable_channel_h + 0.1]);
 }
@@ -165,7 +217,7 @@ module gamepad_dock() {
 module cable_management_channel() {
     // Channel along the back wall for power/USB cables
     // Coordinate system: full console
-    translate([wall + 5, CONSOLE_DEPTH - wall - cable_mgmt_w, CONSOLE_HEIGHT - cable_mgmt_h])
+    translate([wall + 5, CONSOLE_DEPTH - wall - cable_mgmt_w, console_h - cable_mgmt_h])
         cube([CONSOLE_WIDTH - 2 * wall - 10, cable_mgmt_w, cable_mgmt_h + 0.1]);
 }
 
@@ -176,7 +228,7 @@ module zip_tie_slots() {
     spacing = (CONSOLE_WIDTH - 2 * wall - 20) / (slot_count - 1);
 
     for (i = [0 : slot_count - 1]) {
-        translate([wall + 10 + i * spacing, CONSOLE_DEPTH - wall - 0.1, CONSOLE_HEIGHT - cable_mgmt_h - zip_slot_h])
+        translate([wall + 10 + i * spacing, CONSOLE_DEPTH - wall - 0.1, console_h - cable_mgmt_h - zip_slot_h])
             cube([zip_slot_w, wall + 0.2, zip_slot_h]);
     }
 }
@@ -185,7 +237,7 @@ module ventilation_slots() {
     // Vent slots on the back wall
     // Coordinate system: full console
     slot_spacing = (CONSOLE_WIDTH - 2 * wall - 20) / (vent_count - 1);
-    vent_z = (CONSOLE_HEIGHT - vent_h) / 2;
+    vent_z = (console_h - vent_h) / 2;
 
     for (i = [0 : vent_count - 1]) {
         translate([wall + 10 + i * slot_spacing, CONSOLE_DEPTH - wall - 0.1, vent_z])
@@ -223,7 +275,7 @@ module split_joint_features_male() {
     // Alignment keys on the seam face (added to left half)
     key_y1 = CONSOLE_DEPTH * 0.25;
     key_y2 = CONSOLE_DEPTH * 0.75;
-    key_z = CONSOLE_HEIGHT * 0.33;
+    key_z = console_h * 0.33;
 
     translate([half_width, key_y1, key_z])
         rotate([0, 90, 0])
@@ -238,7 +290,7 @@ module split_joint_features_female() {
     // Right half origin is at the seam, so sockets are at x=0
     key_y1 = CONSOLE_DEPTH * 0.25;
     key_y2 = CONSOLE_DEPTH * 0.75;
-    key_z = CONSOLE_HEIGHT * 0.33;
+    key_z = console_h * 0.33;
 
     translate([0, key_y1, key_z])
         rotate([0, 90, 0])
@@ -252,7 +304,7 @@ module split_bolt_holes_left() {
     // M4 bolt holes on the left half seam face
     bolt_y1 = CONSOLE_DEPTH * 0.25;
     bolt_y2 = CONSOLE_DEPTH * 0.75;
-    bolt_z = CONSOLE_HEIGHT * 0.66;
+    bolt_z = console_h * 0.66;
 
     translate([half_width - bolt_depth / 2, bolt_y1, bolt_z])
         rotate([0, 90, 0])
@@ -266,7 +318,7 @@ module split_bolt_holes_right() {
     // M4 bolt holes on the right half seam face
     bolt_y1 = CONSOLE_DEPTH * 0.25;
     bolt_y2 = CONSOLE_DEPTH * 0.75;
-    bolt_z = CONSOLE_HEIGHT * 0.66;
+    bolt_z = console_h * 0.66;
 
     translate([-bolt_depth / 2, bolt_y1, bolt_z])
         rotate([0, 90, 0])
@@ -274,6 +326,136 @@ module split_bolt_holes_right() {
     translate([-bolt_depth / 2, bolt_y2, bolt_z])
         rotate([0, 90, 0])
             m4_hole(depth=bolt_depth);
+}
+
+// =====================================================
+// Network/Power Hub Modules
+// =====================================================
+
+module router_bay() {
+    // GL.iNet GL-MT300N-V2 friction-fit cradle on bottom layer
+    // Positioned at back-left corner, ports face left wall
+    // Coordinate system: full console
+    translate([router_x, router_y, router_z])
+        glinet_mt300n_mount(wall=router_wall);
+}
+
+module router_dummy_volume() {
+    // Ghost volume for router visualization
+    translate([router_x + router_wall, router_y + router_wall, router_z + router_wall])
+        %glinet_mt300n_dummy();
+}
+
+module power_bank_bay() {
+    // Anker PowerCore Slim 10000 friction-fit cradle on front bottom
+    // USB-C port faces back wall
+    // Coordinate system: full console
+    translate([pbank_x, pbank_y, pbank_z])
+        anker_slim10000_mount(wall=pbank_wall);
+}
+
+module power_bank_dummy_volume() {
+    // Ghost volume for power bank visualization
+    translate([pbank_x + pbank_wall, pbank_y + pbank_wall, pbank_z + pbank_wall])
+        %anker_slim10000_dummy();
+}
+
+module usb_hub_bay() {
+    // Sabrent HB-UM43 rail mount along back wall
+    // Ports face outward through back wall
+    // Coordinate system: full console
+    translate([hub_x, hub_y, hub_z])
+        sabrent_hub_mount(wall=hub_rail_w);
+}
+
+module usb_hub_dummy_volume() {
+    // Ghost volume for USB hub visualization
+    translate([hub_x + hub_rail_w, hub_y + hub_rail_w, hub_z + hub_rail_w])
+        %sabrent_hub_dummy();
+}
+
+module router_port_cutout() {
+    // Left side wall: Ethernet + USB pass-through for router (15x20mm)
+    // Positioned at router height on left wall
+    port_z = router_z + 2;  // 2mm above floor
+    port_y = router_y + (router_w - router_port_w) / 2;  // Centered on router
+
+    translate([-0.1, port_y, port_z])
+        cube([wall + 0.2, router_port_w, router_port_h]);
+}
+
+module power_bank_port_cutout() {
+    // Back wall: USB-C charging port for power bank (12x8mm)
+    // USB-C port is on the long end of the power bank facing back
+    port_x = pbank_x + (pbank_l - pbank_port_w) / 2;
+    port_z = pbank_z + 2;  // 2mm above floor
+
+    translate([port_x, CONSOLE_DEPTH - wall - 0.1, port_z])
+        cube([pbank_port_w, wall + 0.2, pbank_port_h]);
+}
+
+module hub_port_cutout() {
+    // Back wall: USB-A ports for hub (70x12mm)
+    // Ports face outward through back wall
+    port_x = hub_x + (hub_l - hub_port_w) / 2;
+    port_z = hub_z + 1;  // 1mm above floor
+
+    translate([port_x, CONSOLE_DEPTH - wall - 0.1, port_z])
+        cube([hub_port_w, wall + 0.2, hub_port_h]);
+}
+
+module hub_switch_cutout() {
+    // Right side wall: power switch access for Sabrent hub
+    // Positioned at hub height on right wall
+    switch_z = hub_z + (hub_h - hub_switch_h) / 2;
+    switch_y = hub_y + (hub_w - hub_switch_w) / 2;
+
+    translate([CONSOLE_WIDTH - wall - 0.1, switch_y, switch_z])
+        cube([wall + 0.2, hub_switch_w, hub_switch_h]);
+}
+
+module internal_cable_ducts() {
+    // Cable routing ducts connecting power bank -> hub -> router -> tablet
+    // Coordinate system: full console
+
+    duct_z = wall;  // Floor level
+
+    // Duct 1: Power bank (front) -> USB hub (back)
+    // Runs along the left side from front to back
+    duct1_x = pbank_x + pbank_l + 2*pbank_wall + 2;
+    duct1_y1 = pbank_y + pbank_w / 2;
+    duct1_y2 = hub_y;
+    translate([duct1_x, duct1_y1, duct_z])
+        cube([duct_width, duct1_y2 - duct1_y1, duct_depth]);
+
+    // Duct 2: USB hub -> Router
+    // Short horizontal duct connecting hub to router along back area
+    duct2_y = hub_y + hub_w / 2 - duct_width / 2;
+    duct2_x1 = router_x + router_l + 2*router_wall;
+    duct2_x2 = hub_x;
+    translate([duct2_x1, duct2_y, duct_z])
+        cube([duct2_x2 - duct2_x1, duct_width, duct_depth]);
+
+    // Duct 3: Router -> tablet area (upward route)
+    // Vertical channel from router area up toward tablet pocket
+    duct3_x = router_x + router_l / 2 - duct_width / 2;
+    duct3_y1 = router_y - 5;
+    tablet_y_start = CONSOLE_DEPTH - recess_d - 20;
+    translate([duct3_x, tablet_y_start, duct_z])
+        cube([duct_width, duct3_y1 - tablet_y_start, duct_depth]);
+}
+
+// =====================================================
+// Combined cutouts for hub components (full console coords)
+// =====================================================
+
+module hub_cutouts() {
+    // All port cutouts for network/power hub
+    router_port_cutout();
+    power_bank_port_cutout();
+    hub_port_cutout();
+    hub_switch_cutout();
+    internal_cable_ducts();
 }
 
 // =====================================================
@@ -286,42 +468,52 @@ module console_left() {
             cradle_base_half();
             // Alignment keys (protrude from seam face)
             split_joint_features_male();
+
+            // Hub component bays (left portion — positive geometry)
+            intersection() {
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
+                union() {
+                    router_bay();
+                    power_bank_bay();
+                    usb_hub_bay();
+                }
+            }
         }
 
         // Tablet pocket (left portion: full console x=0..135)
         intersection() {
             translate([0, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 50, CONSOLE_HEIGHT + 50]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 50, console_h + 50]);
             tablet_pocket_shape();
         }
 
         // Gamepad dock (left portion)
         intersection() {
-            cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             gamepad_dock();
         }
 
         // Cable management channel (left portion)
         intersection() {
-            cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             cable_management_channel();
         }
 
         // Zip-tie slots (left portion)
         intersection() {
-            cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             zip_tie_slots();
         }
 
         // Ventilation slots (left portion)
         intersection() {
-            cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             ventilation_slots();
         }
 
         // Rubber feet (left side)
         intersection() {
-            cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             rubber_feet();
         }
 
@@ -330,12 +522,28 @@ module console_left() {
 
         // Split bolt holes
         split_bolt_holes_left();
+
+        // Hub port cutouts (left portion)
+        intersection() {
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
+            hub_cutouts();
+        }
     }
 
     // Tablet retaining lips (left portion)
     intersection() {
-        cube([half_width, CONSOLE_DEPTH + 50, CONSOLE_HEIGHT + 50]);
+        cube([half_width, CONSOLE_DEPTH + 50, console_h + 50]);
         tablet_lips();
+    }
+
+    // Dummy volumes for visualization (left portion)
+    intersection() {
+        cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
+        union() {
+            router_dummy_volume();
+            power_bank_dummy_volume();
+            usb_hub_dummy_volume();
+        }
     }
 }
 
@@ -344,6 +552,18 @@ module console_right() {
     difference() {
         union() {
             cradle_base_half();
+
+            // Hub component bays (right portion — positive geometry)
+            intersection() {
+                translate([-0.1, 0, 0])
+                    cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
+                translate([-half_width, 0, 0])
+                union() {
+                    router_bay();
+                    power_bank_bay();
+                    usb_hub_bay();
+                }
+            }
         }
 
         // Alignment sockets (cut into seam face)
@@ -352,7 +572,7 @@ module console_right() {
         // Tablet pocket (right portion: full console x=135..270, shifted to local coords)
         intersection() {
             translate([-0.1, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 50, CONSOLE_HEIGHT + 50]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 50, console_h + 50]);
             translate([-half_width, 0, 0])
                 tablet_pocket_shape();
         }
@@ -360,7 +580,7 @@ module console_right() {
         // Gamepad dock (right portion)
         intersection() {
             translate([-0.1, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             translate([-half_width, 0, 0])
                 gamepad_dock();
         }
@@ -368,7 +588,7 @@ module console_right() {
         // Cable management channel (right portion)
         intersection() {
             translate([-0.1, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             translate([-half_width, 0, 0])
                 cable_management_channel();
         }
@@ -376,7 +596,7 @@ module console_right() {
         // Zip-tie slots (right portion)
         intersection() {
             translate([-0.1, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             translate([-half_width, 0, 0])
                 zip_tie_slots();
         }
@@ -384,7 +604,7 @@ module console_right() {
         // Ventilation slots (right portion)
         intersection() {
             translate([-0.1, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             translate([-half_width, 0, 0])
                 ventilation_slots();
         }
@@ -392,7 +612,7 @@ module console_right() {
         // Rubber feet (right side)
         intersection() {
             translate([-0.1, 0, 0])
-                cube([half_width + 0.1, CONSOLE_DEPTH + 10, CONSOLE_HEIGHT + 10]);
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
             translate([-half_width, 0, 0])
                 rubber_feet();
         }
@@ -403,13 +623,33 @@ module console_right() {
 
         // Split bolt holes
         split_bolt_holes_right();
+
+        // Hub port cutouts (right portion)
+        intersection() {
+            translate([-0.1, 0, 0])
+                cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
+            translate([-half_width, 0, 0])
+                hub_cutouts();
+        }
     }
 
     // Tablet retaining lips (right portion)
     intersection() {
-        cube([half_width + 0.1, CONSOLE_DEPTH + 50, CONSOLE_HEIGHT + 50]);
+        cube([half_width + 0.1, CONSOLE_DEPTH + 50, console_h + 50]);
         translate([-half_width, 0, 0])
             tablet_lips();
+    }
+
+    // Dummy volumes for visualization (right portion)
+    intersection() {
+        translate([-0.1, 0, 0])
+            cube([half_width + 0.1, CONSOLE_DEPTH + 10, console_h + 10]);
+        translate([-half_width, 0, 0])
+        union() {
+            router_dummy_volume();
+            power_bank_dummy_volume();
+            usb_hub_dummy_volume();
+        }
     }
 }
 

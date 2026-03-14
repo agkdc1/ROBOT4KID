@@ -4,6 +4,8 @@
 
 NL2Bot takes a natural language description of a robot and runs it through a multi-stage pipeline: LLM-powered NLP, parametric CAD generation (OpenSCAD), printability analysis, URDF assembly, Webots physics simulation, embedded firmware generation, and a Flutter control app. The entire workflow is driven by two cooperating FastAPI servers and dual LLM backends (Claude + Gemini).
 
+The system supports **multiple robot models** through a modular architecture — currently an M1A1 tank (differential drive, dual camera, FCS) and a Shinkansen N700 train (Plarail-compatible, single camera). Any console can control any model via a unified command protocol.
+
 ---
 
 ## Features
@@ -18,7 +20,10 @@ NL2Bot takes a natural language description of a robot and runs it through a mul
 - **JWT authentication** -- user registration, admin approval workflow, role-based access
 - **Fire Control System** -- trajectory equation with 5 tunable coefficients, gradient-descent training from shot data
 - **Flutter control app** -- MJPEG camera, USB gamepad, FCS crosshair overlay, shot recording for RL training
-- **ESP32 firmware** -- PlatformIO dual-target (hull + turret), binary command protocol, solderless wiring
+- **Multi-model support** -- Tank (differential drive, dual camera, FCS) + Train (simple speed, single camera, Plarail-compatible)
+- **Multiple consoles** -- Tablet + USB gamepad (tank), RPi4 + 7" display + analog joystick (train)
+- **ESP32 firmware** -- PlatformIO triple-target (hull_node, turret_node, train_node), binary command protocol, solderless wiring
+- **YAML-driven config** -- All hardware dimensions, speeds, and tunable parameters in a single `config/hardware_specs.yaml`
 - **GCP infrastructure** -- Terraform-managed secrets, backups, and project configuration
 
 ---
@@ -136,9 +141,9 @@ The NL2Bot pipeline transforms a natural language prompt into a physically simul
 
 ---
 
-## CAD Components (M1A1 Test Case)
+## Robot Models
 
-The reference test case is a 3D-printable tank with full sensor integration:
+### M1A1 Tank (Differential Drive)
 
 | Component | File | Description |
 |---|---|---|
@@ -147,7 +152,17 @@ The reference test case is a 3D-printable tank with full sensor integration:
 | Electronics Bay | `cad/chassis/electronics_bay.scad` | Removable tray: ESP32, L298N, LM2596, battery, IMU |
 | Turret Body | `cad/turret/turret_body.scad` | Shell, ring, trunnion, ESP32-CAM mount, VL53L1X mount |
 | Gun Barrel | `cad/turret/gun_barrel.scad` | Barrel tube, bayonet mount, muzzle brake |
-| Console Cradle | `cad/cockpit/console_cradle.scad` | Tablet cradle (Galaxy Tab A 8.0), gamepad dock |
+| Console Cradle | `cad/cockpit/console_cradle.scad` | Tablet cradle + GL.iNet router + power bank + USB hub |
+
+### Shinkansen N700 Train (Plarail Compatible)
+
+| Component | File | Description |
+|---|---|---|
+| Locomotive Body | `cad/train/locomotive.scad` | N700 nose cone, top/bottom snap-fit shells |
+| Motor Mount | `cad/train/motor_mount.scad` | N20 motor cradle with axle bearing blocks |
+| Battery Bay | `cad/train/battery_bay.scad` | Single 18650 friction-fit cradle |
+| Camera Mount | `cad/train/camera_mount.scad` | ESP32-CAM at nose, 10° downward tilt |
+| RPi4 Console | `cad/cockpit/train_console.scad` | 7" display + RPi4 + PS2 joystick station |
 
 ---
 
@@ -235,8 +250,10 @@ Secrets can be fetched from GCP Secret Manager:
 | Simulation | Webots R2023b+, URDF, PROTO |
 | Web UI | HTMX, Jinja2, Alpine.js |
 | 3D Viewer | Three.js |
-| Control App | Flutter / Dart, Material 3, USB gamepad |
+| Control App | Flutter / Dart, Material 3, USB gamepad, model-type routing |
+| Train Console | Python, pygame, RPi4, MCP3008 ADC, PS2 joystick |
 | Firmware | C++ (Arduino), PlatformIO, ESP32 DevKitC V4 + ESP32-CAM |
+| Config | YAML (`config/hardware_specs.yaml`) — single source of truth |
 | Infrastructure | GCP, Terraform, Secret Manager, Cloud Storage |
 | Auth | JWT (planning), API key (simulation) |
 
@@ -274,9 +291,11 @@ ROBOT4KID/
 │   ├── worlds/              # .wbt world files
 │   └── controllers/         # Tank + supervisor controllers
 ├── embedded/                # ESP32 firmware (PlatformIO)
-│   ├── src/                 # hull_node, turret_node
-│   └── lib/shared/          # Shared protocol + config
-├── frontend/                # Flutter control app
+│   ├── src/                 # hull_node, turret_node, train_node
+│   └── lib/shared/          # Shared protocol + config (Tank + Train)
+├── frontend/                # Flutter control app (unified: tank + train UI)
+├── console/                 # RPi4 train console (Python + pygame)
+├── config/                  # Hardware specs (YAML, single source of truth)
 ├── infra/                   # Infrastructure
 │   └── terraform/           # GCP Terraform configs
 ├── system/                  # System scripts

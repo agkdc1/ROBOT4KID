@@ -1,0 +1,247 @@
+# NL2Bot Hardware Specifications
+# Central config for all physical dimensions, electrical specs, and tunable parameters.
+# Consumed by: OpenSCAD (via JSON export), Python servers, Flutter app, ESP32 firmware codegen.
+# NEVER hardcode these values in source — always reference this file.
+
+# ============================================================
+# Printer Constraints (Bambu Lab A1 Mini)
+# ============================================================
+printer:
+  name: "Bambu Lab A1 Mini"
+  build_volume_mm: [180, 180, 180]
+  nozzle_diameter_mm: 0.4
+  layer_height_mm: 0.2
+  wall_thickness_mm: 1.2          # 3 perimeters at 0.4mm
+  min_wall_mm: 0.8                # 2 perimeters minimum
+  tolerance_mm: 0.2               # Mating surface clearance
+  material: "PLA"
+
+# ============================================================
+# Fasteners
+# ============================================================
+fasteners:
+  m4:
+    hole_diameter_mm: 4.4
+    shaft_diameter_mm: 3.8
+    nut_trap_width_mm: 7.8
+  m3:
+    hole_diameter_mm: 3.4
+    standoff_od_mm: 6.0
+    standoff_height_mm: 5.0
+  m2_5:
+    hole_diameter_mm: 2.9
+    standoff_od_mm: 5.0
+
+# ============================================================
+# Tank Model — M1A1 Abrams
+# ============================================================
+tank:
+  chassis:
+    length_mm: 300
+    width_mm: 140
+    height_mm: 80
+    track_width_mm: 25
+    hull_width_mm: 90                # width - 2 * track_width
+  turret:
+    diameter_mm: 100
+    height_mm: 50
+    barrel_diameter_mm: 12
+    barrel_length_mm: 120
+  console:
+    width_mm: 270
+    depth_mm: 180
+    height_mm: 80                    # Increased from 60 for network hub
+  wifi:
+    ssid: "TANK_CTRL"
+    password: "tank1234"
+    channel: 1
+    hull_ip: "192.168.4.1"
+    turret_ip: "192.168.4.2"
+  motors:
+    type: "N20"
+    body_diameter_mm: 12
+    body_length_mm: 25
+    shaft_diameter_mm: 3
+    shaft_length_mm: 10
+    pwm_freq_hz: 5000
+    pwm_resolution_bits: 8
+  camera:
+    frame_size: "VGA"               # 640x480
+    jpeg_quality: 12                # 0-63, lower = better
+    http_port: 80
+    stream_port: 81
+  fcs:
+    ball_speed_ms: 15.0
+    hop_up_rpm: 3000.0
+    ball_mass_grams: 3.0
+    ball_diameter_mm: 40.0
+    max_barrel_elevation_deg: 45
+    min_barrel_elevation_deg: -10
+    turret_angle_range_deg: 360
+
+# ============================================================
+# Train Model — Shinkansen N700 (Plarail Compatible)
+# ============================================================
+train:
+  plarail:
+    track_gauge_mm: 27              # Rail-to-rail inner distance
+    overall_track_width_mm: 40
+    wheel_diameter_mm: 10
+    wheel_spacing_mm: 30            # Center-to-center
+  body:
+    width_mm: 36
+    length_mm: 130
+    height_mm: 30
+    nose_length_mm: 25
+    wall_thickness_mm: 1.2
+  wifi:
+    ssid: "TRAIN_CTRL"
+    password: "train1234"
+    ip: "192.168.4.1"
+  motors:
+    type: "N20"
+    driver: "DRV8833"
+    driver_dimensions_mm: [17.8, 17.8, 4]
+    driver_mount_spacing_mm: 12
+    pwm_freq_hz: 5000
+    pwm_resolution_bits: 8
+  camera:
+    tilt_angle_deg: -10             # Slight downward tilt
+    frame_size: "VGA"
+    jpeg_quality: 12
+    http_port: 80
+    stream_port: 81
+
+# ============================================================
+# Electronic Components — Physical Dimensions
+# ============================================================
+components:
+  esp32_devkit_v4:
+    dimensions_mm: [55, 28, 13]
+    pin_drop_mm: 8
+  terminal_shield:
+    dimensions_mm: [85, 65, 20]
+    mount_pattern_mm: [76, 56]
+  esp32_cam:
+    dimensions_mm: [40, 27, 12]
+    lens_protrude_mm: 4
+    lens_diameter_mm: 8
+  l298n:
+    dimensions_mm: [43, 43, 27]
+    mount_spacing_mm: 36
+    terminal_clearance_mm: 15
+  lm2596:
+    dimensions_mm: [43, 21, 14]
+    mount_spacing_mm: 35
+  battery_holder_2cell:
+    dimensions_mm: [77, 41, 20]
+  battery_holder_1cell:
+    dimensions_mm: [77, 21, 20]
+  n20_motor:
+    body_diameter_mm: 12
+    body_length_mm: 25
+    shaft_diameter_mm: 3
+    shaft_length_mm: 10
+    flat_depth_mm: 0.5
+  mpu6050:
+    dimensions_mm: [21, 16, 3]
+  vl53l1x:
+    dimensions_mm: [13, 18, 4]
+    aperture_diameter_mm: 3
+  wago_221_415:
+    dimensions_mm: [20, 13, 16]
+  drv8833:
+    dimensions_mm: [17.8, 17.8, 4]
+    mount_spacing_mm: 12
+  mcp3008:
+    dimensions_mm: [40, 20, 8]
+  glinet_mt300n:
+    dimensions_mm: [58, 58, 25]
+  anker_slim_10000:
+    dimensions_mm: [149, 68, 14]
+  sabrent_hub_um43:
+    dimensions_mm: [85, 30, 15]
+  ps2_joystick:
+    dimensions_mm: [40, 40, 32]
+    pcb_height_mm: 10
+    stick_diameter_mm: 15
+    mount_spacing_mm: 33
+  raspberry_pi_4b:
+    dimensions_mm: [85, 56, 17]
+    mount_pattern_mm: [58, 49]
+    ram_gb: 4
+  rpi_display_7in:
+    dimensions_mm: [194, 110, 20]
+    mount_pattern_mm: [180, 96]
+    resolution: [800, 480]
+
+# ============================================================
+# Console Stations
+# ============================================================
+consoles:
+  tank_cradle:
+    tablet:
+      model: "Galaxy Tab A 8.0 2019"
+      dimensions_mm: [210, 124, 8]
+      connector: "USB Type-C"
+      viewing_angle_deg: 15
+    gamepad:
+      dock_width_mm: 80
+      dock_depth_mm: 50
+      channel_width_mm: 60
+      channel_depth_mm: 35
+      channel_height_mm: 6
+    network_hub:
+      router: "glinet_mt300n"
+      power_bank: "anker_slim_10000"
+      usb_hub: "sabrent_hub_um43"
+  train_console:
+    display: "rpi_display_7in"
+    computer: "raspberry_pi_4b"
+    joystick: "ps2_joystick"
+    adc: "mcp3008"
+    power_bank: "anker_slim_10000"
+    display_tilt_deg: 15
+    joystick_tilt_deg: 20
+    dimensions_mm: [220, 140, 50]
+
+# ============================================================
+# RPi4 Console Network
+# ============================================================
+rpi_console:
+  hotspot:
+    ssid: "TRAIN_CONSOLE"
+    password: "console1234"
+    ip: "192.168.5.1"
+    subnet: "255.255.255.0"
+    dhcp_start: "192.168.5.10"
+    dhcp_end: "192.168.5.50"
+
+# ============================================================
+# Wiring & Clearances
+# ============================================================
+wiring:
+  dupont_clearance_mm: 20           # Vertical clearance above pin headers
+  ghost_alpha: 0.15                 # Visualization translucency
+  cable_channel_width_mm: 10
+  cable_channel_depth_mm: 8
+  zip_tie_width_mm: 4
+
+# ============================================================
+# Server Configuration
+# ============================================================
+servers:
+  planning:
+    port: 8000
+    host: "0.0.0.0"
+  simulation:
+    port: 8100
+    host: "0.0.0.0"
+
+# ============================================================
+# Pipeline Settings
+# ============================================================
+pipeline:
+  max_refinement_iterations: 2
+  simulation_timeout_seconds: 30
+  refinement_score_threshold: 0.8

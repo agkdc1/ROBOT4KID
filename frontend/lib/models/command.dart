@@ -73,3 +73,59 @@ class TankCommand {
     return TankCommand(type: cmdFire, fire: 1);
   }
 }
+
+/// Command packet for ESP32 train controller.
+class TrainCommand {
+  static const int headerByte = 0xAA;
+  static const int cmdDrive = 0x10;
+  static const int cmdHorn = 0x11;
+  static const int cmdLights = 0x12;
+
+  final int type;
+  final int speed;   // -100 to 100
+  final int horn;    // 0 or 1
+  final int lights;  // 0-3
+
+  TrainCommand({
+    required this.type,
+    this.speed = 0,
+    this.horn = 0,
+    this.lights = 0,
+  });
+
+  /// Serialize to bytes (6 bytes with XOR checksum).
+  Uint8List toBytes() {
+    final bytes = Uint8List(6);
+    final data = ByteData.view(bytes.buffer);
+
+    data.setUint8(0, headerByte);
+    data.setUint8(1, type);
+    data.setInt8(2, speed.clamp(-100, 100));
+    data.setUint8(3, horn.clamp(0, 1));
+    data.setUint8(4, lights.clamp(0, 3));
+
+    // XOR checksum
+    int checksum = 0;
+    for (int i = 0; i < 5; i++) {
+      checksum ^= bytes[i];
+    }
+    data.setUint8(5, checksum);
+
+    return bytes;
+  }
+
+  /// Create a drive command.
+  factory TrainCommand.drive(int speed) {
+    return TrainCommand(type: cmdDrive, speed: speed);
+  }
+
+  /// Create a horn command.
+  factory TrainCommand.setHorn(bool on) {
+    return TrainCommand(type: cmdHorn, horn: on ? 1 : 0);
+  }
+
+  /// Create a lights command.
+  factory TrainCommand.setLights(int mode) {
+    return TrainCommand(type: cmdLights, lights: mode);
+  }
+}

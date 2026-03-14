@@ -102,12 +102,21 @@ class ElectronicComponent(BaseModel):
     )
 
 
+class ModelType(str, Enum):
+    TANK = "tank"
+    TRAIN = "train"
+
+
 class RobotSpec(BaseModel):
     """Master specification — the single source of truth for a robot design."""
 
     name: str = Field(description="Robot name, e.g. 'M1A1 Abrams'")
     version: str = Field(default="0.1.0", description="Semantic version")
     description: str = Field(default="")
+    model_type: ModelType = Field(
+        default=ModelType.TANK,
+        description="Robot model type: tank (differential drive) or train (simple speed)",
+    )
     printer: PrinterProfile = Field(
         default_factory=lambda: PrinterProfile(
             name="Bambu Lab A1 Mini",

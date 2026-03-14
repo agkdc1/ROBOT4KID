@@ -9,6 +9,9 @@ class PartCategory(str, Enum):
     CONSOLE = "console"
     SLIP_RING = "slip_ring"
     TRACK = "track"
+    TRAIN_BODY = "train_body"
+    TRAIN_BOGIE = "train_bogie"
+    CONSOLE_STATION = "console_station"
 
 
 class FastenerType(str, Enum):

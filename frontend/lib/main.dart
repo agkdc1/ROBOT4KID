@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'models/tank_state.dart';
+import 'models/train_state.dart';
 import 'models/fcs_state.dart';
 import 'models/app_config.dart';
 import 'screens/project_screen.dart';
@@ -37,6 +38,7 @@ class NL2BotApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => TankState()),
+        ChangeNotifierProvider(create: (_) => TrainState()),
         ChangeNotifierProvider(create: (_) => FcsState()),
         ChangeNotifierProvider.value(value: appConfig),
       ],

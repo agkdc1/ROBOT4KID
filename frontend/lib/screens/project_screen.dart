@@ -11,6 +11,7 @@ class ProjectScreen extends StatelessWidget {
     'rocket_launch': Icons.rocket_launch,
     'smart_toy': Icons.smart_toy,
     'precision_manufacturing': Icons.precision_manufacturing,
+    'train': Icons.train,
   };
 
   @override

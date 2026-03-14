@@ -1,0 +1,4 @@
+spidev>=3.6
+RPi.GPIO>=0.7.1
+websocket-client>=1.6.0
+pygame>=2.5.0

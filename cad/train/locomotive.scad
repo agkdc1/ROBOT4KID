@@ -1,0 +1,398 @@
+// NL2Bot Shinkansen N700 Locomotive — Plarail Compatible
+// Split top/bottom shell with snap-fit, internal component cavities
+// All dimensions in millimeters
+
+use <../libs/common.scad>
+use <../libs/electronics.scad>
+use <../libs/mounts.scad>
+use <../libs/m3_hardware.scad>
+
+// --- Part Selector ---
+// "top", "bottom", "assembly"
+part = "assembly";
+
+// --- Plarail Track Parameters (parametric) ---
+TRACK_GAUGE        = 27;    // Rail-to-rail center distance
+TRACK_WIDTH_TOTAL  = 40;    // Overall track width
+WHEEL_DIA          = 10;    // Wheel outer diameter
+WHEEL_SPACING      = 30;    // Axle center-to-center (front/rear)
+AXLE_DIA           = 2.0;   // Axle shaft diameter
+AXLE_HOLE_DIA      = AXLE_DIA + PRINT_TOLERANCE * 2;
+
+// --- Body Dimensions ---
+BODY_LENGTH        = 130;   // Standard Plarail car length
+BODY_WIDTH         = 36;    // Fits between guide rails
+BODY_HEIGHT        = 30;    // Total height (top + bottom combined)
+SHELL_SPLIT_Z      = 14;    // Split line height (bottom shell height)
+NOSE_LENGTH        = 25;    // Aerodynamic nose cone length
+BODY_MAIN_LENGTH   = BODY_LENGTH - NOSE_LENGTH; // Rectangular section
+
+// --- Shell Parameters ---
+WALL               = WALL_THICKNESS;  // 1.2mm from common.scad
+SNAP_TAB_W         = 6;     // Snap-fit tab width
+SNAP_TAB_H         = 2;     // Snap-fit tab height
+SNAP_TAB_D         = 1.0;   // Snap-fit detent depth
+SNAP_TAB_COUNT     = 3;     // Tabs per side
+
+// --- Internal Component Zones ---
+// ESP32-CAM at front (nose area)
+CAM_ZONE_L         = ESP32CAM_L + 4;
+CAM_ZONE_W         = ESP32CAM_W + 4;
+CAM_ZONE_H         = ESP32CAM_H + 6;
+
+// 18650 battery in center
+BATT_ZONE_L        = BATT_1CELL_L + 4;
+BATT_ZONE_W        = BATT_1CELL_W + 4;
+BATT_ZONE_H        = BATT_1CELL_H + 2;
+
+// DRV8833 motor driver at rear
+DRV_ZONE_L         = DRV8833_L + 4;
+DRV_ZONE_W         = DRV8833_W + 4;
+DRV_ZONE_H         = DRV8833_H + 6;
+
+// --- Window Parameters ---
+WINDOW_W           = 8;
+WINDOW_H           = 6;
+WINDOW_R           = 1.5;
+WINDOW_SPACING     = 14;
+WINDOW_COUNT       = 5;
+WINDOW_Z           = SHELL_SPLIT_Z + 4;  // Windows on top shell
+
+// --- Ventilation Slots ---
+VENT_L             = 20;
+VENT_W             = 2;
+VENT_SPACING       = 5;
+VENT_COUNT         = 4;
+
+// --- Wire Duct ---
+DUCT_WIDTH         = 8;
+DUCT_DEPTH         = 4;
+
+// --- Wheel Boss ---
+WHEEL_BOSS_H       = 5;     // Boss protrusion below bottom shell
+WHEEL_BOSS_OD      = 8;     // Outer diameter of wheel bearing boss
+
+// =====================================================================
+// Nose Cone Profile (Shinkansen N700 style)
+// =====================================================================
+module nose_profile_2d() {
+    // Side profile of the nose: tapered and curved
+    // Origin at nose tip, extends in +X direction
+    hull() {
+        // Tip: narrow rounded point
+        translate([2, BODY_HEIGHT * 0.35])
+            circle(d=4);
+        // Base: full body height
+        translate([NOSE_LENGTH, 0])
+            square([0.01, BODY_HEIGHT]);
+    }
+}
+
+module nose_cone() {
+    // 3D nose cone: extruded profile with width taper
+    intersection() {
+        // Side profile sweep
+        translate([0, -BODY_WIDTH/2, 0])
+            rotate([90, 0, 90])
+                linear_extrude(height=NOSE_LENGTH, center=false)
+                    // Simplified profile as polygon
+                    polygon(points=[
+                        [0, 0],
+                        [BODY_WIDTH, 0],
+                        [BODY_WIDTH, NOSE_LENGTH],
+                        [BODY_WIDTH/2 + 2, NOSE_LENGTH],
+                        [BODY_WIDTH/2 - 2, NOSE_LENGTH],
+                        [0, NOSE_LENGTH]
+                    ]);
+        // Top profile taper (hull from narrow tip to full width)
+        hull() {
+            // Tip: narrow
+            translate([NOSE_LENGTH - 1, 0, BODY_HEIGHT * 0.3])
+                cube([1, 6, BODY_HEIGHT * 0.4], center=true);
+            // Base: full width & height
+            translate([0, 0, 0])
+                cube([0.01, BODY_WIDTH, BODY_HEIGHT]);
+        }
+    }
+}
+
+// =====================================================================
+// Main Body Shell (rectangular section)
+// =====================================================================
+module body_main_outer() {
+    // Rectangular section with slight top rounding
+    hull() {
+        // Bottom rectangle
+        translate([0, -BODY_WIDTH/2, 0])
+            cube([BODY_MAIN_LENGTH, BODY_WIDTH, BODY_HEIGHT - 4]);
+        // Rounded top
+        translate([0, -(BODY_WIDTH - 4)/2, BODY_HEIGHT - 4])
+            cube([BODY_MAIN_LENGTH, BODY_WIDTH - 4, 4]);
+    }
+}
+
+// =====================================================================
+// Full Outer Shell (nose + body)
+// =====================================================================
+module outer_shell() {
+    union() {
+        // Main rectangular section (origin at rear end)
+        body_main_outer();
+        // Nose cone at front
+        translate([BODY_MAIN_LENGTH, 0, 0])
+            nose_cone();
+    }
+}
+
+// =====================================================================
+// Interior Cavity
+// =====================================================================
+module interior_cavity() {
+    w_inner = BODY_WIDTH - 2 * WALL;
+    h_inner = BODY_HEIGHT - 2 * WALL;
+    l_inner = BODY_MAIN_LENGTH - WALL;
+
+    // Main cavity
+    translate([WALL, -w_inner/2, WALL])
+        cube([l_inner, w_inner, h_inner]);
+
+    // Nose cavity (slightly smaller)
+    translate([BODY_MAIN_LENGTH, -(w_inner - 4)/2, WALL + 2])
+        hull() {
+            cube([1, w_inner - 4, h_inner - 6]);
+            translate([NOSE_LENGTH - 8, (w_inner - 4)/2 - 4, 2])
+                cube([1, 8, h_inner - 10]);
+        }
+}
+
+// =====================================================================
+// Snap-Fit Features
+// =====================================================================
+module snap_tabs_male() {
+    // Tabs on bottom shell rim (along both long sides)
+    tab_positions = [for (i = [0 : SNAP_TAB_COUNT - 1])
+        BODY_MAIN_LENGTH * (i + 0.5) / SNAP_TAB_COUNT];
+
+    for (x = tab_positions) {
+        for (y_sign = [-1, 1]) {
+            y = y_sign * (BODY_WIDTH/2 - WALL/2);
+            translate([x - SNAP_TAB_W/2, y - 0.5, SHELL_SPLIT_Z - SNAP_TAB_H])
+                difference() {
+                    cube([SNAP_TAB_W, 1, SNAP_TAB_H]);
+                    // Detent bump
+                    translate([SNAP_TAB_W/2, y_sign > 0 ? 1 : 0, SNAP_TAB_H * 0.3])
+                        rotate([0, 90, 0])
+                            cylinder(h=SNAP_TAB_W, d=SNAP_TAB_D, center=true);
+                }
+        }
+    }
+}
+
+module snap_tabs_female() {
+    // Slots in top shell rim
+    tol = PRINT_TOLERANCE;
+    tab_positions = [for (i = [0 : SNAP_TAB_COUNT - 1])
+        BODY_MAIN_LENGTH * (i + 0.5) / SNAP_TAB_COUNT];
+
+    for (x = tab_positions) {
+        for (y_sign = [-1, 1]) {
+            y = y_sign * (BODY_WIDTH/2 - WALL/2);
+            translate([x - SNAP_TAB_W/2 - tol, y - 0.5 - tol, SHELL_SPLIT_Z - SNAP_TAB_H - tol])
+                cube([SNAP_TAB_W + 2*tol, 1 + 2*tol, SNAP_TAB_H + tol]);
+        }
+    }
+}
+
+// =====================================================================
+// Windows (decorative cutouts on both sides)
+// =====================================================================
+module side_windows() {
+    start_x = BODY_MAIN_LENGTH - WINDOW_COUNT * WINDOW_SPACING;
+    for (i = [0 : WINDOW_COUNT - 1]) {
+        x = start_x + i * WINDOW_SPACING;
+        for (y_sign = [-1, 1]) {
+            y = y_sign * BODY_WIDTH/2;
+            translate([x, y - WALL, WINDOW_Z])
+                rotate([90, 0, 0])
+                    hull() {
+                        for (dx = [WINDOW_R, WINDOW_W - WINDOW_R])
+                            for (dz = [WINDOW_R, WINDOW_H - WINDOW_R])
+                                translate([dx, dz, 0])
+                                    cylinder(h=WALL + 2, r=WINDOW_R, center=true);
+                    }
+        }
+    }
+}
+
+// =====================================================================
+// Ventilation Slots (top shell)
+// =====================================================================
+module vent_slots() {
+    start_x = BODY_MAIN_LENGTH/2 - (VENT_COUNT * VENT_SPACING)/2;
+    for (i = [0 : VENT_COUNT - 1]) {
+        x = start_x + i * VENT_SPACING;
+        translate([x, -VENT_L/2, BODY_HEIGHT - WALL - 0.1])
+            cube([VENT_W, VENT_L, WALL + 0.2]);
+    }
+}
+
+// =====================================================================
+// Wire Duct Channels (bottom shell)
+// =====================================================================
+module wire_ducts() {
+    // Center channel running length of bottom shell
+    translate([WALL + 5, -DUCT_WIDTH/2, WALL])
+        cube([BODY_MAIN_LENGTH - 2 * WALL - 10, DUCT_WIDTH, DUCT_DEPTH]);
+
+    // Cross channel at battery/driver boundary
+    batt_end_x = WALL + 10 + BATT_ZONE_L;
+    translate([batt_end_x, -(BODY_WIDTH/2 - 2*WALL), WALL])
+        cube([6, BODY_WIDTH - 4*WALL, DUCT_DEPTH]);
+}
+
+// =====================================================================
+// Wheel Bosses and Axle Holes (bottom shell)
+// =====================================================================
+module wheel_bosses() {
+    // Two axle positions (front and rear bogie)
+    axle_x_rear  = 15;
+    axle_x_front = 15 + WHEEL_SPACING;
+
+    for (ax = [axle_x_rear, axle_x_front]) {
+        // Axle bearing bosses on each side
+        for (y_sign = [-1, 1]) {
+            y = y_sign * TRACK_GAUGE/2;
+            translate([ax, y, -WHEEL_BOSS_H])
+                difference() {
+                    cylinder(h=WHEEL_BOSS_H + WALL, d=WHEEL_BOSS_OD);
+                    translate([0, 0, -0.05])
+                        cylinder(h=WHEEL_BOSS_H + WALL + 0.1, d=AXLE_HOLE_DIA);
+                }
+        }
+        // Axle channel between bosses (slot in floor)
+        translate([ax - AXLE_HOLE_DIA/2, -TRACK_GAUGE/2, -0.05])
+            cube([AXLE_HOLE_DIA, TRACK_GAUGE, WALL + 0.1]);
+    }
+}
+
+// =====================================================================
+// Component Cavities (for internal layout reference)
+// =====================================================================
+module component_cavities() {
+    // ESP32-CAM cavity (front/nose area)
+    cam_x = BODY_MAIN_LENGTH - 5;
+    translate([cam_x, -CAM_ZONE_W/2, WALL])
+        cube([CAM_ZONE_L, CAM_ZONE_W, CAM_ZONE_H]);
+
+    // Lens aperture through nose
+    translate([BODY_LENGTH - 2, 0, WALL + CAM_ZONE_H/2 + 2])
+        rotate([0, 90, 0])
+            cylinder(h=10, d=ESP32CAM_LENS_DIA + 4);
+
+    // 18650 battery cavity (center)
+    batt_x = (BODY_MAIN_LENGTH - BATT_ZONE_L) / 2;
+    translate([batt_x, -BATT_ZONE_W/2, WALL])
+        cube([BATT_ZONE_L, BATT_ZONE_W, BATT_ZONE_H]);
+
+    // DRV8833 cavity (rear)
+    translate([WALL + 2, -DRV_ZONE_W/2, WALL])
+        cube([DRV_ZONE_L, DRV_ZONE_W, DRV_ZONE_H]);
+}
+
+// =====================================================================
+// Lens Aperture (through nose for camera)
+// =====================================================================
+module lens_aperture() {
+    translate([BODY_LENGTH - 3, 0, SHELL_SPLIT_Z * 0.7])
+        rotate([0, 90, 0])
+            cylinder(h=10, d=ESP32CAM_LENS_DIA + 3);
+}
+
+// =====================================================================
+// Bottom Shell
+// =====================================================================
+module bottom_shell() {
+    difference() {
+        union() {
+            // Outer form, cut at split line
+            intersection() {
+                outer_shell();
+                translate([-1, -BODY_WIDTH, -WHEEL_BOSS_H - 1])
+                    cube([BODY_LENGTH + 2, BODY_WIDTH * 2, SHELL_SPLIT_Z + WHEEL_BOSS_H + 1]);
+            }
+            // Snap-fit tabs (male)
+            snap_tabs_male();
+            // Wheel bosses
+            wheel_bosses();
+        }
+        // Interior cavity
+        interior_cavity();
+        // Component cavities
+        component_cavities();
+        // Wire duct channels
+        wire_ducts();
+        // Lens aperture
+        lens_aperture();
+    }
+}
+
+// =====================================================================
+// Top Shell
+// =====================================================================
+module top_shell() {
+    difference() {
+        // Outer form, above split line
+        intersection() {
+            outer_shell();
+            translate([-1, -BODY_WIDTH, SHELL_SPLIT_Z])
+                cube([BODY_LENGTH + 2, BODY_WIDTH * 2, BODY_HEIGHT]);
+        }
+        // Interior cavity
+        interior_cavity();
+        // Snap-fit slots (female)
+        snap_tabs_female();
+        // Side windows
+        side_windows();
+        // Ventilation slots
+        vent_slots();
+        // Lens aperture (upper half)
+        lens_aperture();
+    }
+}
+
+// =====================================================================
+// Assembly View
+// =====================================================================
+module assembly() {
+    // Bottom shell (opaque)
+    color("LightGray") bottom_shell();
+    // Top shell (translucent for visibility)
+    color("White", 0.7) top_shell();
+
+    // Ghost volumes for components
+    // ESP32-CAM
+    cam_x = BODY_MAIN_LENGTH - 5;
+    %translate([cam_x + 2, -ESP32CAM_W/2, WALL + 2])
+        esp32cam_dummy();
+    // Battery
+    batt_x = (BODY_MAIN_LENGTH - BATT_1CELL_L) / 2;
+    %translate([batt_x, -BATT_1CELL_W/2, WALL + 1])
+        battery_holder_1cell_dummy();
+    // DRV8833
+    %translate([WALL + 4, -DRV8833_W/2, WALL + 1])
+        drv8833_dummy();
+}
+
+// =====================================================================
+// Part Selector
+// =====================================================================
+if (part == "top") {
+    // Flip top shell for printing (flat side down)
+    translate([0, 0, BODY_HEIGHT])
+        rotate([180, 0, 0])
+            top_shell();
+} else if (part == "bottom") {
+    bottom_shell();
+} else {
+    assembly();
+}

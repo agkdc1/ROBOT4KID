@@ -13,15 +13,34 @@ import '../widgets/hud_overlay.dart';
 import '../widgets/camera_view.dart';
 import '../widgets/crosshair_overlay.dart';
 import '../models/command.dart';
+import 'train_control_screen.dart';
 
-class ControlScreen extends StatefulWidget {
+class ControlScreen extends StatelessWidget {
   const ControlScreen({super.key});
 
   @override
-  State<ControlScreen> createState() => _ControlScreenState();
+  Widget build(BuildContext context) {
+    final config = context.read<AppConfig>();
+    final projectId =
+        ModalRoute.of(context)?.settings.arguments as String? ??
+            config.defaultProjectId;
+    final modelType = config.modelTypeForProject(projectId);
+
+    if (modelType == 'train') {
+      return const TrainControlScreen();
+    }
+    return const TankControlScreen();
+  }
 }
 
-class _ControlScreenState extends State<ControlScreen> {
+class TankControlScreen extends StatefulWidget {
+  const TankControlScreen({super.key});
+
+  @override
+  State<TankControlScreen> createState() => _TankControlScreenState();
+}
+
+class _TankControlScreenState extends State<TankControlScreen> {
   late TankConnection _connection;
   late GamepadService _gamepad;
   late FcsServerClient _fcsClient;

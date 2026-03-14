@@ -4,6 +4,7 @@
 
 use <m4_hardware.scad>
 use <common.scad>
+use <mounts.scad>
 
 // --- Print Tolerances ---
 ELEC_TOLERANCE = 0.2;           // General fit tolerance
@@ -490,6 +491,203 @@ module m25_standoff(height=M3_STANDOFF_HEIGHT) {
         translate([0, 0, -0.05])
             cylinder(h=height + 0.1, d=M25_HOLE_DIA);
     }
+}
+
+// =====================================================================
+// 11. DRV8833 Dual H-Bridge Motor Driver (compact)
+//     17.8 x 17.8 x 4mm PCB, 2x M2.5 holes (12mm apart)
+// =====================================================================
+DRV8833_L = 17.8;
+DRV8833_W = 17.8;
+DRV8833_H = 4;
+DRV8833_MOUNT_SPACING = 12;
+
+module drv8833_dummy() {
+    cube([DRV8833_L, DRV8833_W, DRV8833_H]);
+    // Pin header clearance ghost above
+    %translate([0, 0, DRV8833_H])
+        cube([DRV8833_L, DRV8833_W, DUPONT_CLEARANCE]);
+}
+
+module drv8833_mount(standoff_h=M3_STANDOFF_HEIGHT) {
+    // Two M2.5 standoffs along center
+    offset_x = (DRV8833_L - DRV8833_MOUNT_SPACING) / 2;
+    center_y = DRV8833_W / 2;
+
+    for (x = [offset_x, offset_x + DRV8833_MOUNT_SPACING]) {
+        translate([x, center_y, 0])
+            m25_standoff(height=standoff_h);
+    }
+}
+
+// =====================================================================
+// 12. MCP3008 ADC Breakout Board
+//     40 x 20 x 8mm (DIP-16 on breakout PCB)
+// =====================================================================
+MCP3008_L = 40;
+MCP3008_W = 20;
+MCP3008_H = 8;
+
+module mcp3008_dummy() {
+    cube([MCP3008_L, MCP3008_W, MCP3008_H]);
+    %translate([0, 0, MCP3008_H])
+        cube([MCP3008_L, MCP3008_W, DUPONT_CLEARANCE]);
+}
+
+module mcp3008_mount(standoff_h=M3_STANDOFF_HEIGHT) {
+    rail_mount(MCP3008_L, MCP3008_W, standoff_h + MCP3008_H);
+}
+
+// =====================================================================
+// 13. GL.iNet GL-MT300N-V2 (Mango) Router
+//     58 x 58 x 25mm, no mounting holes — friction cradle
+// =====================================================================
+GLINET_L = 58;
+GLINET_W = 58;
+GLINET_H = 25;
+
+module glinet_mt300n_dummy() {
+    cube([GLINET_L, GLINET_W, GLINET_H]);
+    // Ethernet + USB ports on one face
+    %translate([GLINET_L, 5, 2])
+        cube([15, GLINET_W - 10, GLINET_H - 4]);
+}
+
+module glinet_mt300n_mount(wall=2.0) {
+    universal_cradle(GLINET_L, GLINET_W, GLINET_H, wall=wall);
+}
+
+// =====================================================================
+// 14. Anker PowerCore Slim 10000
+//     149 x 68 x 14mm, USB-C in + USB-A/C out on one short end
+// =====================================================================
+ANKER_SLIM_L = 149;
+ANKER_SLIM_W = 68;
+ANKER_SLIM_H = 14;
+
+module anker_slim10000_dummy() {
+    cube([ANKER_SLIM_L, ANKER_SLIM_W, ANKER_SLIM_H]);
+    // USB ports on one short end
+    %translate([ANKER_SLIM_L, 10, 2])
+        cube([10, ANKER_SLIM_W - 20, ANKER_SLIM_H - 4]);
+}
+
+module anker_slim10000_mount(wall=2.0) {
+    universal_cradle(ANKER_SLIM_L, ANKER_SLIM_W, ANKER_SLIM_H, wall=wall);
+}
+
+// =====================================================================
+// 15. Sabrent HB-UM43 4-Port USB Hub
+//     85 x 30 x 15mm, ports along one long edge
+// =====================================================================
+SABRENT_HUB_L = 85;
+SABRENT_HUB_W = 30;
+SABRENT_HUB_H = 15;
+
+module sabrent_hub_dummy() {
+    cube([SABRENT_HUB_L, SABRENT_HUB_W, SABRENT_HUB_H]);
+    // USB-A ports along front face
+    %translate([5, -5, 2])
+        cube([SABRENT_HUB_L - 10, 5, SABRENT_HUB_H - 4]);
+}
+
+module sabrent_hub_mount(wall=1.5) {
+    rail_mount(SABRENT_HUB_L, SABRENT_HUB_W, SABRENT_HUB_H, rail_w=wall);
+}
+
+// =====================================================================
+// 16. PS2 Joystick Module (potentiometer-based)
+//     40 x 40 x 32mm (including stick), 4x M3 corners
+// =====================================================================
+PS2_JOY_L = 40;
+PS2_JOY_W = 40;
+PS2_JOY_H = 32;          // Total including stick travel
+PS2_JOY_PCB_H = 10;      // PCB + pots height
+PS2_JOY_STICK_DIA = 15;
+PS2_JOY_MOUNT_SPACING = 33;
+
+module ps2_joystick_dummy() {
+    // PCB base
+    cube([PS2_JOY_L, PS2_JOY_W, PS2_JOY_PCB_H]);
+    // Joystick stick (centered)
+    translate([PS2_JOY_L / 2, PS2_JOY_W / 2, PS2_JOY_PCB_H])
+        cylinder(h=PS2_JOY_H - PS2_JOY_PCB_H, d=PS2_JOY_STICK_DIA);
+    // Pin header clearance below
+    %translate([5, 0, -DUPONT_CLEARANCE])
+        cube([PS2_JOY_L - 10, PS2_JOY_W, DUPONT_CLEARANCE]);
+}
+
+module ps2_joystick_mount(standoff_h=M3_STANDOFF_HEIGHT) {
+    standoff_mount(PS2_JOY_L, PS2_JOY_W,
+        PS2_JOY_MOUNT_SPACING, PS2_JOY_MOUNT_SPACING,
+        hole_dia=M3_HOLE_DIA, standoff_h=standoff_h, standoff_od=M3_STANDOFF_OD);
+}
+
+// =====================================================================
+// 17. Raspberry Pi 4 Model B
+//     85 x 56 x 17mm, M2.5 holes at 58x49mm pattern
+// =====================================================================
+RPI4_L = 85;
+RPI4_W = 56;
+RPI4_H = 17;
+RPI4_MOUNT_X = 58;
+RPI4_MOUNT_Y = 49;
+
+module rpi4_dummy() {
+    cube([RPI4_L, RPI4_W, RPI4_H]);
+    // GPIO header ghost above
+    %translate([RPI4_L - 55, 0, RPI4_H])
+        cube([51, 5, DUPONT_CLEARANCE]);
+    // USB/Ethernet ports on one side
+    %translate([RPI4_L, 5, 0])
+        cube([10, RPI4_W - 10, RPI4_H + 5]);
+}
+
+module rpi4_mount(standoff_h=M3_STANDOFF_HEIGHT) {
+    standoff_mount(RPI4_L, RPI4_W,
+        RPI4_MOUNT_X, RPI4_MOUNT_Y,
+        hole_dia=M25_HOLE_DIA, standoff_h=standoff_h, standoff_od=M25_STANDOFF_OD);
+}
+
+// =====================================================================
+// 18. Raspberry Pi 7-inch Touch Display
+//     194 x 110 x 20mm, 4x M2.5 mounting holes
+// =====================================================================
+RPI_DISPLAY_W = 194;
+RPI_DISPLAY_H = 110;
+RPI_DISPLAY_D = 20;
+RPI_DISPLAY_MOUNT_X = 180;
+RPI_DISPLAY_MOUNT_Y = 96;
+
+module rpi_display_7in_dummy() {
+    cube([RPI_DISPLAY_W, RPI_DISPLAY_H, RPI_DISPLAY_D]);
+    // Active area (slightly smaller)
+    %translate([10, 10, RPI_DISPLAY_D])
+        cube([RPI_DISPLAY_W - 20, RPI_DISPLAY_H - 20, 0.5]);
+}
+
+module rpi_display_7in_mount(standoff_h=M3_STANDOFF_HEIGHT) {
+    standoff_mount(RPI_DISPLAY_W, RPI_DISPLAY_H,
+        RPI_DISPLAY_MOUNT_X, RPI_DISPLAY_MOUNT_Y,
+        hole_dia=M25_HOLE_DIA, standoff_h=standoff_h, standoff_od=M25_STANDOFF_OD);
+}
+
+// =====================================================================
+// 19. 18650 Battery Holder (1-cell, for train)
+//     77 x 21 x 20mm, spring-loaded
+// =====================================================================
+BATT_1CELL_L = 77;
+BATT_1CELL_W = 21;
+BATT_1CELL_H = 20;
+
+module battery_holder_1cell_dummy() {
+    cube([BATT_1CELL_L, BATT_1CELL_W, BATT_1CELL_H]);
+    %translate([0, 0, BATT_1CELL_H])
+        cube([BATT_1CELL_L, BATT_1CELL_W, DUPONT_CLEARANCE]);
+}
+
+module battery_holder_1cell_mount(wall=2.0) {
+    universal_cradle(BATT_1CELL_L, BATT_1CELL_W, BATT_1CELL_H, wall=wall);
 }
 
 $fn = 64;

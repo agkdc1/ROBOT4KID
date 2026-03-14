@@ -1,0 +1,3 @@
+# Symlink or copy of config/hardware_specs.yaml for Flutter asset bundling.
+# Run: copy ..\..\config\hardware_specs.yaml . (or use build script)
+# The canonical source is always config/hardware_specs.yaml at project root.

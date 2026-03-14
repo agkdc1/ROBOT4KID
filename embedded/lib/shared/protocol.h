@@ -44,6 +44,30 @@ struct TankStatus {
     uint8_t  checksum;
 };
 
+// --- Train command types ---
+#define CMD_TRAIN_DRIVE   0x10
+#define CMD_TRAIN_HORN    0x11
+#define CMD_TRAIN_LIGHTS  0x12
+#define CMD_TRAIN_STATUS  0x13
+
+struct TrainCommand {
+    uint8_t  header;      // 0xAA
+    uint8_t  type;        // CMD_TRAIN_DRIVE, CMD_TRAIN_HORN, CMD_TRAIN_LIGHTS
+    int8_t   speed;       // -100 to +100
+    uint8_t  horn;        // 0 = off, 1 = on
+    uint8_t  lights;      // 0 = off, 1 = head, 2 = tail, 3 = both
+    uint8_t  checksum;    // XOR of all preceding bytes
+};
+
+struct TrainStatus {
+    uint8_t  header;      // 0xAA
+    uint8_t  type;        // CMD_TRAIN_STATUS
+    int8_t   speed_actual;// -100 to +100
+    uint8_t  battery_pct; // 0-100
+    uint8_t  flags;       // bit0=horn, bit1=head_light, bit2=tail_light
+    uint8_t  checksum;    // XOR of all preceding bytes
+};
+
 #pragma pack(pop)
 
 // Compute XOR checksum over a buffer
@@ -59,6 +83,13 @@ inline uint8_t compute_checksum(const uint8_t* data, size_t len) {
 inline bool validate_command(const TankCommand& cmd) {
     if (cmd.header != PACKET_HEADER) return false;
     uint8_t cs = compute_checksum((const uint8_t*)&cmd, sizeof(TankCommand) - 1);
+    return cs == cmd.checksum;
+}
+
+// Validate a train command packet
+inline bool validate_train_command(const TrainCommand& cmd) {
+    if (cmd.header != PACKET_HEADER) return false;
+    uint8_t cs = compute_checksum((const uint8_t*)&cmd, sizeof(TrainCommand) - 1);
     return cs == cmd.checksum;
 }
 

@@ -3,9 +3,19 @@
 import os
 from pathlib import Path
 
+import yaml
+
 # Base paths
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent
 DATA_DIR = BASE_DIR / "data"
+
+# Load hardware specs (single source of truth for dimensions/settings)
+_hw_path = PROJECT_ROOT / "config" / "hardware_specs.yaml"
+HW: dict = {}
+if _hw_path.exists():
+    with open(_hw_path) as _f:
+        HW = yaml.safe_load(_f) or {}
 DATA_DIR.mkdir(exist_ok=True)
 PROJECTS_DIR = DATA_DIR / "projects"
 PROJECTS_DIR.mkdir(exist_ok=True)
@@ -43,3 +53,12 @@ JWT_REFRESH_TOKEN_EXPIRE_DAYS = 7
 # Admin
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
+
+# Pipeline (from YAML with env override)
+_pipeline = HW.get("pipeline", {})
+MAX_REFINEMENT_ITERATIONS = int(os.getenv(
+    "MAX_REFINEMENT_ITERATIONS",
+    str(_pipeline.get("max_refinement_iterations", 2)),
+))
+SIMULATION_TIMEOUT_SECONDS = int(_pipeline.get("simulation_timeout_seconds", 30))
+REFINEMENT_SCORE_THRESHOLD = float(_pipeline.get("refinement_score_threshold", 0.8))

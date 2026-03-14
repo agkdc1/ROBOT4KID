@@ -54,6 +54,25 @@
   #define HULL_UART_RX       3
 #endif
 
+// --- Train Node Pin Mapping ---
+#ifdef TRAIN_NODE
+  // DRV8833 Motor Driver - single channel for drive
+  #define MOTOR_AIN1    12
+  #define MOTOR_AIN2    13
+
+  // Horn (buzzer)
+  #define HORN_PIN      14
+
+  // LED headlight/taillight
+  #define LED_HEAD_PIN  15
+  #define LED_TAIL_PIN  2
+
+  // WiFi AP mode
+  #define TRAIN_WIFI_SSID     "TRAIN_CTRL"
+  #define TRAIN_WIFI_PASSWORD "train1234"
+  #define TRAIN_IP            "192.168.4.1"
+#endif
+
 // Motor PWM settings
 #define PWM_FREQ     5000
 #define PWM_RES      8     // 8-bit: 0-255

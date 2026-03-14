@@ -7,7 +7,12 @@ from shared.schemas.robot_spec import (
     JointSpec,
     PartSpec,
     ElectronicComponent,
+    ModelType,
     RobotSpec,
+)
+from shared.schemas.command_spec import (
+    DriveMode,
+    UniversalCommand,
 )
 from shared.schemas.simulation_request import SimulationRequest
 from shared.schemas.simulation_feedback import (
@@ -29,7 +34,10 @@ __all__ = [
     "JointSpec",
     "PartSpec",
     "ElectronicComponent",
+    "ModelType",
     "RobotSpec",
+    "DriveMode",
+    "UniversalCommand",
     "SimulationRequest",
     "SeverityLevel",
     "FeedbackItem",
