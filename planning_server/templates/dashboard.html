@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}NL2Bot — Dashboard{% endblock %}
+{% block content %}
+<div x-data="dashboard()" x-init="loadProjects()">
+    <div class="page-header">
+        <h2>My Projects</h2>
+        <button @click="showNewProject = true" class="btn btn-primary">New Project</button>
+    </div>
+
+    <!-- New Project Modal -->
+    <div x-show="showNewProject" class="modal-overlay" @click.self="showNewProject = false">
+        <div class="modal-card">
+            <h3>Create New Project</h3>
+            <form @submit.prevent="createProject()">
+                <div class="form-group">
+                    <label>Project Name</label>
+                    <input type="text" x-model="newName" required placeholder="e.g. M1A1 Abrams Tank">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea x-model="newDescription" rows="3"
+                        placeholder="Describe your robot project..."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" @click="showNewProject = false" class="btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Projects Grid -->
+    <div class="project-grid">
+        <template x-for="project in projects" :key="project.id">
+            <a :href="'/project/' + project.id" class="project-card">
+                <h3 x-text="project.name"></h3>
+                <p x-text="project.description || 'No description'"></p>
+                <span class="badge" x-text="project.status"></span>
+            </a>
+        </template>
+        <div x-show="projects.length === 0" class="empty-state">
+            <p>No projects yet. Create your first robot project!</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function dashboard() {
+    return {
+        projects: [],
+        showNewProject: false,
+        newName: '',
+        newDescription: '',
+
+        headers() {
+            return {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': 'application/json'
+            };
+        },
+
+        async loadProjects() {
+            try {
+                const res = await fetch('/api/v1/projects', { headers: this.headers() });
+                if (res.status === 401) { window.location.href = '/login'; return; }
+                this.projects = await res.json();
+            } catch (e) {
+                console.error('Failed to load projects:', e);
+            }
+        },
+
+        async createProject() {
+            try {
+                const res = await fetch('/api/v1/projects', {
+                    method: 'POST',
+                    headers: this.headers(),
+                    body: JSON.stringify({ name: this.newName, description: this.newDescription })
+                });
+                if (res.ok) {
+                    this.showNewProject = false;
+                    this.newName = '';
+                    this.newDescription = '';
+                    await this.loadProjects();
+                }
+            } catch (e) {
+                console.error('Failed to create project:', e);
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

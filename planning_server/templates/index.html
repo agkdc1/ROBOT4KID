@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}NL2Bot — Home{% endblock %}
+{% block content %}
+<div class="hero">
+    <h1>NL2Bot</h1>
+    <p class="hero-subtitle">Describe a robot in plain English. Get 3D-printable parts, firmware, and a control app.</p>
+    <div class="hero-actions">
+        <a href="/login" class="btn btn-primary btn-lg">Get Started</a>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h3>Describe</h3>
+            <p>Tell us what robot you want in natural language</p>
+        </div>
+        <div class="feature-card">
+            <h3>Generate</h3>
+            <p>AI creates OpenSCAD parts, ESP32 firmware, and Flutter app</p>
+        </div>
+        <div class="feature-card">
+            <h3>Simulate</h3>
+            <p>Physics simulation validates your design before printing</p>
+        </div>
+        <div class="feature-card">
+            <h3>Build</h3>
+            <p>3D print, assemble, flash firmware, and control with a tablet</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

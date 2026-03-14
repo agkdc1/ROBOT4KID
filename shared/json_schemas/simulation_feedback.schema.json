@@ -1,0 +1,384 @@
+{
+  "$defs": {
+    "AssemblyResult": {
+      "properties": {
+        "urdf_path": {
+          "description": "Path to generated URDF file",
+          "title": "Urdf Path",
+          "type": "string"
+        },
+        "total_mass_grams": {
+          "default": 0.0,
+          "title": "Total Mass Grams",
+          "type": "number"
+        },
+        "center_of_mass": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center Of Mass",
+          "type": "array"
+        },
+        "viewer_url": {
+          "default": "",
+          "description": "URL to 3D web viewer",
+          "title": "Viewer Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "urdf_path"
+      ],
+      "title": "AssemblyResult",
+      "type": "object"
+    },
+    "FeedbackItem": {
+      "properties": {
+        "category": {
+          "description": "Category: printability | collision | kinematics | physics",
+          "title": "Category",
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/SeverityLevel"
+        },
+        "part_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which part this applies to",
+          "title": "Part Id"
+        },
+        "message": {
+          "description": "Human-readable description",
+          "title": "Message",
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": true,
+          "description": "Machine-readable details",
+          "title": "Data",
+          "type": "object"
+        },
+        "suggestion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Suggested fix",
+          "title": "Suggestion"
+        }
+      },
+      "required": [
+        "category",
+        "severity",
+        "message"
+      ],
+      "title": "FeedbackItem",
+      "type": "object"
+    },
+    "PhysicsResult": {
+      "properties": {
+        "stable": {
+          "description": "Does the robot tip over?",
+          "title": "Stable",
+          "type": "boolean"
+        },
+        "max_speed_ms": {
+          "default": 0.0,
+          "description": "Simulated top speed m/s",
+          "title": "Max Speed Ms",
+          "type": "number"
+        },
+        "turn_radius_mm": {
+          "default": 0.0,
+          "description": "Minimum turn radius",
+          "title": "Turn Radius Mm",
+          "type": "number"
+        },
+        "turret_range_deg": {
+          "default": [
+            0.0,
+            360.0
+          ],
+          "description": "Azimuth range",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Turret Range Deg",
+          "type": "array"
+        },
+        "barrel_range_deg": {
+          "default": [
+            -10.0,
+            45.0
+          ],
+          "description": "Elevation range",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Barrel Range Deg",
+          "type": "array"
+        },
+        "simulation_log": {
+          "description": "Timestamped events",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Simulation Log",
+          "type": "array"
+        }
+      },
+      "required": [
+        "stable"
+      ],
+      "title": "PhysicsResult",
+      "type": "object"
+    },
+    "PrintabilityResult": {
+      "properties": {
+        "part_id": {
+          "title": "Part Id",
+          "type": "string"
+        },
+        "fits_build_volume": {
+          "default": true,
+          "title": "Fits Build Volume",
+          "type": "boolean"
+        },
+        "overhang_percentage": {
+          "default": 0.0,
+          "description": "Percentage of faces > 45 deg overhang",
+          "title": "Overhang Percentage",
+          "type": "number"
+        },
+        "estimated_print_time_min": {
+          "default": 0.0,
+          "title": "Estimated Print Time Min",
+          "type": "number"
+        },
+        "estimated_filament_grams": {
+          "default": 0.0,
+          "title": "Estimated Filament Grams",
+          "type": "number"
+        },
+        "needs_supports": {
+          "default": false,
+          "title": "Needs Supports",
+          "type": "boolean"
+        },
+        "recommended_orientation": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Rotation for optimal print orientation",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Recommended Orientation",
+          "type": "array"
+        }
+      },
+      "required": [
+        "part_id"
+      ],
+      "title": "PrintabilityResult",
+      "type": "object"
+    },
+    "RenderResult": {
+      "properties": {
+        "part_id": {
+          "title": "Part Id",
+          "type": "string"
+        },
+        "stl_path": {
+          "description": "Path to generated STL file",
+          "title": "Stl Path",
+          "type": "string"
+        },
+        "stl_size_bytes": {
+          "default": 0,
+          "title": "Stl Size Bytes",
+          "type": "integer"
+        },
+        "dimensions_mm": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Dimensions Mm",
+          "type": "array"
+        },
+        "volume_mm3": {
+          "default": 0.0,
+          "title": "Volume Mm3",
+          "type": "number"
+        },
+        "is_manifold": {
+          "default": true,
+          "title": "Is Manifold",
+          "type": "boolean"
+        },
+        "triangle_count": {
+          "default": 0,
+          "title": "Triangle Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "part_id",
+        "stl_path"
+      ],
+      "title": "RenderResult",
+      "type": "object"
+    },
+    "SeverityLevel": {
+      "enum": [
+        "info",
+        "warning",
+        "error",
+        "critical"
+      ],
+      "title": "SeverityLevel",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "status": {
+      "description": "Status: completed | partial | failed",
+      "title": "Status",
+      "type": "string"
+    },
+    "render_results": {
+      "items": {
+        "$ref": "#/$defs/RenderResult"
+      },
+      "title": "Render Results",
+      "type": "array"
+    },
+    "assembly_result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AssemblyResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "physics_result": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PhysicsResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "printability_results": {
+      "items": {
+        "$ref": "#/$defs/PrintabilityResult"
+      },
+      "title": "Printability Results",
+      "type": "array"
+    },
+    "feedback_items": {
+      "description": "Issues found",
+      "items": {
+        "$ref": "#/$defs/FeedbackItem"
+      },
+      "title": "Feedback Items",
+      "type": "array"
+    },
+    "overall_score": {
+      "default": 0.0,
+      "description": "0.0\u20131.0 feasibility score",
+      "title": "Overall Score",
+      "type": "number"
+    },
+    "timestamp": {
+      "title": "Timestamp",
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "status"
+  ],
+  "title": "SimulationFeedback",
+  "type": "object"
+}

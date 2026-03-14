@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NL2Bot{% endblock %}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">NL2Bot</a>
+            <span class="nav-subtitle">Natural Language to Robotics</span>
+        </div>
+        <div class="nav-links" x-data="{ loggedIn: !!localStorage.getItem('token') }">
+            <template x-if="loggedIn">
+                <div>
+                    <a href="/dashboard">Dashboard</a>
+                    <button @click="localStorage.removeItem('token'); location.href='/login'" class="btn btn-sm">Logout</button>
+                </div>
+            </template>
+            <template x-if="!loggedIn">
+                <a href="/login" class="btn btn-primary btn-sm">Login</a>
+            </template>
+        </div>
+    </nav>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

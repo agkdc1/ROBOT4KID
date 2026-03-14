@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}NL2Bot — Project{% endblock %}
+{% block content %}
+<div x-data="projectWorkspace({{ project_id }})" x-init="loadProject()">
+    <div class="page-header">
+        <h2 x-text="project.name || 'Loading...'"></h2>
+        <span class="badge" x-text="project.status"></span>
+    </div>
+
+    <!-- Pipeline Input -->
+    <div class="pipeline-section">
+        <h3>Describe Your Robot</h3>
+        <form @submit.prevent="runPipeline()">
+            <div class="form-group">
+                <textarea x-model="prompt" rows="4" class="pipeline-input"
+                    placeholder="Describe your robot in natural language. Example: Build a modular M1A1 Abrams tank with dual ESP32-CAM nodes, differential drive with L9110 motors, a rotating turret with servo-controlled barrel elevation, and a 10-inch tablet control console."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary" :disabled="pipelineRunning">
+                <span x-text="pipelineRunning ? 'Running...' : 'Run Pipeline'"></span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Progress -->
+    <div x-show="pipelineRunning || pipelineStatus" class="pipeline-progress">
+        <h3>Pipeline Progress</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" :style="'width: ' + (progress * 100) + '%'"></div>
+        </div>
+        <p class="progress-step" x-text="currentStep"></p>
+        <div x-show="errors.length > 0" class="alert alert-error">
+            <template x-for="err in errors"><p x-text="err"></p></template>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div x-show="results" class="results-section">
+        <h3>Results</h3>
+
+        <!-- Robot Spec -->
+        <div x-show="results?.robot_spec" class="result-card">
+            <h4>Robot Specification</h4>
+            <p>Name: <span x-text="results?.robot_spec?.name"></span></p>
+            <p>Parts: <span x-text="results?.robot_spec?.parts?.length || 0"></span></p>
+            <p>Joints: <span x-text="results?.robot_spec?.joints?.length || 0"></span></p>
+            <p>Electronics: <span x-text="results?.robot_spec?.electronics?.length || 0"></span></p>
+        </div>
+
+        <!-- Simulation Feedback -->
+        <div x-show="results?.simulation_feedback" class="result-card">
+            <h4>Simulation Feedback</h4>
+            <p>Score: <span x-text="results?.simulation_feedback?.overall_score"></span></p>
+            <p>Status: <span x-text="results?.simulation_feedback?.status"></span></p>
+
+            <template x-for="item in (results?.simulation_feedback?.feedback_items || [])">
+                <div class="feedback-item" :class="'severity-' + item.severity">
+                    <strong x-text="item.category"></strong>:
+                    <span x-text="item.message"></span>
+                    <p x-show="item.suggestion" class="suggestion" x-text="item.suggestion"></p>
+                </div>
+            </template>
+        </div>
+
+        <!-- Viewer Link -->
+        <div x-show="results?.simulation_job_id" class="result-card">
+            <h4>3D Viewer</h4>
+            <a :href="'http://localhost:8100/api/v1/viewer/' + results.simulation_job_id"
+               target="_blank" class="btn btn-primary">Open 3D Viewer</a>
+        </div>
+    </div>
+</div>
+
+<script>
+function projectWorkspace(projectId) {
+    return {
+        project: {},
+        prompt: '',
+        pipelineRunning: false,
+        pipelineStatus: null,
+        progress: 0,
+        currentStep: '',
+        errors: [],
+        results: null,
+        pollInterval: null,
+
+        headers() {
+            return {
+                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Content-Type': 'application/json'
+            };
+        },
+
+        async loadProject() {
+            try {
+                const res = await fetch('/api/v1/projects/' + projectId, { headers: this.headers() });
+                if (res.status === 401) { window.location.href = '/login'; return; }
+                this.project = await res.json();
+            } catch (e) { console.error(e); }
+        },
+
+        async runPipeline() {
+            if (!this.prompt.trim()) return;
+            this.pipelineRunning = true;
+            this.results = null;
+            this.errors = [];
+
+            try {
+                await fetch('/api/v1/projects/' + projectId + '/pipeline/run', {
+                    method: 'POST',
+                    headers: this.headers(),
+                    body: JSON.stringify({ prompt: this.prompt })
+                });
+
+                // Poll for status
+                this.pollInterval = setInterval(() => this.pollStatus(), 2000);
+            } catch (e) {
+                this.errors.push(e.message);
+                this.pipelineRunning = false;
+            }
+        },
+
+        async pollStatus() {
+            try {
+                const res = await fetch('/api/v1/projects/' + projectId + '/pipeline/status', {
+                    headers: this.headers()
+                });
+                const data = await res.json();
+                this.pipelineStatus = data.status;
+                this.progress = data.progress || 0;
+                this.currentStep = data.current_step || '';
+                this.errors = data.errors || [];
+
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(this.pollInterval);
+                    this.pipelineRunning = false;
+                    if (data.status === 'completed') {
+                        await this.loadResults();
+                    }
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        async loadResults() {
+            try {
+                const res = await fetch('/api/v1/projects/' + projectId + '/pipeline/results', {
+                    headers: this.headers()
+                });
+                if (res.ok) {
+                    this.results = await res.json();
+                }
+            } catch (e) { console.error(e); }
+        }
+    };
+}
+</script>
+{% endblock %}

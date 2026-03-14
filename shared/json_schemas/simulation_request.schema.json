@@ -1,0 +1,452 @@
+{
+  "$defs": {
+    "ElectronicComponent": {
+      "properties": {
+        "id": {
+          "description": "Unique identifier, e.g. 'hull_esp32cam'",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "description": "Component type: ESP32-CAM | MPU6050 | L9110 | etc.",
+          "title": "Type",
+          "type": "string"
+        },
+        "host_part": {
+          "description": "PartSpec.id this mounts to",
+          "title": "Host Part",
+          "type": "string"
+        },
+        "mount_position_mm": {
+          "description": "Mount position relative to host part origin",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mount Position Mm",
+          "type": "array"
+        },
+        "mount_orientation_rpy": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Mount orientation in radians",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mount Orientation Rpy",
+          "type": "array"
+        },
+        "connections": {
+          "description": "List of {pin, wire_to, wire_color}",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Connections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "host_part",
+        "mount_position_mm"
+      ],
+      "title": "ElectronicComponent",
+      "type": "object"
+    },
+    "JointSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/JointType"
+        },
+        "parent_part": {
+          "description": "References PartSpec.id",
+          "title": "Parent Part",
+          "type": "string"
+        },
+        "child_part": {
+          "description": "References PartSpec.id",
+          "title": "Child Part",
+          "type": "string"
+        },
+        "axis": {
+          "description": "Rotation/translation axis",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Axis",
+          "type": "array"
+        },
+        "origin_xyz": {
+          "description": "Joint origin position in mm",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Xyz",
+          "type": "array"
+        },
+        "origin_rpy": {
+          "description": "Roll, pitch, yaw in radians",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Rpy",
+          "type": "array"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Joint limits: {lower, upper, effort, velocity}",
+          "title": "Limits"
+        },
+        "fastener": {
+          "default": "m4_screw",
+          "description": "Fastener type: m4_screw | snap_fit | press_fit",
+          "title": "Fastener",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "parent_part",
+        "child_part",
+        "axis",
+        "origin_xyz",
+        "origin_rpy"
+      ],
+      "title": "JointSpec",
+      "type": "object"
+    },
+    "JointType": {
+      "enum": [
+        "fixed",
+        "revolute",
+        "continuous",
+        "prismatic"
+      ],
+      "title": "JointType",
+      "type": "string"
+    },
+    "MaterialType": {
+      "enum": [
+        "PLA",
+        "PETG",
+        "TPU"
+      ],
+      "title": "MaterialType",
+      "type": "string"
+    },
+    "PartSpec": {
+      "properties": {
+        "id": {
+          "description": "Unique identifier, e.g. 'chassis_hull'",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Human-readable name",
+          "title": "Name",
+          "type": "string"
+        },
+        "scad_file": {
+          "description": "Relative path to .scad file",
+          "title": "Scad File",
+          "type": "string"
+        },
+        "scad_code": {
+          "default": "",
+          "description": "Full OpenSCAD source code",
+          "title": "Scad Code",
+          "type": "string"
+        },
+        "category": {
+          "description": "Part category: chassis | turret | console",
+          "title": "Category",
+          "type": "string"
+        },
+        "dimensions_mm": {
+          "description": "Bounding box in mm (X, Y, Z)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Dimensions Mm",
+          "type": "array"
+        },
+        "requires_splitting": {
+          "default": false,
+          "description": "True if part exceeds build volume",
+          "title": "Requires Splitting",
+          "type": "boolean"
+        },
+        "split_parts": {
+          "description": "IDs of sub-parts if split",
+          "items": {
+            "type": "string"
+          },
+          "title": "Split Parts",
+          "type": "array"
+        },
+        "mass_grams": {
+          "default": 0.0,
+          "description": "Estimated mass",
+          "title": "Mass Grams",
+          "type": "number"
+        },
+        "color": {
+          "default": "#4a7c59",
+          "description": "Hex color for visualization",
+          "title": "Color",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scad_file",
+        "category",
+        "dimensions_mm"
+      ],
+      "title": "PartSpec",
+      "type": "object"
+    },
+    "PrinterProfile": {
+      "properties": {
+        "name": {
+          "description": "Printer model name, e.g. 'Bambu Lab A1 Mini'",
+          "title": "Name",
+          "type": "string"
+        },
+        "build_volume_mm": {
+          "description": "Build volume in mm (X, Y, Z)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Build Volume Mm",
+          "type": "array"
+        },
+        "nozzle_diameter_mm": {
+          "default": 0.4,
+          "title": "Nozzle Diameter Mm",
+          "type": "number"
+        },
+        "layer_height_mm": {
+          "default": 0.2,
+          "title": "Layer Height Mm",
+          "type": "number"
+        },
+        "material": {
+          "$ref": "#/$defs/MaterialType",
+          "default": "PLA"
+        },
+        "wall_thickness_mm": {
+          "default": 1.2,
+          "description": "Wall thickness (3 perimeters at 0.4mm)",
+          "title": "Wall Thickness Mm",
+          "type": "number"
+        },
+        "tolerance_mm": {
+          "default": 0.2,
+          "description": "Print tolerance for mating surfaces",
+          "title": "Tolerance Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "build_volume_mm"
+      ],
+      "title": "PrinterProfile",
+      "type": "object"
+    },
+    "RobotSpec": {
+      "description": "Master specification \u2014 the single source of truth for a robot design.",
+      "properties": {
+        "name": {
+          "description": "Robot name, e.g. 'M1A1 Abrams'",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "default": "0.1.0",
+          "description": "Semantic version",
+          "title": "Version",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "printer": {
+          "$ref": "#/$defs/PrinterProfile"
+        },
+        "parts": {
+          "items": {
+            "$ref": "#/$defs/PartSpec"
+          },
+          "title": "Parts",
+          "type": "array"
+        },
+        "joints": {
+          "items": {
+            "$ref": "#/$defs/JointSpec"
+          },
+          "title": "Joints",
+          "type": "array"
+        },
+        "electronics": {
+          "items": {
+            "$ref": "#/$defs/ElectronicComponent"
+          },
+          "title": "Electronics",
+          "type": "array"
+        },
+        "firmware_config": {
+          "additionalProperties": true,
+          "description": "WiFi SSID, motor pins, servo angles, etc.",
+          "title": "Firmware Config",
+          "type": "object"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "description": "Arbitrary key-value pairs",
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "RobotSpec",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "job_id": {
+      "description": "UUID assigned by caller",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "robot_spec": {
+      "$ref": "#/$defs/RobotSpec",
+      "description": "The full robot specification"
+    },
+    "simulation_type": {
+      "default": "full",
+      "description": "Type: render | assemble | physics | full",
+      "title": "Simulation Type",
+      "type": "string"
+    },
+    "parameters": {
+      "additionalProperties": true,
+      "description": "Simulation-specific parameters",
+      "title": "Parameters",
+      "type": "object"
+    },
+    "callback_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "POST feedback here when done",
+      "title": "Callback Url"
+    }
+  },
+  "required": [
+    "job_id",
+    "robot_spec"
+  ],
+  "title": "SimulationRequest",
+  "type": "object"
+}

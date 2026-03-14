@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  planning-server:
+    build:
+      context: ..
+      dockerfile: planning_server/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../planning_server/data:/app/planning_server/data
+      - ../shared:/app/shared
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - SIMULATION_SERVER_URL=http://simulation-server:8100
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+    depends_on:
+      - simulation-server
+    restart: unless-stopped
+
+  simulation-server:
+    build:
+      context: ..
+      dockerfile: simulation_server/Dockerfile
+    ports:
+      - "8100:8100"
+    volumes:
+      - ../simulation_server/jobs:/app/simulation_server/jobs
+      - ../shared:/app/shared
+    environment:
+      - USE_XVFB=true
+    restart: unless-stopped
