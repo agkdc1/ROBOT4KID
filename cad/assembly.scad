@@ -2,7 +2,7 @@
 // Use this file to preview the complete tank with all components
 // Includes: hull, turret, barrel, tracks, electronics bay, sensors
 
-use <libs/common.scad>
+include <libs/common.scad>     // include (not use) to get variables
 use <libs/electronics.scad>
 use <chassis/hull.scad>
 use <chassis/track_assembly.scad>
@@ -20,11 +20,11 @@ hull_assembly();
 color("#4a4a3a")  // Dark olive
 // Left track
 translate([0, -TRACK_WIDTH, 0])
-    track_side_plate();
+    track_assembly_left();
 // Right track (mirrored)
 translate([0, HULL_WIDTH + TRACK_WIDTH, 0])
     mirror([0, 1, 0])
-        track_side_plate();
+        track_assembly_left();
 
 // Electronics bay (inside rear hull)
 color("#2a3a2a", 0.6)  // Dark green, semi-transparent
@@ -36,10 +36,10 @@ color("#4a5e2a")
 translate([225, 45, 80])  // Centered on rear hull turret ring
     turret_body();
 
-// Barrel (on turret)
+// Barrel (on turret) — barrel module builds along Z, rotate to point forward (X)
 color("#3a4e1a")
-translate([340, 92, 110])  // At trunnion
-    rotate([0, -5, 0])     // Slight elevation
+translate([225 + 60, 45 + 47.5, 80 + 30])  // Trunnion position on turret
+    rotate([0, -85, 0])     // -90° to horizontal + 5° elevation
         gun_barrel();
 
 // Hull camera (ESP32-CAM at front — shown as dummy)
