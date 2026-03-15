@@ -38,32 +38,56 @@ duct_depth = 8;
 
 $fn = 64;
 
+// --- M1A1 Turret Profile ---
+// Angular shape: wide cheek armor at front, narrower bustle at rear
+// Flat top, sloped sides, wedge-shaped front armor
+cheek_width = 15;           // Extra width from cheek armor blocks
+cheek_length = 50;          // How far back cheek armor extends
+bustle_length = 30;         // Rear bustle rack overhang
+top_taper = 5;              // Top edges slope inward slightly
+
 module turret_shell() {
     difference() {
-        // Outer shape — elongated with flat top (M1A1 style)
-        hull() {
-            translate([10, 10, 0])
-                cylinder(h=turret_height, r=10);
-            translate([turret_length-10, 10, 0])
-                cylinder(h=turret_height, r=10);
-            translate([10, turret_width-10, 0])
-                cylinder(h=turret_height, r=10);
-            translate([turret_length-10, turret_width-10, 0])
-                cylinder(h=turret_height, r=10);
-        }
+        // Outer turret — angular M1A1 shape using polyhedron
+        polyhedron(
+            points = [
+                // Bottom face (Z=0) — wide at front (cheek armor), narrow at rear
+                [0, -cheek_width, 0],                          // 0: front-left-bottom (cheek)
+                [cheek_length, -cheek_width, 0],               // 1: cheek-end-left-bottom
+                [turret_length, 10, 0],                        // 2: rear-left-bottom (narrower)
+                [turret_length + bustle_length, 15, 0],        // 3: bustle-left-bottom
+                [turret_length + bustle_length, turret_width - 15, 0], // 4: bustle-right-bottom
+                [turret_length, turret_width - 10, 0],         // 5: rear-right-bottom
+                [cheek_length, turret_width + cheek_width, 0], // 6: cheek-end-right-bottom
+                [0, turret_width + cheek_width, 0],            // 7: front-right-bottom (cheek)
+
+                // Top face (Z=turret_height) — slightly tapered inward
+                [0, -cheek_width + top_taper, turret_height],                    // 8
+                [cheek_length, -cheek_width + top_taper, turret_height],         // 9
+                [turret_length, 10 + top_taper, turret_height],                  // 10
+                [turret_length + bustle_length, 15 + top_taper, turret_height],  // 11
+                [turret_length + bustle_length, turret_width - 15 - top_taper, turret_height], // 12
+                [turret_length, turret_width - 10 - top_taper, turret_height],   // 13
+                [cheek_length, turret_width + cheek_width - top_taper, turret_height], // 14
+                [0, turret_width + cheek_width - top_taper, turret_height],      // 15
+            ],
+            faces = [
+                [7,6,5,4,3,2,1,0],         // bottom
+                [8,9,10,11,12,13,14,15],    // top
+                [0,1,9,8],                  // left cheek
+                [1,2,10,9],                 // left side
+                [2,3,11,10],                // left rear
+                [3,4,12,11],                // rear
+                [4,5,13,12],                // right rear
+                [5,6,14,13],                // right side
+                [6,7,15,14],                // right cheek
+                [7,0,8,15],                 // front face
+            ]
+        );
 
         // Hollow interior
-        translate([wall, wall, wall])
-        hull() {
-            translate([10, 10, 0])
-                cylinder(h=turret_height, r=10-wall);
-            translate([turret_length-10-wall, 10, 0])
-                cylinder(h=turret_height, r=10-wall);
-            translate([10, turret_width-10-wall, 0])
-                cylinder(h=turret_height, r=10-wall);
-            translate([turret_length-10-wall, turret_width-10-wall, 0])
-                cylinder(h=turret_height, r=10-wall);
-        }
+        translate([wall + 3, wall + 3, wall])
+            cube([turret_length - 2*wall - 6, turret_width - 2*wall - 6, turret_height]);
     }
 }
 

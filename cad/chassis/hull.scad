@@ -46,22 +46,117 @@ ebay_mount_y = 86;              // Electronics bay width
 // Part selector — set via CLI: -D 'part="front"'
 part = "assembly";  // "front" | "rear" | "assembly"
 
+// --- M1A1 Hull Profile ---
+// Lower hull: vertical sides, flat bottom
+// Upper hull: sloped sides (inward taper), flat deck with turret ring cutout
+// Front: steep glacis plate at 30°
+// Rear: vertical engine deck with exhaust grilles
+
+upper_taper = 8;           // How much the upper hull sides slope inward (mm)
+deck_height = hull_height * 0.6;  // Where the upper hull starts tapering
+side_skirt_drop = 10;      // Side skirts extend below hull bottom
+rear_slope = 15;           // Rear deck slope angle
+
+module hull_profile_2d() {
+    // Cross-section of the hull (in YZ plane)
+    // Lower hull: straight sides
+    // Upper hull: tapered inward
+    polygon([
+        [0, 0],                                         // bottom-left
+        [hull_width, 0],                                // bottom-right
+        [hull_width, deck_height],                      // right at deck line
+        [hull_width - upper_taper, hull_height],        // right top (tapered in)
+        [upper_taper, hull_height],                     // left top (tapered in)
+        [0, deck_height],                               // left at deck line
+    ]);
+}
+
 module hull_base(length) {
     difference() {
-        // Outer shell
-        rounded_cube([length, hull_width, hull_height], r=3);
+        union() {
+            // Main hull body with tapered upper sides
+            linear_extrude(height=length)
+                hull_profile_2d();
+
+            // Side skirts (thin plates extending below hull)
+            for (side = [0, hull_width - wall])
+                translate([side, -side_skirt_drop, 0])
+                    cube([wall, side_skirt_drop, length]);
+        }
 
         // Hollow interior
         translate([wall, wall, wall])
-            cube([length - 2*wall, hull_width - 2*wall, hull_height]);
+            linear_extrude(height=length - 2*wall)
+                offset(r=-wall)
+                    hull_profile_2d();
     }
 }
 
+module hull_base_oriented(length) {
+    // Rotate so hull extends along X (length), Y (width), Z (height)
+    // hull_base extrudes along Z, so rotate to align
+    rotate([90, 0, 90])
+        hull_base(length);
+    // After rotation: extrusion axis (Z) becomes X
+    // hull_profile_2d Y becomes Z (height), polygon X becomes Y (width)
+    // Need to fix translation — the rotation moves origin
+    // Actually let's just do it properly:
+}
+
+// Simpler approach: build the hull directly in XYZ
+module hull_shape(length) {
+    difference() {
+        // Outer hull with sloped upper armor
+        polyhedron(
+            points = [
+                // Bottom face (Z=0)
+                [0, 0, 0],                                    // 0: front-left-bottom
+                [length, 0, 0],                               // 1: rear-left-bottom
+                [length, hull_width, 0],                      // 2: rear-right-bottom
+                [0, hull_width, 0],                           // 3: front-right-bottom
+                // Deck line (Z=deck_height)
+                [0, 0, deck_height],                          // 4: front-left-deck
+                [length, 0, deck_height],                     // 5: rear-left-deck
+                [length, hull_width, deck_height],             // 6: rear-right-deck
+                [0, hull_width, deck_height],                  // 7: front-right-deck
+                // Top face (Z=hull_height, tapered inward)
+                [0, upper_taper, hull_height],                 // 8: front-left-top
+                [length, upper_taper, hull_height],            // 9: rear-left-top
+                [length, hull_width-upper_taper, hull_height], // 10: rear-right-top
+                [0, hull_width-upper_taper, hull_height],      // 11: front-right-top
+            ],
+            faces = [
+                [3,2,1,0],     // bottom
+                [8,9,10,11],   // top
+                [0,1,5,4],     // left lower
+                [4,5,9,8],     // left upper (sloped)
+                [2,3,7,6],     // right lower
+                [6,7,11,10],   // right upper (sloped)
+                [0,4,8,11,7,3],// front
+                [1,2,6,10,9,5],// rear
+            ]
+        );
+
+        // Hollow interior (offset inward by wall thickness)
+        translate([wall, wall, wall])
+            cube([length - 2*wall, hull_width - 2*wall, hull_height]);
+    }
+
+    // Side skirts
+    for (y_pos = [-2, hull_width])
+        translate([0, y_pos, -side_skirt_drop])
+            cube([length, 2, deck_height + side_skirt_drop]);
+}
+
 module glacis_plate() {
-    // Angled front plate (M1A1 style)
-    translate([0, 0, hull_height * 0.6])
-    rotate([0, -glacis_angle, 0])
-        cube([hull_height * 0.5, hull_width, wall]);
+    // Steep front glacis plate (M1A1 has ~82° from horizontal = very steep)
+    // Creates a sloped wedge at the front of the hull
+    hull() {
+        translate([0, wall, deck_height])
+            cube([wall, hull_width - 2*wall, hull_height - deck_height]);
+        translate([-hull_height * sin(glacis_angle), wall, hull_height * 0.3])
+            cube([wall, hull_width - 2*wall, wall]);
+    }
 }
 
 module turret_ring() {
@@ -104,13 +199,14 @@ module hull_cam_mount() {
 module hull_front() {
     difference() {
         union() {
-            hull_base(hull_length);
+            hull_shape(hull_length);
+            glacis_plate();
             hull_cam_mount();
         }
 
         // ESP32-CAM front window (lens aperture)
-        translate([wall - 0.1, hull_width/2 - hull_cam_width/2, hull_height * 0.5])
-            cube([wall + 0.2, hull_cam_width, hull_cam_height]);
+        translate([-0.1, hull_width/2 - hull_cam_width/2, hull_height * 0.5])
+            cube([wall + 5, hull_cam_width, hull_cam_height]);
     }
 
     // Motor mounts (front pair)
@@ -148,7 +244,7 @@ module ebay_floor_mounts() {
 
 module hull_rear() {
     difference() {
-        hull_base(hull_length);
+        hull_shape(hull_length);
 
         // Split joint — alignment sockets
         translate([0, hull_width/4, hull_height/3])
