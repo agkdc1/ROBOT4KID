@@ -22,13 +22,17 @@ async def viewer_page(job_id: str):
     # Find all STL files
     stl_files = sorted(output_dir.glob("*.stl"))
     parts_data = []
+    has_full_assembly = (output_dir / "full_assembly.stl").exists()
+
     for stl in stl_files:
         part_id = stl.stem
         is_electronic = part_id.startswith("elec_")
+        is_assembly = part_id == "full_assembly"
         parts_data.append({
             "id": part_id,
             "url": f"/api/v1/jobs/{job_id}/stl/{part_id}",
             "is_electronic": is_electronic,
+            "is_assembly": is_assembly,
         })
 
     # Read robot_spec.json for assembly positions
@@ -57,7 +61,7 @@ async def viewer_page(job_id: str):
                 if rr["part_id"] == part_info["id"]:
                     part_info["dimensions"] = rr.get("dimensions_mm", [0, 0, 0])
 
-    html = _generate_viewer_html(job_id, parts_data, has_assembly=assembly_data is not None)
+    html = _generate_viewer_html(job_id, parts_data, has_assembly=has_full_assembly)
     return HTMLResponse(content=html)
 
 
@@ -251,10 +255,13 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 // Do NOT center — keep original OpenSCAD coordinates for assembly
 
                 const isElec = part.is_electronic || false;
+                const isAssembly = part.is_assembly || false;
                 let color = colors[index % colors.length];
                 let opacity = 1.0;
 
-                if (part.assembly && part.assembly.color) {{
+                if (isAssembly) {{
+                    color = 0x5a6e3a; // Olive drab for full assembly
+                }} else if (part.assembly && part.assembly.color) {{
                     const c = part.assembly.color.replace('#', '');
                     color = parseInt(c, 16);
                 }}
@@ -271,6 +278,7 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 mesh.userData.partId = part.id;
                 mesh.userData.index = index;
                 mesh.userData.isElectronic = isElec;
+                mesh.userData.isAssembly = part.is_assembly || false;
                 mesh.userData.assembly = part.assembly || null;
                 // Store original geometry center offset for exploded view
                 const box = new THREE.Box3().setFromBufferAttribute(geometry.attributes.position);
@@ -292,26 +300,23 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
             meshes.sort((a, b) => a.userData.index - b.userData.index);
 
             if (assembledMode && hasAssembly) {{
-                // Assembled view: positions are in OpenSCAD coords (X,Y,Z)
-                // robotGroup handles Z-up to Y-up rotation
+                // Assembled view: show full_assembly.stl, hide individual parts
                 meshes.forEach(m => {{
-                    const asm = m.userData.assembly;
-                    if (asm) {{
-                        m.position.set(asm.position[0], asm.position[1], asm.position[2]);
-                    }} else {{
+                    if (m.userData.isAssembly) {{
+                        m.visible = true;
                         m.position.set(0, 0, 0);
+                    }} else {{
+                        m.visible = false;
                     }}
-                    m.visible = m.userData.isElectronic ? showElectronics : true;
                 }});
             }} else {{
-                // Exploded view: lay parts out in a row
-                // Remove group rotation for exploded view
+                // Exploded view: show individual parts, hide full_assembly
                 const gap = 30;
-                const printedMeshes = meshes.filter(m => !m.userData.isElectronic);
+                const individualParts = meshes.filter(m => !m.userData.isAssembly && !m.userData.isElectronic);
                 const elecMeshes = meshes.filter(m => m.userData.isElectronic);
 
                 let curX = 0;
-                printedMeshes.forEach(m => {{
+                individualParts.forEach(m => {{
                     const gc = m.userData.geoCenter;
                     const box = new THREE.Box3().setFromObject(m);
                     const size = box.getSize(new THREE.Vector3());
@@ -329,6 +334,9 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                     elecX += size.x + gap;
                     m.visible = showElectronics;
                 }});
+
+                // Hide assembly model
+                meshes.filter(m => m.userData.isAssembly).forEach(m => {{ m.visible = false; }});
             }}
 
             // Auto-fit camera
