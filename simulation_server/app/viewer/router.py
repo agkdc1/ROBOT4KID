@@ -202,7 +202,8 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
         scene.background = new THREE.Color(0x1a1a2e);
 
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10000);
-        camera.position.set(300, 200, 300);
+        camera.up.set(0, 0, 1); // Z-up to match OpenSCAD coordinate system
+        camera.position.set(500, -400, 300);
 
         const renderer = new THREE.WebGLRenderer({{ antialias: true }});
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -224,13 +225,10 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
         scene.add(fillLight);
 
         // Grid
+        // Grid on XY plane (Z-up)
         const grid = new THREE.GridHelper(500, 50, 0x333355, 0x222244);
+        grid.rotation.x = Math.PI / 2; // Rotate grid to lie on XY plane
         scene.add(grid);
-
-        // Container for all robot parts — rotated to convert OpenSCAD Z-up to Three.js Y-up
-        const robotGroup = new THREE.Group();
-        robotGroup.rotation.x = -Math.PI / 2; // Z-up -> Y-up
-        scene.add(robotGroup);
 
         // Load STL parts
         const loader = new STLLoader();
@@ -284,7 +282,7 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 const box = new THREE.Box3().setFromBufferAttribute(geometry.attributes.position);
                 mesh.userData.geoCenter = box.getCenter(new THREE.Vector3());
                 meshes.push(mesh);
-                robotGroup.add(mesh);
+                scene.add(mesh);
 
                 loaded++;
                 const elecCount = parts.filter(p => p.is_electronic).length;
@@ -339,14 +337,19 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 meshes.filter(m => m.userData.isAssembly).forEach(m => {{ m.visible = false; }});
             }}
 
-            // Auto-fit camera
+            // Auto-fit camera (Z-up coordinate system)
             const box = new THREE.Box3();
             scene.traverse(c => {{ if (c.isMesh && c.visible) box.expandByObject(c); }});
             if (!box.isEmpty()) {{
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
-                camera.position.set(center.x + maxDim * 0.8, center.y + maxDim * 0.6, center.z + maxDim * 0.8);
+                // Position camera: forward-right and above, looking at center
+                camera.position.set(
+                    center.x + maxDim * 0.8,  // forward
+                    center.y - maxDim * 0.8,  // right (Y negative = viewer's right in Z-up)
+                    center.z + maxDim * 0.5   // above
+                );
                 controls.target.copy(center);
                 controls.update();
             }}
@@ -357,8 +360,6 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
             assembledMode = !assembledMode;
             const btn = document.getElementById('toggle-view');
             if (btn) btn.textContent = assembledMode ? 'ASSEMBLED' : 'EXPLODED';
-            // Rotate group for assembled (Z-up), reset for exploded
-            robotGroup.rotation.x = assembledMode ? -Math.PI / 2 : 0;
             layoutParts();
         }};
 
