@@ -243,20 +243,17 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
         parts.forEach((part, index) => {{
             loader.load(part.url, (geometry) => {{
                 geometry.computeVertexNormals();
-                geometry.center();
+                // Do NOT center — keep original OpenSCAD coordinates for assembly
 
                 const isElec = part.is_electronic || false;
                 let color = colors[index % colors.length];
                 let opacity = 1.0;
 
-                // Use assembly color if available
                 if (part.assembly && part.assembly.color) {{
                     const c = part.assembly.color.replace('#', '');
                     color = parseInt(c, 16);
                 }}
-                if (isElec) {{
-                    opacity = 0.85;
-                }}
+                if (isElec) {{ opacity = 0.85; }}
 
                 const material = new THREE.MeshPhongMaterial({{
                     color: color,
@@ -270,6 +267,9 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 mesh.userData.index = index;
                 mesh.userData.isElectronic = isElec;
                 mesh.userData.assembly = part.assembly || null;
+                // Store original geometry center offset for exploded view
+                const box = new THREE.Box3().setFromBufferAttribute(geometry.attributes.position);
+                mesh.userData.geoCenter = box.getCenter(new THREE.Vector3());
                 meshes.push(mesh);
                 scene.add(mesh);
 
@@ -279,9 +279,7 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 document.getElementById('part-count').textContent =
                     loaded + '/' + parts.length + ' loaded (' + printedCount + ' printed, ' + elecCount + ' electronics)';
 
-                if (loaded === parts.length) {{
-                    layoutParts();
-                }}
+                if (loaded === parts.length) {{ layoutParts(); }}
             }});
         }});
 
@@ -289,42 +287,47 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
             meshes.sort((a, b) => a.userData.index - b.userData.index);
 
             if (assembledMode && hasAssembly) {{
-                // Assembled view: use assembly positions
+                // Assembled view: use assembly.scad positions
+                // OpenSCAD: X=forward, Y=right, Z=up
+                // Three.js: X=right, Y=up, Z=forward (toward camera)
+                // Transform: Three.X = SCAD.X, Three.Y = SCAD.Z, Three.Z = -SCAD.Y
                 meshes.forEach(m => {{
                     const asm = m.userData.assembly;
                     if (asm) {{
-                        // OpenSCAD uses mm, Three.js uses same units here
-                        m.position.set(asm.position[0], asm.position[2], asm.position[1]);
+                        const sx = asm.position[0]; // SCAD X
+                        const sy = asm.position[1]; // SCAD Y
+                        const sz = asm.position[2]; // SCAD Z
+                        m.position.set(sx, sz, -sy);
                     }} else {{
                         m.position.set(0, 0, 0);
                     }}
                     m.visible = m.userData.isElectronic ? showElectronics : true;
                 }});
             }} else {{
-                // Exploded view: lay out in a row
+                // Exploded view: center each part and lay out in a row
                 const gap = 20;
                 const printedMeshes = meshes.filter(m => !m.userData.isElectronic);
                 const elecMeshes = meshes.filter(m => m.userData.isElectronic);
 
                 let curX = 0;
                 printedMeshes.forEach(m => {{
+                    // Center geometry for exploded view
+                    const gc = m.userData.geoCenter;
+                    m.position.set(curX - gc.x, -gc.y, -gc.z);
                     const box = new THREE.Box3().setFromObject(m);
                     const size = box.getSize(new THREE.Vector3());
-                    m.position.set(curX + size.x / 2, 0, 0);
-                    const newBox = new THREE.Box3().setFromObject(m);
-                    m.position.y -= newBox.min.y;
+                    m.position.y -= box.min.y; // sit on ground
                     curX += size.x + gap;
                     m.visible = true;
                 }});
 
-                // Electronics in a second row below
                 let elecX = 0;
                 elecMeshes.forEach(m => {{
+                    const gc = m.userData.geoCenter;
+                    m.position.set(elecX - gc.x, -gc.y, 100 - gc.z);
                     const box = new THREE.Box3().setFromObject(m);
                     const size = box.getSize(new THREE.Vector3());
-                    m.position.set(elecX + size.x / 2, 0, -80);
-                    const newBox = new THREE.Box3().setFromObject(m);
-                    m.position.y -= newBox.min.y;
+                    m.position.y -= box.min.y;
                     elecX += size.x + gap;
                     m.visible = showElectronics;
                 }});

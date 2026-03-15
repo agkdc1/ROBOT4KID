@@ -52,52 +52,67 @@ TANK_SPEC = {
          "category": "console", "dimensions_mm": [9, 9, 80],
          "mass_grams": 40, "color": "#2a2a2a"},
     ],
+    # Positions from assembly.scad — exact OpenSCAD translate() values
+    # hull: at origin (0,0,0)
+    # track left: translate([0, -25, 0])
+    # track right: translate([0, 115, 0]) mirror — not separate STL
+    # electronics bay: translate([156, 2, 1.6])
+    # turret: translate([225, 45, 80])
+    # gun barrel: translate([340, 92, 110])
+    # console: separate unit, offset for display
     "joints": [
-        # Tracks alongside hull
+        # Track alongside hull (left side, Y = -TRACK_WIDTH)
         {"name": "track_mount", "type": "fixed",
          "parent_part": "hull", "child_part": "track_assembly",
-         "axis": [1, 0, 0], "origin_xyz": [75, -35, 0],
+         "axis": [1, 0, 0], "origin_xyz": [0, -25, 0],
          "origin_rpy": [0, 0, 0], "fastener": "m4_screw"},
-        # Electronics bay inside hull rear
+        # Electronics bay inside rear hull
         {"name": "ebay_mount", "type": "fixed",
          "parent_part": "hull", "child_part": "electronics_bay",
-         "axis": [1, 0, 0], "origin_xyz": [160, 5, 5],
+         "axis": [1, 0, 0], "origin_xyz": [156, 2, 1.6],
          "origin_rpy": [0, 0, 0], "fastener": "m3_screw"},
-        # Turret on top of hull
+        # Turret on top of hull (from assembly.scad)
         {"name": "turret_rotation", "type": "revolute",
          "parent_part": "hull", "child_part": "turret_body",
-         "axis": [0, 0, 1], "origin_xyz": [165, 0, 88],
+         "axis": [0, 0, 1], "origin_xyz": [225, 45, 80],
          "origin_rpy": [0, 0, 0],
          "limits": {"lower": -3.14, "upper": 3.14, "effort": 5, "velocity": 1},
          "fastener": "press_fit"},
-        # Gun barrel from turret front
+        # Gun barrel from turret (from assembly.scad: [340, 92, 110])
+        # Relative to turret at [225, 45, 80]: barrel offset = [115, 47, 30]
         {"name": "barrel_elevation", "type": "revolute",
          "parent_part": "turret_body", "child_part": "gun_barrel",
-         "axis": [0, 1, 0], "origin_xyz": [120, 47, 30],
+         "axis": [0, 1, 0], "origin_xyz": [115, 47, 30],
          "origin_rpy": [0, 0, 0],
          "limits": {"lower": -0.17, "upper": 0.35, "effort": 2, "velocity": 0.5},
          "fastener": "m4_screw"},
-        # Console separate
+        # Console cradle (separate, offset for display)
         {"name": "console_offset", "type": "fixed",
          "parent_part": "hull", "child_part": "console_cradle",
          "axis": [1, 0, 0], "origin_xyz": [400, 0, 0],
          "origin_rpy": [0, 0, 0], "fastener": "snap_fit"},
     ],
+    # Electronics positions from assembly.scad
+    # Hull cam: translate([3, 90/2 - 13.5, 80*0.5 + 5]) = [3, 31.5, 45]
+    # Turret cam: translate([225+120-45, 45+95/2-13.5, 80+50*0.4+5]) = [300, 79, 105]
+    #   relative to turret [225,45,80]: [75, 34, 25]
+    # VL53L1X: translate([225+120-25, 45+95/2-9, 80+50*0.25+3]) = [320, 83.5, 95.5]
+    #   relative to turret: [95, 38.5, 15.5]
     "electronics": [
         {"id": "hull_esp32cam", "type": "ESP32-CAM", "host_part": "hull",
-         "mount_position_mm": [10, 35, 50], "mount_orientation_rpy": [0, 0, 0]},
+         "mount_position_mm": [3, 31.5, 45], "mount_orientation_rpy": [0, 0, 0]},
         {"id": "turret_esp32cam", "type": "ESP32-CAM", "host_part": "turret_body",
-         "mount_position_mm": [100, 35, 25], "mount_orientation_rpy": [0, 0, 0]},
+         "mount_position_mm": [75, 34, 25], "mount_orientation_rpy": [0, 0, 0]},
         {"id": "hull_motor_driver", "type": "L298N", "host_part": "electronics_bay",
          "mount_position_mm": [10, 20, 5], "mount_orientation_rpy": [0, 0, 0]},
         {"id": "hull_gyro", "type": "MPU6050", "host_part": "electronics_bay",
          "mount_position_mm": [60, 40, 5], "mount_orientation_rpy": [0, 0, 0]},
         {"id": "turret_tof_sensor", "type": "VL53L1X", "host_part": "turret_body",
-         "mount_position_mm": [105, 35, 15], "mount_orientation_rpy": [0, 0, 0]},
+         "mount_position_mm": [95, 38.5, 15.5], "mount_orientation_rpy": [0, 0, 0]},
         {"id": "turret_rotation_motor", "type": "N20-Motor", "host_part": "hull",
-         "mount_position_mm": [165, 45, 75], "mount_orientation_rpy": [0, 0, 0]},
+         "mount_position_mm": [225, 45, 70], "mount_orientation_rpy": [0, 0, 0]},
         {"id": "turret_elevation_servo", "type": "N20-Motor", "host_part": "turret_body",
-         "mount_position_mm": [110, 47, 20], "mount_orientation_rpy": [0, 0, 0]},
+         "mount_position_mm": [100, 47, 20], "mount_orientation_rpy": [0, 0, 0]},
     ],
     "firmware_config": {"wifi_ssid": "TANK_CTRL", "wifi_password": "tank1234"},
     "metadata": {"scale": "1:10", "real_vehicle": "M1A1 Abrams"},
