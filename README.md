@@ -24,6 +24,7 @@ The system supports **multiple robot models** through a modular architecture —
 - **Multiple consoles** -- Tablet + USB gamepad (tank), RPi4 + 7" display + analog joystick (train)
 - **ESP32 firmware** -- PlatformIO triple-target (hull_node, turret_node, train_node), binary command protocol, solderless wiring
 - **YAML-driven config** -- All hardware dimensions, speeds, and tunable parameters in a single `config/hardware_specs.yaml`
+- **Management dashboard** -- React 19 command-center UI with real-time GPU/CPU/RAM monitoring, simulation task manager, and model registry
 - **GCP infrastructure** -- Terraform-managed secrets, backups, and project configuration
 
 ---
@@ -73,6 +74,7 @@ NL Prompt --> NLP --> RobotSpec --> SCAD Generation --> STL Rendering
 | Requirement | Version | Notes |
 |---|---|---|
 | Python | 3.11+ | Two separate venvs (planning + simulation) |
+| Node.js | 20+ (LTS) | Required for management dashboard |
 | OpenSCAD | Latest | Required for STL rendering |
 | Webots | R2023b+ | Optional, for physics simulation |
 | GCP CLI | Latest | Optional, for secret management |
@@ -102,6 +104,9 @@ cp .env.example .env
 
 # Or fetch secrets from GCP Secret Manager
 ./system/fetch_secrets.sh
+
+# Install dashboard dependencies
+cd dashboard && npm install
 ```
 
 ### Run
@@ -116,6 +121,10 @@ cd planning_server
 cd simulation_server
 .venv/Scripts/python -m uvicorn app.main:app --port 8100 --reload   # Windows
 .venv/bin/python -m uvicorn app.main:app --port 8100 --reload       # Linux
+
+# Terminal 3 — Management Dashboard
+cd dashboard
+npm run dev                                                          # http://localhost:3000
 ```
 
 ### Verify
@@ -181,6 +190,10 @@ The NL2Bot pipeline transforms a natural language prompt into a physically simul
 | `GET` | `/api/v1/fcs/coefficients` | Get FCS trajectory coefficients |
 | `POST` | `/api/v1/fcs/shots` | Upload shot records |
 | `POST` | `/api/v1/fcs/train` | Trigger gradient-descent training |
+| `GET` | `/api/v1/dashboard` | Aggregate system/GPU/service status |
+| `GET` | `/api/v1/dashboard/jobs` | Simulation job list |
+| `GET` | `/api/v1/dashboard/projects` | Project list |
+| `GET` | `/api/v1/dashboard/logs` | System log entries |
 | `GET` | `/api/v1/health` | Health check |
 
 ### Simulation Server (port 8100)
@@ -248,6 +261,7 @@ Secrets can be fetched from GCP Secret Manager:
 | LLM | Claude API (Sonnet / Opus) + Gemini API (Flash) |
 | CAD | OpenSCAD, trimesh |
 | Simulation | Webots R2023b+, URDF, PROTO |
+| Dashboard | React 19, Vite, Tailwind CSS v4, TanStack Query, Recharts |
 | Web UI | HTMX, Jinja2, Alpine.js |
 | 3D Viewer | Three.js |
 | Control App | Flutter / Dart, Material 3, USB gamepad, model-type routing |
@@ -293,6 +307,8 @@ ROBOT4KID/
 ├── embedded/                # ESP32 firmware (PlatformIO)
 │   ├── src/                 # hull_node, turret_node, train_node
 │   └── lib/shared/          # Shared protocol + config (Tank + Train)
+├── dashboard/               # Management dashboard (React 19 + Vite)
+│   └── src/                 # Components, pages, API hooks
 ├── frontend/                # Flutter control app (unified: tank + train UI)
 ├── console/                 # RPi4 train console (Python + pygame)
 ├── config/                  # Hardware specs (YAML, single source of truth)

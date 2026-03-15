@@ -25,6 +25,7 @@ from planning_server.app.projects.router import router as projects_router
 from planning_server.app.pipeline.router import router as pipeline_router
 from planning_server.app.fcs.router import router as fcs_router
 from planning_server.app.web_ui import router as web_router
+from planning_server.app.dashboard.router import router as dashboard_router
 
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.include_router(admin_router, prefix="/api/v1")
 app.include_router(projects_router, prefix="/api/v1")
 app.include_router(pipeline_router, prefix="/api/v1")
 app.include_router(fcs_router)
+app.include_router(dashboard_router, prefix="/api/v1")
 
 # Web UI
 app.include_router(web_router)

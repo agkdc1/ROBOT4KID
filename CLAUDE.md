@@ -12,6 +12,7 @@
 - **Phase 7.5 (Service Deployment)**: COMPLETE — NSSM Windows services, API key auth for simulation server, dotenv loading, .env.example, PowerShell service management script, iterative refinement loop (simulation feedback → LLM redesign).
 - **Phase 9 (Multi-Model Ecosystem)**: COMPLETE — Modular architecture supporting multiple robot types (tank, train). Shinkansen N700 Plarail-compatible train with ESP32-CAM. RPi4 console with 7" display + PS2 joystick. Universal command schema. Unified Flutter app with model-type routing. YAML-driven hardware config.
 - **Phase 10 (Cloudflare Access)**: PARTIAL — Access setup script (`system/setup_cloudflare_access.sh`) using Cloudflare API, email OTP policy, tunnel config with originRequest. Needs: run script with real API token, add IdP (GitHub/Google), integration testing.
+- **Phase 11 (Management Dashboard)**: COMPLETE — React 19 + Vite + Tailwind v4 dashboard with military command-center aesthetic. Infrastructure monitor (CPU/RAM/GPU/disk, server health, Windows services), task manager (simulation jobs, system logs), project viewer (model registry grid). TanStack Query for real-time polling. Backend API endpoints in Planning Server (`/api/v1/dashboard/*`).
 
 ## Next Steps
 1. Configure `.env` (copy from `.env.example` or fetch from GCP: `./system/fetch_secrets.sh`)
@@ -31,6 +32,7 @@
 - **Webots Integration**: Physics simulation via Webots. Controllers communicate over TCP (binary protocol port 10200, JSON supervisor port 10201). WebSocket bridge streams telemetry at 30Hz.
 - **Service Deployment**: NSSM Windows services, Cloudflare Tunnel for external HTTPS access, VS Code tunnel for remote dev, API key auth for inter-service communication.
 - **Iterative Refinement**: Simulation feedback is sent back to the LLM to fix design issues (max 2 rounds by default). Controlled by `MAX_REFINEMENT_ITERATIONS` env var.
+- **Management Dashboard**: React 19 SPA (`dashboard/`) on port 3000. Proxies to Planning Server (8000) and Simulation Server (8100). Uses TanStack Query for real-time polling (5s intervals). Dashboard API in `planning_server/app/dashboard/router.py`.
 
 ## GCP Infrastructure
 - **Project**: `nl2bot-f7e604` (account: ahnchoonghyun@gmail.com)
@@ -92,6 +94,9 @@ cd planning_server && .venv/bin/python -m uvicorn app.main:app --port 8000 --rel
 
 # Simulation server (separate terminal)
 cd simulation_server && .venv/bin/python -m uvicorn app.main:app --port 8100 --reload
+
+# Management dashboard (separate terminal)
+cd dashboard && npm run dev   # http://localhost:3000
 ```
 
 ## Default Admin
@@ -103,6 +108,7 @@ cd simulation_server && .venv/bin/python -m uvicorn app.main:app --port 8100 --r
 - OpenSCAD: Variables at top, modules below, `$fn=64` for curves, all dimensions in mm. Reference `config/hardware_specs.yaml` for values.
 - C++ (ESP32): Arduino framework, PlatformIO conventions. Shared protocol in `embedded/lib/shared/`.
 - Flutter/Dart: Provider for state management, Material 3 theme.
+- React/TypeScript: Vite + Tailwind v4, path aliases via `@/`, TanStack Query for data fetching.
 - **No magic numbers**: All hardware dimensions, speeds, RPMs, pin assignments etc. belong in `config/hardware_specs.yaml`. Python code loads via `shared/hardware_config.py`.
 
 ## Key Schemas
@@ -124,6 +130,8 @@ cd simulation_server && .venv/bin/python -m uvicorn app.main:app --port 8100 --r
 - Hardware specs in `config/hardware_specs.yaml` (single source of truth for all dimensions)
 - Terraform infra in `infra/terraform/`
 - System scripts in `system/` (setup, backup, restore, secrets)
+- Management dashboard in `dashboard/` (Vite + React 19 + Tailwind v4)
+- Dashboard backend API in `planning_server/app/dashboard/`
 - Tests and reference specs in `tests/`
 
 ## CAD Components
@@ -245,6 +253,13 @@ All connections use Dupont jumpers and screw terminals. All dimensions are in `c
 - **Tank UI**: Dual-camera PIP, dual joysticks, FCS crosshair, fire button (dark/green theme)
 - **Train UI**: Single camera, vertical throttle slider, horn/lights buttons, speed gauge (blue/silver theme)
 - **Routing**: `ControlScreen` auto-switches based on `ProjectEntry.modelType`
+
+## Dashboard API Endpoints
+- `GET /api/v1/dashboard` — aggregate system data (servers, GPU, CPU/RAM, services)
+- `GET /api/v1/dashboard/gpu` — GPU metrics via nvidia-smi
+- `GET /api/v1/dashboard/jobs` — simulation job list from jobs directory
+- `GET /api/v1/dashboard/projects` — project list from database
+- `GET /api/v1/dashboard/logs?service=planning&limit=100` — recent log entries
 
 ## FCS API Endpoints
 - `GET /api/v1/fcs/coefficients` — current trajectory coefficients

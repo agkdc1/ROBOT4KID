@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* ── NL2Bot Command Center Theme ── */
+
+@theme {
+  --color-bg-primary: #0a0c10;
+  --color-bg-secondary: #111419;
+  --color-bg-panel: #161a22;
+  --color-bg-elevated: #1c2029;
+  --color-bg-hover: #252a35;
+
+  --color-amber-50: #fff8e1;
+  --color-amber-100: #ffecb3;
+  --color-amber-200: #ffe082;
+  --color-amber-300: #ffd54f;
+  --color-amber-400: #ffca28;
+  --color-amber-500: #ffc107;
+  --color-amber-600: #ffb300;
+  --color-amber-700: #ffa000;
+  --color-amber-800: #ff8f00;
+  --color-amber-900: #ff6f00;
+
+  --color-signal-green: #00e676;
+  --color-signal-red: #ff1744;
+  --color-signal-blue: #448aff;
+  --color-signal-yellow: #ffea00;
+  --color-signal-orange: #ff9100;
+  --color-signal-cyan: #18ffff;
+
+  --color-text-primary: #e8eaed;
+  --color-text-secondary: #9aa0a6;
+  --color-text-muted: #5f6368;
+  --color-text-accent: #ffc107;
+
+  --color-border-dim: #2a2f3a;
+  --color-border-active: #3d4450;
+
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  --font-display: "Orbitron", "Rajdhani", sans-serif;
+  --font-body: "Rajdhani", "Exo 2", sans-serif;
+}
+
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-active) transparent;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.scanlines::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  z-index: 9999;
+}
+
+.glow-border {
+  box-shadow: 0 0 0 1px var(--color-border-dim),
+    inset 0 0 20px rgba(255, 193, 7, 0.03);
+}
+
+.glow-border-active {
+  box-shadow: 0 0 0 1px var(--color-amber-700),
+    0 0 15px rgba(255, 193, 7, 0.1),
+    inset 0 0 20px rgba(255, 193, 7, 0.05);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.panel-header {
+  background: linear-gradient(90deg, var(--color-bg-elevated) 0%, transparent 100%);
+  border-bottom: 1px solid var(--color-border-dim);
+}
+
+.data-readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+}
