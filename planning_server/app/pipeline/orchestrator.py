@@ -207,6 +207,10 @@ async def run_pipeline(
             feedback_path = project_dir / "simulation_feedback.json"
             feedback_path.write_text(json.dumps(feedback, indent=2))
 
+            # Save job ID for later retrieval
+            job_id_path = project_dir / "simulation_job_id.txt"
+            job_id_path.write_text(job_id)
+
     except Exception as e:
         logger.warning(f"Simulation failed: {e}")
         results["errors"].append(f"Simulation: {e}")
@@ -287,6 +291,9 @@ async def run_pipeline(
             if feedback:
                 results["simulation_feedback"] = feedback
                 results["simulation_job_id"] = new_job_id
+                # Update saved job ID
+                job_id_path = project_dir / "simulation_job_id.txt"
+                job_id_path.write_text(new_job_id)
                 refinement_history.append({
                     "round": refinement_round,
                     "job_id": new_job_id,

@@ -33,6 +33,20 @@
         </div>
     </div>
 
+    <!-- Simulation Viewer Link (always visible when job exists) -->
+    <div x-show="results?.simulation_job_id" class="result-card" style="margin-bottom: 1rem; background: #1a2332; border: 1px solid #2a4a3a;">
+        <h4 style="color: #4fc3f7;">3D Viewer</h4>
+        <p style="margin-bottom: 0.5rem; font-size: 0.85rem; color: #aaa;">
+            Job: <code x-text="results?.simulation_job_id" style="color: #81c784;"></code>
+        </p>
+        <div style="display: flex; gap: 0.5rem;">
+            <a :href="simServerUrl + '/api/v1/viewer/' + results.simulation_job_id"
+               target="_blank" class="btn btn-primary">Open 3D Viewer</a>
+            <a :href="simServerUrl + '/api/v1/jobs/' + results.simulation_job_id"
+               target="_blank" class="btn" style="background: #333; color: #ccc;">Job Status</a>
+        </div>
+    </div>
+
     <!-- Results -->
     <div x-show="results" class="results-section">
         <h3>Results</h3>
@@ -60,13 +74,6 @@
                 </div>
             </template>
         </div>
-
-        <!-- Viewer Link -->
-        <div x-show="results?.simulation_job_id" class="result-card">
-            <h4>3D Viewer</h4>
-            <a :href="'http://localhost:8100/api/v1/viewer/' + results.simulation_job_id"
-               target="_blank" class="btn btn-primary">Open 3D Viewer</a>
-        </div>
     </div>
 </div>
 
@@ -82,6 +89,14 @@ function projectWorkspace(projectId) {
         errors: [],
         results: null,
         pollInterval: null,
+        simServerUrl: (() => {
+            const origin = window.location.origin;
+            // Local dev: swap port
+            if (origin.includes(':8000')) return origin.replace(':8000', ':8100');
+            // Cloudflare tunnel: swap subdomain (plan.domain → sim.domain)
+            if (origin.includes('plan.')) return origin.replace('plan.', 'sim.');
+            return origin.replace(':8000', ':8100');
+        })(),
 
         headers() {
             return {
@@ -96,6 +111,14 @@ function projectWorkspace(projectId) {
                 if (res.status === 401) { window.location.href = '/login'; return; }
                 this.project = await res.json();
             } catch (e) { console.error(e); }
+
+            // Load saved results from previous pipeline runs
+            try {
+                const saved = await fetch('/api/v1/projects/' + projectId + '/pipeline/saved', { headers: this.headers() });
+                if (saved.ok) {
+                    this.results = await saved.json();
+                }
+            } catch (e) { /* no saved results */ }
         },
 
         async runPipeline() {

@@ -1,9 +1,12 @@
 """Pipeline execution endpoints."""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from planning_server.app import config
 from planning_server.app.database import get_db, User
 from planning_server.app.auth.dependencies import get_current_user
 from planning_server.app.pipeline.orchestrator import run_pipeline, PipelineProgress
@@ -97,3 +100,36 @@ async def get_pipeline_results(
         raise HTTPException(status_code=202, detail=f"Pipeline status: {pipeline['status']}")
 
     return pipeline.get("results", {})
+
+
+@router.get("/projects/{project_id}/pipeline/saved")
+async def get_saved_results(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """Load previously saved pipeline results from disk."""
+    project_dir = config.PROJECTS_DIR / str(project_id)
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="Project directory not found")
+
+    saved = {}
+
+    # Load robot spec
+    spec_path = project_dir / "robot_spec.json"
+    if spec_path.exists():
+        saved["robot_spec"] = json.loads(spec_path.read_text())
+
+    # Load simulation feedback
+    feedback_path = project_dir / "simulation_feedback.json"
+    if feedback_path.exists():
+        saved["simulation_feedback"] = json.loads(feedback_path.read_text())
+
+    # Load simulation job ID
+    job_id_path = project_dir / "simulation_job_id.txt"
+    if job_id_path.exists():
+        saved["simulation_job_id"] = job_id_path.read_text().strip()
+
+    if not saved:
+        raise HTTPException(status_code=404, detail="No saved results found")
+
+    return saved
