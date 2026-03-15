@@ -102,17 +102,13 @@ module turret_ring_bottom() {
 }
 
 module gun_trunnion() {
-    // Trunnion mount for barrel elevation
-    translate([turret_length - 15, turret_width/2, turret_height * 0.6])
+    // Trunnion mount at FRONT of turret (same end as cheek armor)
+    translate([15, turret_width/2, turret_height * 0.6])
     difference() {
-        // Trunnion block
         translate([-trunnion_width/2, -trunnion_width/2, 0])
             cube([trunnion_width, trunnion_width, trunnion_height]);
-
-        // Barrel bore (bayonet mount)
-        rotate([0, 0, 0])
-            cylinder(h=trunnion_height + 0.1, d=barrel_bore);
-
+        // Barrel bore
+        cylinder(h=trunnion_height + 0.1, d=barrel_bore);
         // Servo mounting holes
         for (dy = [-12, 12])
             translate([0, dy, trunnion_height/2])
@@ -122,28 +118,27 @@ module gun_trunnion() {
 }
 
 module camera_window() {
-    // Front camera window for gunner ESP32-CAM
-    translate([turret_length - wall - 0.1, turret_width/2 - cam_window_width/2, turret_height * 0.4])
+    // Camera window at FRONT face of turret (X=0 face, where cheek armor is)
+    translate([-0.1, turret_width/2 - cam_window_width/2, turret_height * 0.4])
         cube([wall + 0.2, cam_window_width, cam_window_height]);
 }
 
 module tof_window() {
-    // VL53L1X laser aperture, co-axial with barrel, below camera window
-    translate([turret_length - wall - 0.1, turret_width/2, turret_height * 0.35])
+    // VL53L1X laser aperture at front face, below camera
+    translate([-0.1, turret_width/2, turret_height * 0.35])
         rotate([0, 90, 0])
             cylinder(h=wall + 0.2, d=tof_window_dia);
 }
 
 module turret_cam_mount() {
-    // ESP32-CAM mount inside turret, behind camera window
-    // Camera lens faces forward through the window
-    translate([turret_length - 45, turret_width/2 - 13.5, turret_height * 0.4 + 2])
+    // ESP32-CAM mount inside turret, behind front camera window
+    translate([10, turret_width/2 - 13.5, turret_height * 0.4 + 2])
         esp32cam_mount(standoff_h=3);
 }
 
 module turret_tof_mount() {
-    // VL53L1X ToF sensor mount, below camera, laser faces forward
-    translate([turret_length - 25, turret_width/2 - 9, turret_height * 0.25])
+    // VL53L1X ToF sensor mount, near front, below camera
+    translate([15, turret_width/2 - 9, turret_height * 0.25])
         vl53l1x_mount(standoff_h=3);
 }
 

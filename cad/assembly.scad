@@ -42,27 +42,22 @@ color("#2a3a2a", 0.6)
 translate([150 + (150 - 138)/2, (HULL_WIDTH - 86)/2, 1.6])
     assembly();
 
-// --- Turret (on top of hull, rotated 180° so gun faces front) ---
-// The turret module has gun_trunnion at local X=105 (near X=120 end).
-// We need the trunnion to face the FRONT of the tank (toward X=0).
-// Strategy: translate turret center to turret ring center, rotate 180° around Z.
+// --- Turret (on top of hull, no rotation needed) ---
+// Gun trunnion is now at turret local X=15 (front end, same as cheek armor).
+// Turret X=0 (front/cheek) faces toward lower global X = front of tank.
+// Place turret so its center aligns with hull turret ring center.
 color("#4a5e2a")
-translate([turret_ring_cx, turret_ring_cy, TANK_HEIGHT])
-    rotate([0, 0, 180])
-        translate([-turret_cx, -turret_cy, 0])
-            turret_body();
+translate([turret_ring_cx - turret_cx, turret_ring_cy - turret_cy, TANK_HEIGHT])
+    turret_body();
 
 // --- Gun barrel ---
-// After 180° turret rotation, the trunnion at turret local [105, 47.5, 30]
-// maps to global: turret_ring_center + rotate_180(local - center)
-//   local offset from turret center: [105-60, 47.5-47.5, 30] = [45, 0, 30]
-//   rotate 180°: [-45, 0, 30]
-//   global: [225-45, 45+0, 80+30] = [180, 45, 110]
-// Barrel built along +Z. After 180° turret rotation, "forward" is -X direction.
-// rotate([0, 85, 0]) rotates +Z toward -X (toward tank front), 5° elevation
+// Trunnion at turret local [15, 47.5, 30]
+// Global = [225-60+15, 45-47.5+47.5, 80+30] = [180, 45, 110]
+// Barrel built along +Z. Rotate to point toward -X (front of tank).
+// rotate([0, -85, 0]): Z rotates toward -X, 5° elevation
 color("#3a4e1a")
 translate([180, 45, 110])
-    rotate([0, 85, 0])
+    rotate([0, -85, 0])
         gun_barrel();
 
 // --- Hull camera (ESP32-CAM at front) ---
@@ -70,15 +65,13 @@ color("DarkGreen", 0.8)
 translate([3, HULL_WIDTH/2 - 13.5, TANK_HEIGHT * 0.5 + 5])
     esp32cam_dummy();
 
-// --- Turret camera (inside turret, facing forward) ---
-// After rotation, turret front camera is at global:
-//   ring_center + rotate_180([15-60, 47.5-47.5, 25]) = [225+45, 45, 80+25] = [270, 45, 105]
-// But camera should face forward, so place at the front of rotated turret
+// --- Turret camera (inside turret front, behind window) ---
+// Turret front at global X = 225-60 = 165. Camera at turret local [10, 34, 22]
 color("ForestGreen", 0.8)
-translate([turret_ring_cx - 45, turret_ring_cy - 13.5, TANK_HEIGHT + 25])
+translate([165 + 10, 45 - 47.5 + 34, TANK_HEIGHT + 22])
     esp32cam_dummy();
 
 // --- VL53L1X ToF (turret front, below camera) ---
 color("Cyan", 0.8)
-translate([turret_ring_cx - 35, turret_ring_cy - 9, TANK_HEIGHT + 15])
+translate([165 + 15, 45 - 47.5 + 38.5, TANK_HEIGHT + 12.5])
     vl53l1x_dummy();
