@@ -11,7 +11,7 @@
 - **Phase 7 (Webots Simulation)**: COMPLETE — Webots world template, tank/supervisor controllers, PROTO converter, WebSocket telemetry bridge, API endpoints, pipeline integration (auto-runs after URDF assembly). Needs: end-to-end testing, Docker compose, live Three.js viewer mode.
 - **Phase 7.5 (Service Deployment)**: COMPLETE — NSSM Windows services, API key auth for simulation server, dotenv loading, .env.example, PowerShell service management script, iterative refinement loop (simulation feedback → LLM redesign).
 - **Phase 9 (Multi-Model Ecosystem)**: COMPLETE — Modular architecture supporting multiple robot types (tank, train). Shinkansen N700 Plarail-compatible train with ESP32-CAM. RPi4 console with 7" display + PS2 joystick. Universal command schema. Unified Flutter app with model-type routing. YAML-driven hardware config.
-- **Phase 10**: NOT STARTED — full integration testing, production deployment, Cloudflare Access
+- **Phase 10 (Cloudflare Access)**: PARTIAL — Access setup script (`system/setup_cloudflare_access.sh`) using Cloudflare API, email OTP policy, tunnel config with originRequest. Needs: run script with real API token, add IdP (GitHub/Google), integration testing.
 
 ## Next Steps
 1. Configure `.env` (copy from `.env.example` or fetch from GCP: `./system/fetch_secrets.sh`)
@@ -38,6 +38,32 @@
 - **Secrets**: `anthropic-api-key`, `gemini-api-key`, `jwt-secret-key`, `sim-api-key`, `nl2bot-admin-password`, `nl2bot-domains` in Secret Manager
 - **Terraform**: `infra/terraform/` — manages project, APIs, bucket, secrets
 - **Backup/Restore**: `system/backup.sh`, `system/restore.sh`, `system/fetch_secrets.sh`
+
+## Cloudflare Access
+- **Setup script**: `system/setup_cloudflare_access.sh` — creates Access apps + email-allow policies via Cloudflare API
+- **Tunnel config**: `~/.cloudflared/config.yml` — routes custom domains to localhost (domains stored in GCP SM `nl2bot-domains`)
+- **Tunnel service**: `NL2Bot-Tunnel` (NSSM Windows service, auto-start)
+- **Auth flow**: User visits custom domain -> Cloudflare Access login (email OTP) -> tunnel -> localhost
+- **Dashboard**: Manage apps/policies at `https://one.dash.cloudflare.com/<account-id>/access/apps`
+
+### Cloudflare Access Setup
+```bash
+# Set credentials
+export CF_API_TOKEN="your-token"    # Create at https://dash.cloudflare.com/profile/api-tokens
+export CF_ACCOUNT_ID="your-id"      # Dashboard sidebar -> Account ID
+
+# Dry run first
+./system/setup_cloudflare_access.sh --dry-run
+
+# Create Access apps + policies
+./system/setup_cloudflare_access.sh --allowed-emails your@email.com
+
+# Store account ID in GCP Secret Manager
+./system/setup_cloudflare_access.sh --store-secret
+
+# Remove Access apps
+./system/setup_cloudflare_access.sh --delete
+```
 
 ## Running the Servers
 

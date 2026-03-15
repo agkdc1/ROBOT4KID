@@ -14,7 +14,7 @@ DATA_DIR = BASE_DIR / "data"
 _hw_path = PROJECT_ROOT / "config" / "hardware_specs.yaml"
 HW: dict = {}
 if _hw_path.exists():
-    with open(_hw_path) as _f:
+    with open(_hw_path, encoding="utf-8") as _f:
         HW = yaml.safe_load(_f) or {}
 DATA_DIR.mkdir(exist_ok=True)
 PROJECTS_DIR = DATA_DIR / "projects"

@@ -39,7 +39,7 @@ class HardwareConfig(dict):
 def load_hardware_config(path: str | Path | None = None) -> HardwareConfig:
     """Load and cache hardware_specs.yaml."""
     config_path = Path(path) if path else _CONFIG_PATH
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         return HardwareConfig(yaml.safe_load(f))
 
 
