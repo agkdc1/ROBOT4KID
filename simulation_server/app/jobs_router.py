@@ -7,8 +7,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
+
+from simulation_server.app.auth import require_api_key
 
 from shared.schemas.simulation_request import SimulationRequest
 from shared.schemas.simulation_feedback import (
@@ -198,7 +200,7 @@ async def _run_simulation(request: SimulationRequest):
             logger.warning(f"Callback to {request.callback_url} failed: {e}")
 
 
-@router.post("/simulate")
+@router.post("/simulate", dependencies=[Depends(require_api_key)])
 async def submit_simulation(request: SimulationRequest, background_tasks: BackgroundTasks):
     """Submit a simulation job."""
     if not request.job_id:
@@ -279,7 +281,7 @@ async def download_urdf(job_id: str):
     )
 
 
-@router.delete("/jobs/{job_id}")
+@router.delete("/jobs/{job_id}", dependencies=[Depends(require_api_key)])
 async def delete_job(job_id: str):
     """Clean up job data."""
     import shutil

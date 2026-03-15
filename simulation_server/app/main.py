@@ -38,11 +38,11 @@ app.add_middleware(
 )
 
 # Mount routers (all require API key auth)
-app.include_router(jobs_router, prefix="/api/v1", tags=["jobs"], dependencies=[Depends(require_api_key)])
+app.include_router(jobs_router, prefix="/api/v1", tags=["jobs"])  # Read endpoints public (viewer needs STL access); writes protected per-route
 app.include_router(renderer_router, prefix="/api/v1", tags=["renderer"], dependencies=[Depends(require_api_key)])
 app.include_router(assembler_router, prefix="/api/v1", tags=["assembler"], dependencies=[Depends(require_api_key)])
 app.include_router(analyzer_router, prefix="/api/v1", tags=["analyzer"], dependencies=[Depends(require_api_key)])
-app.include_router(viewer_router, prefix="/api/v1/viewer", tags=["viewer"], dependencies=[Depends(require_api_key)])
+app.include_router(viewer_router, prefix="/api/v1/viewer", tags=["viewer"])  # No auth — browser-accessible
 app.include_router(webots_router, prefix="/api/v1", tags=["webots"], dependencies=[Depends(require_api_key)])
 
 # Serve viewer static files
