@@ -64,7 +64,14 @@ async def viewer_page(job_id: str):
                     part_info["dimensions"] = rr.get("dimensions_mm", [0, 0, 0])
 
     html = _generate_viewer_html(job_id, parts_data, has_assembly=has_full_assembly)
-    return HTMLResponse(content=html)
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 def _build_assembly_data(spec: dict) -> dict:
