@@ -223,6 +223,11 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
         const grid = new THREE.GridHelper(500, 50, 0x333355, 0x222244);
         scene.add(grid);
 
+        // Container for all robot parts — rotated to convert OpenSCAD Z-up to Three.js Y-up
+        const robotGroup = new THREE.Group();
+        robotGroup.rotation.x = -Math.PI / 2; // Z-up -> Y-up
+        scene.add(robotGroup);
+
         // Load STL parts
         const loader = new STLLoader();
         const colors = [0x4fc3f7, 0x81c784, 0xffb74d, 0xba68c8, 0xe57373, 0x4db6ac, 0xfff176];
@@ -271,7 +276,7 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 const box = new THREE.Box3().setFromBufferAttribute(geometry.attributes.position);
                 mesh.userData.geoCenter = box.getCenter(new THREE.Vector3());
                 meshes.push(mesh);
-                scene.add(mesh);
+                robotGroup.add(mesh);
 
                 loaded++;
                 const elecCount = parts.filter(p => p.is_electronic).length;
@@ -287,36 +292,30 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
             meshes.sort((a, b) => a.userData.index - b.userData.index);
 
             if (assembledMode && hasAssembly) {{
-                // Assembled view: use assembly.scad positions
-                // OpenSCAD: X=forward, Y=right, Z=up
-                // Three.js: X=right, Y=up, Z=forward (toward camera)
-                // Transform: Three.X = SCAD.X, Three.Y = SCAD.Z, Three.Z = -SCAD.Y
+                // Assembled view: positions are in OpenSCAD coords (X,Y,Z)
+                // robotGroup handles Z-up to Y-up rotation
                 meshes.forEach(m => {{
                     const asm = m.userData.assembly;
                     if (asm) {{
-                        const sx = asm.position[0]; // SCAD X
-                        const sy = asm.position[1]; // SCAD Y
-                        const sz = asm.position[2]; // SCAD Z
-                        m.position.set(sx, sz, -sy);
+                        m.position.set(asm.position[0], asm.position[1], asm.position[2]);
                     }} else {{
                         m.position.set(0, 0, 0);
                     }}
                     m.visible = m.userData.isElectronic ? showElectronics : true;
                 }});
             }} else {{
-                // Exploded view: center each part and lay out in a row
-                const gap = 20;
+                // Exploded view: lay parts out in a row
+                // Remove group rotation for exploded view
+                const gap = 30;
                 const printedMeshes = meshes.filter(m => !m.userData.isElectronic);
                 const elecMeshes = meshes.filter(m => m.userData.isElectronic);
 
                 let curX = 0;
                 printedMeshes.forEach(m => {{
-                    // Center geometry for exploded view
                     const gc = m.userData.geoCenter;
-                    m.position.set(curX - gc.x, -gc.y, -gc.z);
                     const box = new THREE.Box3().setFromObject(m);
                     const size = box.getSize(new THREE.Vector3());
-                    m.position.y -= box.min.y; // sit on ground
+                    m.position.set(curX - gc.x, -gc.y, -gc.z);
                     curX += size.x + gap;
                     m.visible = true;
                 }});
@@ -324,10 +323,9 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
                 let elecX = 0;
                 elecMeshes.forEach(m => {{
                     const gc = m.userData.geoCenter;
-                    m.position.set(elecX - gc.x, -gc.y, 100 - gc.z);
                     const box = new THREE.Box3().setFromObject(m);
                     const size = box.getSize(new THREE.Vector3());
-                    m.position.y -= box.min.y;
+                    m.position.set(elecX - gc.x, -gc.y + 100, -gc.z);
                     elecX += size.x + gap;
                     m.visible = showElectronics;
                 }});
@@ -351,6 +349,8 @@ def _generate_viewer_html(job_id: str, parts: list[dict], has_assembly: bool = F
             assembledMode = !assembledMode;
             const btn = document.getElementById('toggle-view');
             if (btn) btn.textContent = assembledMode ? 'ASSEMBLED' : 'EXPLODED';
+            // Rotate group for assembled (Z-up), reset for exploded
+            robotGroup.rotation.x = assembledMode ? -Math.PI / 2 : 0;
             layoutParts();
         }};
 

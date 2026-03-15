@@ -61,10 +61,11 @@ TANK_SPEC = {
     # gun barrel: translate([340, 92, 110])
     # console: separate unit, offset for display
     "joints": [
-        # Track alongside hull (left side, Y = -TRACK_WIDTH)
+        # Track assembly STL already contains both sides at correct hull spacing
+        # STL bounds: X=[0,153] Y=[-10,150] Z=[0,30] — positioned to match hull
         {"name": "track_mount", "type": "fixed",
          "parent_part": "hull", "child_part": "track_assembly",
-         "axis": [1, 0, 0], "origin_xyz": [0, -25, 0],
+         "axis": [1, 0, 0], "origin_xyz": [0, 0, 0],
          "origin_rpy": [0, 0, 0], "fastener": "m4_screw"},
         # Electronics bay inside rear hull
         {"name": "ebay_mount", "type": "fixed",
