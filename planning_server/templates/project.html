@@ -2,9 +2,22 @@
 {% block title %}NL2Bot — Project{% endblock %}
 {% block content %}
 <div x-data="projectWorkspace({{ project_id }})" x-init="loadProject()">
-    <div class="page-header">
-        <h2 x-text="project.name || 'Loading...'"></h2>
-        <span class="badge" x-text="project.status"></span>
+    <div class="page-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <h2 x-text="project.name || 'Loading...'"></h2>
+            <span class="badge" x-text="project.status"></span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <a :href="simServerUrl + '/docs'" target="_blank"
+               class="btn" style="background: #1565c0; color: #fff; white-space: nowrap;">
+                Simulation Server
+            </a>
+            <a x-show="results?.simulation_job_id"
+               :href="simServerUrl + '/api/v1/viewer/' + results?.simulation_job_id" target="_blank"
+               class="btn" style="background: #2e7d32; color: #fff; white-space: nowrap;">
+                3D Viewer
+            </a>
+        </div>
     </div>
 
     <!-- Pipeline Input -->
