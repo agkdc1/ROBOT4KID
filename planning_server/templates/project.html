@@ -7,17 +7,11 @@
             <h2 x-text="project.name || 'Loading...'"></h2>
             <span class="badge" x-text="project.status"></span>
         </div>
-        <div style="display: flex; gap: 0.5rem;">
-            <a :href="simServerUrl + '/docs'" target="_blank"
-               class="btn" style="background: #1565c0; color: #fff; white-space: nowrap;">
-                Simulation Server
-            </a>
-            <a x-show="results?.simulation_job_id"
-               :href="simServerUrl + '/api/v1/viewer/' + results?.simulation_job_id" target="_blank"
-               class="btn" style="background: #2e7d32; color: #fff; white-space: nowrap;">
-                3D Viewer
-            </a>
-        </div>
+        <a x-show="results?.simulation_job_id"
+           :href="simServerUrl + '/api/v1/viewer/' + results?.simulation_job_id" target="_blank"
+           class="btn btn-primary" style="white-space: nowrap;">
+            Open 3D Viewer
+        </a>
     </div>
 
     <!-- Pipeline Input -->

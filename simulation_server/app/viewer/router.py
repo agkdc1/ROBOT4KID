@@ -152,9 +152,16 @@ def _generate_viewer_html(job_id: str, parts: list[dict]) -> str:
         const colors = [0x4fc3f7, 0x81c784, 0xffb74d, 0xba68c8, 0xe57373, 0x4db6ac, 0xfff176];
         let loaded = 0;
 
+        // Track bounding boxes for layout
+        const meshes = [];
+        let offsetX = 0;
+        const gap = 20; // mm gap between parts
+
         parts.forEach((part, index) => {{
             loader.load(part.url, (geometry) => {{
                 geometry.computeVertexNormals();
+                geometry.center(); // Center geometry at origin
+
                 const material = new THREE.MeshPhongMaterial({{
                     color: colors[index % colors.length],
                     specular: 0x222222,
@@ -162,19 +169,34 @@ def _generate_viewer_html(job_id: str, parts: list[dict]) -> str:
                 }});
                 const mesh = new THREE.Mesh(geometry, material);
                 mesh.userData.partId = part.id;
+                mesh.userData.index = index;
+                meshes.push(mesh);
                 scene.add(mesh);
 
                 loaded++;
                 document.getElementById('part-count').textContent = loaded + ' / ' + parts.length + ' parts loaded';
 
                 if (loaded === parts.length) {{
+                    // Layout parts in a row (sorted by original index)
+                    meshes.sort((a, b) => a.userData.index - b.userData.index);
+                    let curX = 0;
+                    meshes.forEach(m => {{
+                        const box = new THREE.Box3().setFromObject(m);
+                        const size = box.getSize(new THREE.Vector3());
+                        m.position.x = curX + size.x / 2;
+                        // Place on ground plane
+                        const newBox = new THREE.Box3().setFromObject(m);
+                        m.position.y -= newBox.min.y;
+                        curX += size.x + gap;
+                    }});
+
                     // Auto-fit camera
                     const box = new THREE.Box3();
                     scene.traverse(c => {{ if (c.isMesh) box.expandByObject(c); }});
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
                     const maxDim = Math.max(size.x, size.y, size.z);
-                    camera.position.set(center.x + maxDim, center.y + maxDim * 0.7, center.z + maxDim);
+                    camera.position.set(center.x + maxDim * 0.8, center.y + maxDim * 0.6, center.z + maxDim * 0.8);
                     controls.target.copy(center);
                     controls.update();
                 }}
