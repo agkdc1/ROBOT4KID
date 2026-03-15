@@ -12,6 +12,8 @@ param(
     [string]$Action
 )
 
+$BackupTaskName = "NL2Bot-DailyBackup"
+
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = "C:\Users\ahnch\Documents\ROBOT4KID"
@@ -197,6 +199,11 @@ function Do-Install {
         Write-Warning "cloudflared not found at $($ts.Executable). Skipping tunnel service."
     }
 
+    # Install daily backup scheduled task
+    Write-Host "Installing scheduled task: $BackupTaskName ..." -ForegroundColor Cyan
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ProjectRoot\system\daily_backup.ps1" -Register
+    Write-Host ""
+
     Write-Host "`nAll services installed. Run '.\services.ps1 start' to start them." -ForegroundColor Green
 }
 
@@ -219,6 +226,9 @@ function Do-Uninstall {
             Write-Warning "  Could not remove $name (may not be installed)."
         }
     }
+
+    # Remove daily backup scheduled task
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ProjectRoot\system\daily_backup.ps1" -Unregister
 
     Write-Host "`nAll services removed." -ForegroundColor Green
 }
@@ -296,6 +306,23 @@ function Do-Status {
         Write-Host ("  {0,-25} {1}" -f $name, $status) -ForegroundColor $color
     }
 
+    # Backup scheduled task status
+    $backupTask = Get-ScheduledTask -TaskName $BackupTaskName -ErrorAction SilentlyContinue
+    if ($backupTask) {
+        $backupInfo = Get-ScheduledTaskInfo -TaskName $BackupTaskName
+        $backupState = $backupTask.State
+        $bColor = if ($backupState -eq "Ready") { "Green" } else { "Yellow" }
+        Write-Host ("  {0,-25} {1}" -f $BackupTaskName, $backupState) -ForegroundColor $bColor
+        if ($backupInfo.LastRunTime -and $backupInfo.LastRunTime.Year -gt 2000) {
+            Write-Host ("  {0,-25} Last: {1}" -f "", $backupInfo.LastRunTime) -ForegroundColor DarkGray
+        }
+        if ($backupInfo.NextRunTime) {
+            Write-Host ("  {0,-25} Next: {1}" -f "", $backupInfo.NextRunTime) -ForegroundColor DarkGray
+        }
+    } else {
+        Write-Host ("  {0,-25} {1}" -f $BackupTaskName, "NOT REGISTERED") -ForegroundColor Red
+    }
+
     Write-Host ""
 }
 
@@ -323,6 +350,16 @@ function Do-Logs {
         } else {
             Write-Host "    stderr: $stderrLog (not yet created)" -ForegroundColor DarkGray
         }
+    }
+
+    # Backup log
+    Write-Host "`n  $BackupTaskName`:" -ForegroundColor White
+    $backupLog = "$LogDir\backup.log"
+    if (Test-Path $backupLog) {
+        $size = [math]::Round((Get-Item $backupLog).Length / 1KB, 1)
+        Write-Host "    log   : $backupLog ($size KB)"
+    } else {
+        Write-Host "    log   : $backupLog (not yet created)" -ForegroundColor DarkGray
     }
 
     Write-Host "`nTip: To tail a log file in real time:" -ForegroundColor DarkGray

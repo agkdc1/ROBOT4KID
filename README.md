@@ -315,7 +315,8 @@ ROBOT4KID/
 ├── infra/                   # Infrastructure
 │   └── terraform/           # GCP Terraform configs
 ├── system/                  # System scripts
-│   ├── backup.sh            # Backup to GCS
+│   ├── backup.sh            # Backup to GCS (manual)
+│   ├── daily_backup.ps1     # Daily backup service (Scheduled Task)
 │   ├── restore.sh           # Restore from GCS
 │   └── fetch_secrets.sh     # Fetch secrets from GCP
 ├── tests/                   # Tests and reference specs
@@ -342,10 +343,16 @@ curl -X POST http://localhost:8100/api/v1/webots/start \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"job_id":"test"}'
 
-# Backup and restore
+# Backup and restore (manual)
 ./system/backup.sh v1.0
 ./system/restore.sh v1.0
 ./system/restore.sh --list
+
+# Daily backup service (Windows Scheduled Task)
+.\system\daily_backup.ps1 -Register            # Schedule daily at 03:00
+.\system\daily_backup.ps1 -Status              # Check task status
+.\system\daily_backup.ps1                       # Run backup now
+.\system\daily_backup.ps1 -Unregister          # Remove scheduled task
 ```
 
 ---

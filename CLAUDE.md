@@ -9,7 +9,7 @@
 - **Phase 5 (Flutter Control App)**: COMPLETE — project selection screen, MJPEG camera with PIP toggle, USB gamepad support (2 sticks + 4 buttons), FCS crosshair overlay with barrel angle control, trajectory equation, shot recording for RL training, CI/CD deploy scripts
 - **Phase 6 (FCS / Ballistics)**: PARTIAL — trajectory equation with 5 tunable coefficients (gravity, drag, hop-up, motion, bias), server-side gradient descent training endpoint, shot data upload from tablet. Needs: real camera ball tracking, PyTorch RL upgrade, edge AI deployment.
 - **Phase 7 (Webots Simulation)**: COMPLETE — Webots world template, tank/supervisor controllers, PROTO converter, WebSocket telemetry bridge, API endpoints, pipeline integration (auto-runs after URDF assembly). Needs: end-to-end testing, Docker compose, live Three.js viewer mode.
-- **Phase 7.5 (Service Deployment)**: COMPLETE — NSSM Windows services, API key auth for simulation server, dotenv loading, .env.example, PowerShell service management script, iterative refinement loop (simulation feedback → LLM redesign).
+- **Phase 7.5 (Service Deployment)**: COMPLETE — NSSM Windows services, API key auth for simulation server, dotenv loading, .env.example, PowerShell service management script, iterative refinement loop (simulation feedback → LLM redesign), daily backup scheduled task (03:00, ARCHIVE cold storage after 30 days).
 - **Phase 9 (Multi-Model Ecosystem)**: COMPLETE — Modular architecture supporting multiple robot types (tank, train). Shinkansen N700 Plarail-compatible train with ESP32-CAM. RPi4 console with 7" display + PS2 joystick. Universal command schema. Unified Flutter app with model-type routing. YAML-driven hardware config.
 - **Phase 10 (Cloudflare Access)**: PARTIAL — Access setup script (`system/setup_cloudflare_access.sh`) using Cloudflare API, email OTP policy, tunnel config with originRequest. Needs: run script with real API token, add IdP (GitHub/Google), integration testing.
 - **Phase 11 (Management Dashboard)**: COMPLETE — React 19 + Vite + Tailwind v4 dashboard with military command-center aesthetic. Infrastructure monitor (CPU/RAM/GPU/disk, server health, Windows services), task manager (simulation jobs, system logs), project viewer (model registry grid). TanStack Query for real-time polling. Backend API endpoints in Planning Server (`/api/v1/dashboard/*`).
@@ -40,6 +40,7 @@
 - **Secrets**: `anthropic-api-key`, `gemini-api-key`, `jwt-secret-key`, `sim-api-key`, `nl2bot-admin-password`, `nl2bot-domains` in Secret Manager
 - **Terraform**: `infra/terraform/` — manages project, APIs, bucket, secrets
 - **Backup/Restore**: `system/backup.sh`, `system/restore.sh`, `system/fetch_secrets.sh`
+- **Daily Backup**: `system/daily_backup.ps1` — Windows Scheduled Task, runs at 03:00 daily, moves backups older than 30 days to GCS ARCHIVE storage class
 
 ## Cloudflare Access
 - **Setup script**: `system/setup_cloudflare_access.sh` — creates Access apps + email-allow policies via Cloudflare API
@@ -71,15 +72,20 @@ export CF_ACCOUNT_ID="your-id"      # Dashboard sidebar -> Account ID
 
 ### As Windows Services (recommended)
 ```powershell
-# Install and start all services (Planning, Simulation, Cloudflare Tunnel)
+# Install and start all services (Planning, Simulation, Cloudflare Tunnel, Daily Backup)
 .\system\services.ps1 install
 .\system\services.ps1 start
 
-# Check status
+# Check status (includes backup task)
 .\system\services.ps1 status
 
 # View logs
 .\system\services.ps1 logs
+
+# Daily backup management (standalone)
+.\system\daily_backup.ps1 -Status              # Check backup task status
+.\system\daily_backup.ps1                       # Run backup now
+.\system\daily_backup.ps1 -Tag v2.0            # Backup with custom tag
 ```
 
 ### Manual (development)
