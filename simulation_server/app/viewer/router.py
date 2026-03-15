@@ -24,13 +24,15 @@ async def viewer_page(job_id: str):
     parts_data = []
     has_full_assembly = (output_dir / "full_assembly.stl").exists()
 
+    import time
+    cache_bust = int(time.time())
     for stl in stl_files:
         part_id = stl.stem
         is_electronic = part_id.startswith("elec_")
         is_assembly = part_id == "full_assembly"
         parts_data.append({
             "id": part_id,
-            "url": f"/api/v1/jobs/{job_id}/stl/{part_id}",
+            "url": f"/api/v1/jobs/{job_id}/stl/{part_id}?v={cache_bust}",
             "is_electronic": is_electronic,
             "is_assembly": is_assembly,
         })
