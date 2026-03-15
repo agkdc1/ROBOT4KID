@@ -217,6 +217,81 @@ async def send_command(req: CommandRequest) -> dict:
     return {"status": "sent", "cmd_type": req.cmd_type}
 
 
+@router.post("/digital-twin")
+async def create_digital_twin(req: StartRequest) -> dict:
+    """Create a full digital twin: render electronics, assemble URDF, convert PROTO, start Webots.
+
+    Expects the job directory to already have printed-part STLs and a robot_spec.json.
+    """
+    job_dir = config.JOBS_DIR / req.job_id
+    output_dir = job_dir / "output"
+    if not output_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Job '{req.job_id}' not found")
+
+    spec_path = job_dir / "robot_spec.json"
+    if not spec_path.exists():
+        raise HTTPException(status_code=400, detail="No robot_spec.json in job directory")
+
+    import json as _json
+    from shared.schemas.robot_spec import RobotSpec
+    from simulation_server.app.renderer.electronics_renderer import render_electronic_component
+    from simulation_server.app.assembler.urdf_gen import generate_urdf
+
+    spec_data = _json.loads(spec_path.read_text())
+    robot_spec = RobotSpec.model_validate(spec_data)
+
+    steps = []
+
+    # Step 1: Render electronic component STLs
+    for elec in robot_spec.electronics:
+        stl_path = output_dir / f"elec_{elec.id}.stl"
+        if not stl_path.exists():
+            success, msg = await render_electronic_component(elec.type, stl_path)
+            steps.append({"step": "render_electronic", "id": elec.id, "success": success, "message": msg})
+
+    # Step 2: Generate URDF with electronics
+    robot_name = robot_spec.name.replace(" ", "_").lower()
+    urdf_path = output_dir / f"{robot_name}.urdf"
+    try:
+        generate_urdf(robot_spec, stl_dir=output_dir, output_path=urdf_path)
+        steps.append({"step": "urdf", "success": True, "path": str(urdf_path)})
+    except Exception as exc:
+        steps.append({"step": "urdf", "success": False, "error": str(exc)})
+        return {"status": "partial", "steps": steps}
+
+    # Step 3: Convert URDF to PROTO
+    proto_path = output_dir / f"{robot_name}.proto"
+    try:
+        convert_urdf_to_proto(urdf_path, output_dir, proto_path)
+        steps.append({"step": "proto", "success": True, "path": str(proto_path)})
+    except Exception as exc:
+        steps.append({"step": "proto", "success": False, "error": str(exc)})
+
+    # Step 4: Start Webots (if available)
+    manager = get_manager()
+    world = Path(req.world_path) if req.world_path else _DEFAULT_WORLD
+    webots_started = False
+    if world.exists():
+        try:
+            await manager.start_simulation(world)
+            webots_started = True
+            steps.append({"step": "webots", "success": True, "pid": manager.pid})
+        except Exception as exc:
+            steps.append({"step": "webots", "success": False, "error": str(exc)})
+    else:
+        steps.append({"step": "webots", "success": False, "error": f"World file not found: {world}"})
+
+    return {
+        "status": "running" if webots_started else "assembled",
+        "job_id": req.job_id,
+        "viewer_url": f"/api/v1/viewer/{req.job_id}",
+        "websocket_url": f"/api/v1/webots/{req.job_id}/ws" if webots_started else None,
+        "urdf_path": str(urdf_path),
+        "proto_path": str(proto_path) if proto_path.exists() else None,
+        "steps": steps,
+    }
+
+
 @router.websocket("/{job_id}/ws")
 async def telemetry_websocket(websocket: WebSocket, job_id: str) -> None:
     """WebSocket endpoint for live telemetry streaming.

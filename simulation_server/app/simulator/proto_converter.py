@@ -235,20 +235,37 @@ def _emit_link(
     for child_name, joint_el in children_map.get(link_name, []):
         _emit_joint(lines, joint_el, child_name, links, children_map, stl_dir, indent + 4)
 
-    # Add motor-related devices based on link name heuristics
+    # Add Webots devices based on link name heuristics
     name_lower = link_name.lower()
+
+    # Camera devices (ESP32-CAM links)
     if "cam" in name_lower or "camera" in name_lower:
         cam_name = "turret_cam" if "turret" in name_lower else "hull_cam"
         lines.append(f'{pad}    Camera {{')
         lines.append(f'{pad}      name "{cam_name}"')
         lines.append(f'{pad}      width 320')
         lines.append(f'{pad}      height 240')
+        lines.append(f'{pad}      recognition Recognition {{}}')
         lines.append(f'{pad}    }}')
 
-    if "tof" in name_lower or "sensor" in name_lower or "range" in name_lower:
+    # ToF / distance sensor
+    if "tof" in name_lower or "vl53" in name_lower:
         lines.append(f'{pad}    DistanceSensor {{')
         lines.append(f'{pad}      name "tof_sensor"')
         lines.append(f'{pad}      type "infra-red"')
+        lines.append(f'{pad}      maxRange 4.0')
+        lines.append(f'{pad}    }}')
+
+    # IMU (MPU6050)
+    if "imu" in name_lower or "mpu" in name_lower or "gyro" in name_lower:
+        lines.append(f'{pad}    InertialUnit {{')
+        lines.append(f'{pad}      name "{link_name}_imu"')
+        lines.append(f'{pad}    }}')
+        lines.append(f'{pad}    Accelerometer {{')
+        lines.append(f'{pad}      name "{link_name}_accel"')
+        lines.append(f'{pad}    }}')
+        lines.append(f'{pad}    Gyro {{')
+        lines.append(f'{pad}      name "{link_name}_gyro"')
         lines.append(f'{pad}    }}')
 
     lines.append(f'{pad}  ]')

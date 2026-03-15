@@ -7,6 +7,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 
 from shared.schemas.robot_spec import RobotSpec, JointType
+from shared.electronics_catalog import lookup as elec_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,70 @@ def generate_urdf(
                 effort=str(limits.get("effort", 10.0)),
                 velocity=str(limits.get("velocity", 1.0)),
             )
+
+    # Create links and fixed joints for electronic components
+    for elec in robot_spec.electronics:
+        info = elec_lookup(elec.type)
+        elec_link_name = f"elec_{elec.id}"
+
+        link = SubElement(robot, "link", name=elec_link_name)
+
+        # Visual geometry — use rendered STL if available, else box
+        visual = SubElement(link, "visual")
+        SubElement(visual, "origin", xyz="0 0 0", rpy="0 0 0")
+        vis_geom = SubElement(visual, "geometry")
+        stl_file = stl_dir / f"{elec_link_name}.stl"
+        if stl_file.exists():
+            SubElement(vis_geom, "mesh", filename=stl_file.name)
+        elif info:
+            dims_m = tuple(d / 1000.0 for d in info.dimensions_mm)
+            SubElement(vis_geom, "box", size=f"{dims_m[0]:.4f} {dims_m[1]:.4f} {dims_m[2]:.4f}")
+        else:
+            SubElement(vis_geom, "box", size="0.02 0.02 0.01")
+
+        vis_mat = SubElement(visual, "material", name=f"mat_{elec_link_name}")
+        if info:
+            ch = info.color_hex.lstrip("#")
+            r, g, b = int(ch[0:2], 16) / 255.0, int(ch[2:4], 16) / 255.0, int(ch[4:6], 16) / 255.0
+        else:
+            r, g, b = 0.2, 0.6, 0.2
+        SubElement(vis_mat, "color", rgba=f"{r:.3f} {g:.3f} {b:.3f} 0.85")
+
+        # Collision — simplified box
+        collision = SubElement(link, "collision")
+        SubElement(collision, "origin", xyz="0 0 0", rpy="0 0 0")
+        col_geom = SubElement(collision, "geometry")
+        if info:
+            dims_m = tuple(d / 1000.0 for d in info.dimensions_mm)
+            SubElement(col_geom, "box", size=f"{dims_m[0]:.4f} {dims_m[1]:.4f} {dims_m[2]:.4f}")
+        else:
+            SubElement(col_geom, "box", size="0.02 0.02 0.01")
+
+        # Inertial
+        inertial = SubElement(link, "inertial")
+        mass_kg = (info.mass_grams / 1000.0) if info else 0.01
+        SubElement(inertial, "mass", value=f"{mass_kg:.4f}")
+        SubElement(inertial, "origin", xyz="0 0 0", rpy="0 0 0")
+        if info:
+            dims_m = tuple(d / 1000.0 for d in info.dimensions_mm)
+        else:
+            dims_m = (0.02, 0.02, 0.01)
+        inertia = _inertia_box(mass_kg, *dims_m)
+        SubElement(
+            inertial, "inertia",
+            ixx=f"{inertia['ixx']:.6f}", iyy=f"{inertia['iyy']:.6f}",
+            izz=f"{inertia['izz']:.6f}", ixy="0", ixz="0", iyz="0",
+        )
+
+        # Fixed joint from host part to electronic component
+        if elec.host_part in parts_by_id:
+            joint = SubElement(robot, "joint", name=f"mount_{elec.id}", type="fixed")
+            SubElement(joint, "parent", link=elec.host_part)
+            SubElement(joint, "child", link=elec_link_name)
+            xyz = " ".join(f"{v / 1000.0:.4f}" for v in elec.mount_position_mm)
+            rpy = " ".join(f"{v:.4f}" for v in elec.mount_orientation_rpy)
+            SubElement(joint, "origin", xyz=xyz, rpy=rpy)
+            SubElement(joint, "axis", xyz="0 0 1")
 
     # Pretty print
     rough_string = tostring(robot, encoding="unicode")
