@@ -262,6 +262,7 @@ All connections use Dupont jumpers and screw terminals. All dimensions are in `c
 - Wiring clearance: 20mm above pin headers/terminals (Dupont connectors)
 
 ## Important Notes
+- **NEVER expose real domain URLs** in any committed file. Domains are stored in GCP Secret Manager (`nl2bot-domains`) and loaded at runtime. Use generic placeholders like `plan.<your-domain>` in docs.
 - Secrets stored in GCP Secret Manager — never commit API keys to git
 - `.env`, `*.tfstate`, `*.tfvars`, credentials files are all gitignored
 - Use `gcloud.cmd` (not `gcloud`) on Windows for shell commands
