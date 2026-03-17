@@ -1,0 +1,950 @@
+{
+  "$defs": {
+    "AssemblyConstraint": {
+      "description": "A constraint that must be satisfied during assembly.",
+      "properties": {
+        "id": {
+          "description": "Constraint identifier",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "description": "Human-readable constraint",
+          "title": "Description",
+          "type": "string"
+        },
+        "constraint_type": {
+          "description": "Type: no_soldering | printable_no_supports | screw_type | clearance",
+          "title": "Constraint Type",
+          "type": "string"
+        },
+        "value": {
+          "default": "",
+          "description": "Constraint value, e.g. 'M3' or '0.2mm'",
+          "title": "Value",
+          "type": "string"
+        },
+        "applies_to": {
+          "description": "Part IDs this constraint applies to (empty = all)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Applies To",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "constraint_type"
+      ],
+      "title": "AssemblyConstraint",
+      "type": "object"
+    },
+    "CollisionGeometry": {
+      "description": "Simplified collision shape (cheaper than mesh for physics).",
+      "properties": {
+        "type": {
+          "default": "box",
+          "description": "Shape type: box | cylinder | sphere | mesh",
+          "title": "Type",
+          "type": "string"
+        },
+        "dimensions_mm": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Box: (x,y,z), Cylinder: (radius,0,height), Sphere: (radius,0,0)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Dimensions Mm",
+          "type": "array"
+        },
+        "origin_xyz": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Offset from link origin (mm)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Xyz",
+          "type": "array"
+        },
+        "origin_rpy": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Rotation from link origin (rad)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Rpy",
+          "type": "array"
+        },
+        "mesh_file": {
+          "default": "",
+          "description": "STL mesh file (only if type=mesh)",
+          "title": "Mesh File",
+          "type": "string"
+        }
+      },
+      "title": "CollisionGeometry",
+      "type": "object"
+    },
+    "ElectronicComponent": {
+      "description": "An electronic component mounted to a printed part.",
+      "properties": {
+        "id": {
+          "description": "Unique identifier, e.g. 'hull_esp32cam'",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "description": "Component type: ESP32-CAM | MPU6050 | L298N | DRV8833 | N20-Motor | etc.",
+          "title": "Type",
+          "type": "string"
+        },
+        "host_part": {
+          "description": "PartSpec.id this mounts to",
+          "title": "Host Part",
+          "type": "string"
+        },
+        "mount_position_mm": {
+          "description": "Mount position relative to host part origin",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mount Position Mm",
+          "type": "array"
+        },
+        "mount_orientation_rpy": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Mount orientation in radians",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Mount Orientation Rpy",
+          "type": "array"
+        },
+        "wiring": {
+          "description": "Structured wire connections",
+          "items": {
+            "$ref": "#/$defs/WireConnection"
+          },
+          "title": "Wiring",
+          "type": "array"
+        },
+        "connections": {
+          "description": "Legacy: list of {pin, wire_to, wire_color}",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Connections",
+          "type": "array"
+        },
+        "voltage": {
+          "default": 0.0,
+          "description": "Operating voltage (V)",
+          "title": "Voltage",
+          "type": "number"
+        },
+        "current_ma": {
+          "default": 0.0,
+          "description": "Max current draw (mA)",
+          "title": "Current Ma",
+          "type": "number"
+        },
+        "dimensions_mm": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Component bounding box (from electronics catalog if 0)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Dimensions Mm",
+          "type": "array"
+        },
+        "mass_grams": {
+          "default": 0.0,
+          "description": "Component mass",
+          "title": "Mass Grams",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "host_part",
+        "mount_position_mm"
+      ],
+      "title": "ElectronicComponent",
+      "type": "object"
+    },
+    "InertialSpec": {
+      "description": "URDF-compatible inertial properties for a link.",
+      "properties": {
+        "mass_grams": {
+          "default": 0.0,
+          "description": "Mass in grams",
+          "title": "Mass Grams",
+          "type": "number"
+        },
+        "center_of_mass_mm": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Center of mass relative to link origin (mm)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Center Of Mass Mm",
+          "type": "array"
+        },
+        "ixx": {
+          "default": 0.0,
+          "description": "Inertia Ixx (g*mm^2)",
+          "title": "Ixx",
+          "type": "number"
+        },
+        "iyy": {
+          "default": 0.0,
+          "description": "Inertia Iyy (g*mm^2)",
+          "title": "Iyy",
+          "type": "number"
+        },
+        "izz": {
+          "default": 0.0,
+          "description": "Inertia Izz (g*mm^2)",
+          "title": "Izz",
+          "type": "number"
+        },
+        "ixy": {
+          "default": 0.0,
+          "title": "Ixy",
+          "type": "number"
+        },
+        "ixz": {
+          "default": 0.0,
+          "title": "Ixz",
+          "type": "number"
+        },
+        "iyz": {
+          "default": 0.0,
+          "title": "Iyz",
+          "type": "number"
+        }
+      },
+      "title": "InertialSpec",
+      "type": "object"
+    },
+    "JointLimits": {
+      "description": "Structured joint limits (replaces the raw dict).",
+      "properties": {
+        "lower": {
+          "default": -3.14159,
+          "description": "Lower limit (rad or mm)",
+          "title": "Lower",
+          "type": "number"
+        },
+        "upper": {
+          "default": 3.14159,
+          "description": "Upper limit (rad or mm)",
+          "title": "Upper",
+          "type": "number"
+        },
+        "effort": {
+          "default": 10.0,
+          "description": "Max effort (N*m or N)",
+          "title": "Effort",
+          "type": "number"
+        },
+        "velocity": {
+          "default": 1.0,
+          "description": "Max velocity (rad/s or m/s)",
+          "title": "Velocity",
+          "type": "number"
+        }
+      },
+      "title": "JointLimits",
+      "type": "object"
+    },
+    "JointSpec": {
+      "description": "A URDF joint connecting two links.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/JointType"
+        },
+        "parent_part": {
+          "description": "References PartSpec.id",
+          "title": "Parent Part",
+          "type": "string"
+        },
+        "child_part": {
+          "description": "References PartSpec.id",
+          "title": "Child Part",
+          "type": "string"
+        },
+        "axis": {
+          "description": "Rotation/translation axis",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Axis",
+          "type": "array"
+        },
+        "origin_xyz": {
+          "description": "Joint origin position in mm",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Xyz",
+          "type": "array"
+        },
+        "origin_rpy": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Roll, pitch, yaw in radians",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Rpy",
+          "type": "array"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JointLimits"
+            },
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Joint limits (structured or dict for backwards compat)",
+          "title": "Limits"
+        },
+        "fastener": {
+          "default": "m4_screw",
+          "description": "Fastener type: m4_screw | snap_fit | press_fit | bayonet",
+          "title": "Fastener",
+          "type": "string"
+        },
+        "damping": {
+          "default": 0.0,
+          "description": "Joint damping coefficient",
+          "title": "Damping",
+          "type": "number"
+        },
+        "friction": {
+          "default": 0.0,
+          "description": "Joint friction coefficient",
+          "title": "Friction",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "parent_part",
+        "child_part",
+        "axis",
+        "origin_xyz"
+      ],
+      "title": "JointSpec",
+      "type": "object"
+    },
+    "JointType": {
+      "enum": [
+        "fixed",
+        "revolute",
+        "continuous",
+        "prismatic"
+      ],
+      "title": "JointType",
+      "type": "string"
+    },
+    "MaterialType": {
+      "enum": [
+        "PLA",
+        "PETG",
+        "TPU",
+        "ABS"
+      ],
+      "title": "MaterialType",
+      "type": "string"
+    },
+    "ModelType": {
+      "enum": [
+        "tank",
+        "train"
+      ],
+      "title": "ModelType",
+      "type": "string"
+    },
+    "PartSpec": {
+      "description": "A URDF link \u2014 a physical part with visual, collision, and inertial data.",
+      "properties": {
+        "id": {
+          "description": "Unique identifier, e.g. 'chassis_hull'",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Human-readable name",
+          "title": "Name",
+          "type": "string"
+        },
+        "scad_file": {
+          "default": "",
+          "description": "Relative path to .scad file",
+          "title": "Scad File",
+          "type": "string"
+        },
+        "scad_code": {
+          "default": "",
+          "description": "Full OpenSCAD source code",
+          "title": "Scad Code",
+          "type": "string"
+        },
+        "category": {
+          "default": "chassis",
+          "description": "Part category: chassis | turret | console | track",
+          "title": "Category",
+          "type": "string"
+        },
+        "dimensions_mm": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Bounding box in mm (X, Y, Z)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Dimensions Mm",
+          "type": "array"
+        },
+        "requires_splitting": {
+          "default": false,
+          "description": "True if part exceeds build volume",
+          "title": "Requires Splitting",
+          "type": "boolean"
+        },
+        "split_parts": {
+          "description": "IDs of sub-parts if split",
+          "items": {
+            "type": "string"
+          },
+          "title": "Split Parts",
+          "type": "array"
+        },
+        "mass_grams": {
+          "default": 0.0,
+          "description": "Estimated mass",
+          "title": "Mass Grams",
+          "type": "number"
+        },
+        "color": {
+          "default": "#4a7c59",
+          "description": "Hex color for visualization",
+          "title": "Color",
+          "type": "string"
+        },
+        "inertial": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InertialSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URDF inertial properties (auto-computed if None)"
+        },
+        "collision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CollisionGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Simplified collision shape (auto-generated if None)"
+        },
+        "physics_material": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PhysicsMaterial"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Surface physics for simulation"
+        },
+        "visual_origin_xyz": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Visual mesh offset from link origin",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Visual Origin Xyz",
+          "type": "array"
+        },
+        "visual_origin_rpy": {
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "description": "Visual mesh rotation from link origin",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Visual Origin Rpy",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "PartSpec",
+      "type": "object"
+    },
+    "PhysicsMaterial": {
+      "description": "Surface physics properties for simulation.",
+      "properties": {
+        "friction": {
+          "default": 0.5,
+          "description": "Coulomb friction coefficient",
+          "title": "Friction",
+          "type": "number"
+        },
+        "restitution": {
+          "default": 0.1,
+          "description": "Bounce coefficient (0=no bounce)",
+          "title": "Restitution",
+          "type": "number"
+        },
+        "density_g_per_mm3": {
+          "default": 0.00124,
+          "description": "Material density (PLA default)",
+          "title": "Density G Per Mm3",
+          "type": "number"
+        },
+        "contact_material": {
+          "default": "",
+          "description": "Named material for Webots ContactProperties",
+          "title": "Contact Material",
+          "type": "string"
+        }
+      },
+      "title": "PhysicsMaterial",
+      "type": "object"
+    },
+    "PrinterProfile": {
+      "properties": {
+        "name": {
+          "description": "Printer model name, e.g. 'Bambu Lab A1 Mini'",
+          "title": "Name",
+          "type": "string"
+        },
+        "build_volume_mm": {
+          "description": "Build volume in mm (X, Y, Z)",
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Build Volume Mm",
+          "type": "array"
+        },
+        "nozzle_diameter_mm": {
+          "default": 0.4,
+          "title": "Nozzle Diameter Mm",
+          "type": "number"
+        },
+        "layer_height_mm": {
+          "default": 0.2,
+          "title": "Layer Height Mm",
+          "type": "number"
+        },
+        "material": {
+          "$ref": "#/$defs/MaterialType",
+          "default": "PLA"
+        },
+        "wall_thickness_mm": {
+          "default": 1.2,
+          "description": "Wall thickness (3 perimeters at 0.4mm)",
+          "title": "Wall Thickness Mm",
+          "type": "number"
+        },
+        "tolerance_mm": {
+          "default": 0.2,
+          "description": "Print tolerance for mating surfaces",
+          "title": "Tolerance Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "build_volume_mm"
+      ],
+      "title": "PrinterProfile",
+      "type": "object"
+    },
+    "ReferenceProportions": {
+      "description": "Proportional data from Gemini analysis of real-world reference.",
+      "properties": {
+        "source_vehicle": {
+          "default": "",
+          "description": "e.g. 'M1A1 Abrams'",
+          "title": "Source Vehicle",
+          "type": "string"
+        },
+        "scale": {
+          "default": "1:26",
+          "description": "Target scale ratio",
+          "title": "Scale",
+          "type": "string"
+        },
+        "real_dimensions_mm": {
+          "additionalProperties": true,
+          "description": "Full-scale dimensions: hull_length, hull_width, etc.",
+          "title": "Real Dimensions Mm",
+          "type": "object"
+        },
+        "scaled_dimensions_mm": {
+          "additionalProperties": true,
+          "description": "Dimensions at target scale",
+          "title": "Scaled Dimensions Mm",
+          "type": "object"
+        },
+        "proportional_ratios": {
+          "additionalProperties": true,
+          "description": "Key ratios: hull_length_to_width, turret_length_to_hull_length, etc.",
+          "title": "Proportional Ratios",
+          "type": "object"
+        },
+        "shape_notes": {
+          "description": "Shape features: [{feature, description, angle_degrees}]",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Shape Notes",
+          "type": "array"
+        }
+      },
+      "title": "ReferenceProportions",
+      "type": "object"
+    },
+    "WireConnection": {
+      "description": "A single wire connection between components.",
+      "properties": {
+        "from_pin": {
+          "description": "Source pin name, e.g. 'GPIO2'",
+          "title": "From Pin",
+          "type": "string"
+        },
+        "to_component": {
+          "description": "Target component ID",
+          "title": "To Component",
+          "type": "string"
+        },
+        "to_pin": {
+          "description": "Target pin name",
+          "title": "To Pin",
+          "type": "string"
+        },
+        "wire_color": {
+          "default": "",
+          "description": "Wire color for assembly",
+          "title": "Wire Color",
+          "type": "string"
+        },
+        "wire_gauge": {
+          "default": "26AWG",
+          "description": "Wire gauge",
+          "title": "Wire Gauge",
+          "type": "string"
+        },
+        "connector_type": {
+          "default": "dupont",
+          "description": "Connector: dupont | jst | screw_terminal | wago",
+          "title": "Connector Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_pin",
+        "to_component",
+        "to_pin"
+      ],
+      "title": "WireConnection",
+      "type": "object"
+    }
+  },
+  "description": "Extended URDF \u2014 master specification and single source of truth.\n\nCaptures kinematics (links + joints), electronics (components + wiring),\nprinting constraints, reference proportions, and assembly rules.\nUsed across the entire pipeline: NL \u2192 CAD \u2192 STL \u2192 URDF \u2192 Webots.",
+  "properties": {
+    "name": {
+      "description": "Robot name, e.g. 'M1A1 Abrams'",
+      "title": "Name",
+      "type": "string"
+    },
+    "version": {
+      "default": "0.1.0",
+      "description": "Semantic version",
+      "title": "Version",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "model_type": {
+      "$ref": "#/$defs/ModelType",
+      "default": "tank",
+      "description": "Robot model type: tank (differential drive) or train (simple speed)"
+    },
+    "printer": {
+      "$ref": "#/$defs/PrinterProfile"
+    },
+    "parts": {
+      "items": {
+        "$ref": "#/$defs/PartSpec"
+      },
+      "title": "Parts",
+      "type": "array"
+    },
+    "joints": {
+      "items": {
+        "$ref": "#/$defs/JointSpec"
+      },
+      "title": "Joints",
+      "type": "array"
+    },
+    "electronics": {
+      "items": {
+        "$ref": "#/$defs/ElectronicComponent"
+      },
+      "title": "Electronics",
+      "type": "array"
+    },
+    "assembly_constraints": {
+      "description": "Design rules that must be satisfied",
+      "items": {
+        "$ref": "#/$defs/AssemblyConstraint"
+      },
+      "title": "Assembly Constraints",
+      "type": "array"
+    },
+    "reference": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReferenceProportions"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Proportional data from real-world reference analysis"
+    },
+    "firmware_config": {
+      "additionalProperties": true,
+      "description": "WiFi SSID, motor pins, servo angles, etc.",
+      "title": "Firmware Config",
+      "type": "object"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "description": "Arbitrary key-value pairs (scale, real_vehicle, etc.)",
+      "title": "Metadata",
+      "type": "object"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "RobotSpec",
+  "type": "object"
+}
