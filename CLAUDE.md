@@ -29,7 +29,12 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
   1. **Overall Proportions** vs. Reference (L:W:H ratios, turret/hull ratio).
   2. **Component Fit** (Do motors/batteries/ESP32 fit without clipping?).
   3. **Center of Mass & Kinematic alignment** (turret centered, barrel forward, tracks symmetric).
-- **Loop:** Fix ALL Gate 1 issues before proceeding to Step 3. Do not waste tokens on aesthetics until physics/layout is correct.
+- **Debate Loop (max 3 rounds):** Claude fixes issues, Gemini re-audits. If no consensus after MAX_DEBATE_ROUNDS:
+  - **Escalate to User:** Present summary of recurring disagreements + options (accept, apply fixes, modify audit, custom direction, dismiss specific issues).
+  - User acts as **referee** — selects option or provides direction.
+  - This prevents infinite AI loops while keeping the user in control.
+  - **Implementation:** `planning_server/app/pipeline/debate.py` — `run_debate()` with `build_escalation_summary()`.
+- Fix ALL Gate 1 issues before proceeding to Step 3. Do not waste tokens on aesthetics until physics/layout is correct.
 
 ### Step 3: High-Fidelity Refinement + Aesthetic Refinement Layer
 - Only after Gate 1 approval, upgrade primitives to detailed geometries.
