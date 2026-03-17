@@ -14,9 +14,9 @@ use <camera_mount.scad>
 loco_length       = 130;           // BODY_LENGTH
 loco_width        = 36;            // BODY_WIDTH
 loco_height       = 30;            // BODY_HEIGHT
-loco_main_length  = 105;           // BODY_MAIN_LENGTH (rectangular section)
-nose_length       = 25;            // NOSE_LENGTH
-wall              = 1.2;           // WALL_THICKNESS
+loco_main_length  = 102;           // BODY_MAIN_LENGTH (130 - 28 nose)
+nose_length       = 28;            // NOSE_LENGTH (longer for aerodynamic taper)
+wall              = 1.6;           // WALL (increased for structural integrity)
 shell_split_z     = 14;            // Split line height
 
 // --- Axle Positions (from locomotive.scad wheel_bosses) ---
@@ -89,7 +89,7 @@ translate([loco_main_length/2 - batt_outer_l/2,
 // Camera mount origin is at back-left corner.
 // Lens faces +X (forward through the nose).
 // Position at front of main body, inside the nose cavity.
-// The nose starts at X = loco_main_length (105mm).
+// The nose starts at X = loco_main_length (102mm).
 // Camera mount ~46.6mm long, place it so lens aligns with nose.
 color("LimeGreen", 0.85)
 translate([loco_main_length - 5,

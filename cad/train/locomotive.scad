@@ -1,5 +1,7 @@
 // NL2Bot Shinkansen N700 Locomotive — Plarail Compatible
 // Split top/bottom shell with snap-fit, internal component cavities
+// Redesigned with aerodynamic "aero double-wing" nose cone,
+// tapered roof cross-section, and window band groove.
 // All dimensions in millimeters
 
 use <../libs/common.scad>
@@ -24,11 +26,16 @@ BODY_LENGTH        = 130;   // Standard Plarail car length
 BODY_WIDTH         = 36;    // Fits between guide rails
 BODY_HEIGHT        = 30;    // Total height (top + bottom combined)
 SHELL_SPLIT_Z      = 14;    // Split line height (bottom shell height)
-NOSE_LENGTH        = 25;    // Aerodynamic nose cone length
+NOSE_LENGTH        = 28;    // Aerodynamic nose cone length (longer for proper taper)
 BODY_MAIN_LENGTH   = BODY_LENGTH - NOSE_LENGTH; // Rectangular section
 
+// --- Roof Taper ---
+// N700 cross-section: roof is narrower than floor by this amount per side
+ROOF_TAPER         = 2.5;   // mm inward on each side at the roofline
+ROOF_RADIUS        = 6;     // Radius of the rounded roof edge
+
 // --- Shell Parameters ---
-WALL               = WALL_THICKNESS;  // 1.2mm from common.scad
+WALL               = 1.6;   // 1.6mm for structural integrity (4 perimeters)
 SNAP_TAB_W         = 6;     // Snap-fit tab width
 SNAP_TAB_H         = 2;     // Snap-fit tab height
 SNAP_TAB_D         = 1.0;   // Snap-fit detent depth
@@ -51,6 +58,11 @@ DRV_ZONE_W         = DRV8833_W + 4;
 DRV_ZONE_H         = DRV8833_H + 6;
 
 // --- Window Parameters ---
+WINDOW_BAND_HEIGHT = 3;     // Height of the continuous window groove
+WINDOW_BAND_DEPTH  = 0.3;   // Recess depth (decorative groove)
+WINDOW_BAND_Z      = SHELL_SPLIT_Z + 5;  // ~60% of body height
+
+// Individual windows (cut through the band)
 WINDOW_W           = 8;
 WINDOW_H           = 6;
 WINDOW_R           = 1.5;
@@ -72,67 +84,104 @@ DUCT_DEPTH         = 4;
 WHEEL_BOSS_H       = 5;     // Boss protrusion below bottom shell
 WHEEL_BOSS_OD      = 8;     // Outer diameter of wheel bearing boss
 
+// --- Nose Cone Parameters ---
+NOSE_TIP_WIDTH     = 8;     // Width at the very tip
+NOSE_TIP_HEIGHT    = 10;    // Height at the very tip
+NOSE_TIP_DROP      = 5;     // How far the tip drops below body centerline
+NOSE_HULL_STEPS    = 1;     // hull() does the smooth interpolation
+
 // =====================================================================
-// Nose Cone Profile (Shinkansen N700 style)
+// Body Cross-Section (with tapered roof)
+// N700 profile: floor is BODY_WIDTH, roof is (BODY_WIDTH - 2*ROOF_TAPER)
 // =====================================================================
-module nose_profile_2d() {
-    // Side profile of the nose: tapered and curved
-    // Origin at nose tip, extends in +X direction
+module body_cross_section_2d() {
+    // 2D cross-section of the N700 body (centered on Y=0)
+    // Bottom edge at Z=0, top edge at Z=BODY_HEIGHT
+    roof_w = BODY_WIDTH - 2 * ROOF_TAPER;
+
     hull() {
-        // Tip: narrow rounded point
-        translate([2, BODY_HEIGHT * 0.35])
-            circle(d=4);
-        // Base: full body height
-        translate([NOSE_LENGTH, 0])
-            square([0.01, BODY_HEIGHT]);
-    }
-}
-
-module nose_cone() {
-    // 3D nose cone: extruded profile with width taper
-    intersection() {
-        // Side profile sweep
-        translate([0, -BODY_WIDTH/2, 0])
-            rotate([90, 0, 90])
-                linear_extrude(height=NOSE_LENGTH, center=false)
-                    // Simplified profile as polygon
-                    polygon(points=[
-                        [0, 0],
-                        [BODY_WIDTH, 0],
-                        [BODY_WIDTH, NOSE_LENGTH],
-                        [BODY_WIDTH/2 + 2, NOSE_LENGTH],
-                        [BODY_WIDTH/2 - 2, NOSE_LENGTH],
-                        [0, NOSE_LENGTH]
-                    ]);
-        // Top profile taper (hull from narrow tip to full width)
-        hull() {
-            // Tip: narrow
-            translate([NOSE_LENGTH - 1, 0, BODY_HEIGHT * 0.3])
-                cube([1, 6, BODY_HEIGHT * 0.4], center=true);
-            // Base: full width & height
-            translate([0, 0, 0])
-                cube([0.01, BODY_WIDTH, BODY_HEIGHT]);
-        }
+        // Bottom-left corner
+        translate([-BODY_WIDTH/2, 0])
+            square([BODY_WIDTH, 0.01]);
+        // Top edge (narrower, with rounded corners via circles)
+        translate([-roof_w/2 + ROOF_RADIUS, BODY_HEIGHT - ROOF_RADIUS])
+            circle(r=ROOF_RADIUS, $fn=32);
+        translate([roof_w/2 - ROOF_RADIUS, BODY_HEIGHT - ROOF_RADIUS])
+            circle(r=ROOF_RADIUS, $fn=32);
+        // Flat bottom for stability
+        translate([-BODY_WIDTH/2, 0])
+            square([BODY_WIDTH, 1]);
     }
 }
 
 // =====================================================================
-// Main Body Shell (rectangular section)
+// Main Body (rectangular section with tapered roof cross-section)
 // =====================================================================
 module body_main_outer() {
-    // Rectangular section with slight top rounding
+    // Extrude the tapered cross-section along the body length
+    // Body extends from X=0 to X=BODY_MAIN_LENGTH
+    // Cross-section is in the YZ plane
+    translate([0, 0, 0])
+        rotate([90, 0, 90])
+            linear_extrude(height=BODY_MAIN_LENGTH)
+                body_cross_section_2d();
+}
+
+// =====================================================================
+// Nose Cone — Shinkansen N700 "Aero Double-Wing" Style
+// Uses hull() to smoothly taper from body cross-section to pointed tip
+// =====================================================================
+module nose_cone() {
+    // The nose starts at X=0 (junction with body_main) and extends to X=NOSE_LENGTH
+    // Tip is narrower, shorter, and drops below centerline
+
+    tip_z_offset = -NOSE_TIP_DROP;  // Tip drops below body center
+
     hull() {
-        // Bottom rectangle
-        translate([0, -BODY_WIDTH/2, 0])
-            cube([BODY_MAIN_LENGTH, BODY_WIDTH, BODY_HEIGHT - 4]);
-        // Rounded top
-        translate([0, -(BODY_WIDTH - 4)/2, BODY_HEIGHT - 4])
-            cube([BODY_MAIN_LENGTH, BODY_WIDTH - 4, 4]);
+        // Base face: match the body cross-section exactly (thin slice)
+        translate([0, 0, 0])
+            rotate([90, 0, 90])
+                linear_extrude(height=0.01)
+                    body_cross_section_2d();
+
+        // Mid-section at 60% nose length: intermediate taper
+        translate([NOSE_LENGTH * 0.6, 0, tip_z_offset * 0.3])
+            rotate([90, 0, 90])
+                linear_extrude(height=0.01)
+                    hull() {
+                        mid_w = (BODY_WIDTH + NOSE_TIP_WIDTH) / 2;
+                        mid_h = (BODY_HEIGHT + NOSE_TIP_HEIGHT) / 2;
+                        mid_roof_w = mid_w - ROOF_TAPER;
+                        translate([-mid_w/2, 0])
+                            square([mid_w, 0.01]);
+                        translate([-mid_roof_w/2 + 3, mid_h - 3])
+                            circle(r=3, $fn=24);
+                        translate([mid_roof_w/2 - 3, mid_h - 3])
+                            circle(r=3, $fn=24);
+                        translate([-mid_w/2, 0])
+                            square([mid_w, 1]);
+                    }
+
+        // Tip: small rounded rectangle, dropped below centerline
+        translate([NOSE_LENGTH - 0.5, 0, tip_z_offset])
+            rotate([90, 0, 90])
+                linear_extrude(height=0.5)
+                    hull() {
+                        tip_r = 2;
+                        translate([-NOSE_TIP_WIDTH/2 + tip_r, tip_r])
+                            circle(r=tip_r, $fn=24);
+                        translate([NOSE_TIP_WIDTH/2 - tip_r, tip_r])
+                            circle(r=tip_r, $fn=24);
+                        translate([-NOSE_TIP_WIDTH/2 + tip_r, NOSE_TIP_HEIGHT - tip_r])
+                            circle(r=tip_r, $fn=24);
+                        translate([NOSE_TIP_WIDTH/2 - tip_r, NOSE_TIP_HEIGHT - tip_r])
+                            circle(r=tip_r, $fn=24);
+                    }
     }
 }
 
 // =====================================================================
-// Full Outer Shell (nose + body)
+// Full Outer Shell (body + nose)
 // =====================================================================
 module outer_shell() {
     union() {
@@ -156,12 +205,18 @@ module interior_cavity() {
     translate([WALL, -w_inner/2, WALL])
         cube([l_inner, w_inner, h_inner]);
 
-    // Nose cavity (slightly smaller)
-    translate([BODY_MAIN_LENGTH, -(w_inner - 4)/2, WALL + 2])
+    // Nose cavity (follows taper, slightly smaller than outer)
+    nose_cav_wall = WALL + 0.5;
+    translate([BODY_MAIN_LENGTH, 0, 0])
         hull() {
-            cube([1, w_inner - 4, h_inner - 6]);
-            translate([NOSE_LENGTH - 8, (w_inner - 4)/2 - 4, 2])
-                cube([1, 8, h_inner - 10]);
+            // Base face
+            translate([0, 0, 0])
+                translate([0, -(w_inner - 2)/2, WALL + 1])
+                    cube([0.01, w_inner - 2, h_inner - 4]);
+            // Near-tip: small cavity
+            translate([NOSE_LENGTH - 10, 0, NOSE_TIP_DROP * -0.5])
+                translate([0, -4, WALL + 3])
+                    cube([0.01, 8, NOSE_TIP_HEIGHT - 4]);
         }
 }
 
@@ -204,7 +259,34 @@ module snap_tabs_female() {
 }
 
 // =====================================================================
-// Windows (decorative cutouts on both sides)
+// Window Band (continuous recessed groove along both sides)
+// =====================================================================
+module window_band() {
+    // Continuous groove running the length of the main body
+    // at ~60% height, 0.3mm deep, 3mm tall
+    for (y_sign = [-1, 1]) {
+        translate([WALL, y_sign * (BODY_WIDTH/2 - WINDOW_BAND_DEPTH + 0.01),
+                   WINDOW_BAND_Z - WINDOW_BAND_HEIGHT/2])
+            cube([BODY_MAIN_LENGTH - 2*WALL,
+                  WINDOW_BAND_DEPTH + 0.02,
+                  WINDOW_BAND_HEIGHT]);
+    }
+
+    // Extend the band partway into the nose (first 30% of nose length)
+    nose_band_len = NOSE_LENGTH * 0.3;
+    for (y_sign = [-1, 1]) {
+        // The nose tapers, so the band surface is not at BODY_WIDTH/2 anymore.
+        // Approximate: at the start of the nose it's still at BODY_WIDTH/2
+        translate([BODY_MAIN_LENGTH, y_sign * (BODY_WIDTH/2 - WINDOW_BAND_DEPTH + 0.01),
+                   WINDOW_BAND_Z - WINDOW_BAND_HEIGHT/2])
+            cube([nose_band_len,
+                  WINDOW_BAND_DEPTH + 0.02,
+                  WINDOW_BAND_HEIGHT]);
+    }
+}
+
+// =====================================================================
+// Windows (decorative cutouts on both sides, through the band)
 // =====================================================================
 module side_windows() {
     start_x = BODY_MAIN_LENGTH - WINDOW_COUNT * WINDOW_SPACING;
@@ -303,9 +385,11 @@ module component_cavities() {
 // Lens Aperture (through nose for camera)
 // =====================================================================
 module lens_aperture() {
-    translate([BODY_LENGTH - 3, 0, SHELL_SPLIT_Z * 0.7])
+    // Aperture positioned to align with ESP32-CAM lens in the nose
+    // The nose tip drops, so the aperture is at roughly the nose tip center
+    translate([BODY_LENGTH - 5, 0, SHELL_SPLIT_Z * 0.7])
         rotate([0, 90, 0])
-            cylinder(h=10, d=ESP32CAM_LENS_DIA + 3);
+            cylinder(h=15, d=ESP32CAM_LENS_DIA + 3);
 }
 
 // =====================================================================
@@ -351,7 +435,9 @@ module top_shell() {
         interior_cavity();
         // Snap-fit slots (female)
         snap_tabs_female();
-        // Side windows
+        // Window band groove (continuous recess)
+        window_band();
+        // Side windows (deeper cutouts through the band)
         side_windows();
         // Ventilation slots
         vent_slots();
