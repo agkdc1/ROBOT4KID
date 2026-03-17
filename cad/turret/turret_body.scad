@@ -18,7 +18,7 @@ turret_height = 30;               // Very low profile (was 50)
 wall = 1.6;                       // Min wall thickness
 
 // Turret ring (mates with hull turret_ring_id = 74)
-ring_od = 74;                     // Must match hull turret_ring_id
+ring_od = 74;                     // Nominal=hull turret_ring_id; actual=73.6mm (0.2mm clearance per side)
 ring_height = 10;
 
 // Gun mount

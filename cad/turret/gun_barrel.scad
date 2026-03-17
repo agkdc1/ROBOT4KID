@@ -6,7 +6,7 @@ use <../libs/common.scad>
 use <../libs/m4_hardware.scad>
 
 // --- Barrel Parameters ---
-barrel_length = 180;
+barrel_length = 162;              // Total with bayonet(8)+muzzle(10) = 180mm = fits build vol
 barrel_od = 12;               // Outer diameter
 barrel_id = 8;                // Inner bore (for projectile)
 barrel_wall = (barrel_od - barrel_id) / 2;

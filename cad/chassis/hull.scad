@@ -60,7 +60,7 @@ rear_slope = 15;           // Rear deck slope angle
 
 // Beak geometry — the distinctive M1A1 front
 beak_drop = 22;            // How far the beak drops below the hull bottom (was 18, more pronounced)
-beak_length = 42;          // How far the beak extends forward from hull face (was 35, longer beak)
+beak_length = 24;          // Forward extension; total front half ~179mm fits 180mm build vol
 beak_tip_height = 3;       // Thickness at the beak tip (was 4, sharper)
 
 // Engine deck louver parameters
