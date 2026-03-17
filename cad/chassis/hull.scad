@@ -222,12 +222,9 @@ module split_line_groove() {
     // Right side
     translate([-split_groove_width/2, hull_width - split_groove_depth, 0])
         cube([split_groove_width, split_groove_depth + 0.1, hull_height]);
-    // Top
-    translate([-split_groove_width/2, upper_taper, hull_height - split_groove_depth])
-        cube([split_groove_width, hull_width - 2*upper_taper, split_groove_depth + 0.1]);
-    // Bottom
-    translate([-split_groove_width/2, -0.1, -0.1])
-        cube([split_groove_width, hull_width + 0.2, split_groove_depth + 0.1]);
+    // NOTE: Top groove removed — Gemini flagged it as "open hull gap"
+    // The top deck must appear as a continuous sealed surface
+    // Bottom groove also removed to maintain manifold integrity
 }
 
 // --- Skirt Gap ---

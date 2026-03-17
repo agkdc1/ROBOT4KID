@@ -99,3 +99,10 @@ translate([turret_global_x + 10, turret_ring_cy - 13.5, hull_height + turret_hul
 color("Cyan", 0.8)
 translate([turret_global_x + 15, turret_ring_cy, hull_height + turret_hull_gap + turret_height * 0.35])
     vl53l1x_dummy();
+
+// --- Ground Plane (visual reference for ground contact verification) ---
+// Track belt bottom is at Z=-1 (belt_z = rw_bottom - TRACK_BELT_THICK = 2-3 = -1)
+// Ground plane sits flush with track belt bottom
+color("#3a3a2a", 0.4)
+translate([-50, -50, -1.5])
+    cube([400, 300, 0.5]);
