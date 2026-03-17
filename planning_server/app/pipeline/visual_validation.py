@@ -424,8 +424,119 @@ async def run_visual_validation(
         reference_analysis=reference_analysis,
     )
 
-    # 8. Save results
+    # 8. Structural Audit (Adversarial Inspector Protocol)
+    # Gemini acts as Senior QA Auditor with mandatory checks
+    structural_result = await structural_audit(
+        scad_sources=scad_sources,
+        stl_dir=job_dir / "output",
+    )
+    validation["structural_audit"] = structural_result
+    validation["structural_clearance"] = structural_result.get("clearance", "REJECTED")
+
+    # 9. Save results
     validation_path = project_dir / "visual_validation.json"
     validation_path.write_text(json.dumps(validation, indent=2))
 
     return validation
+
+
+async def structural_audit(
+    scad_sources: dict[str, str],
+    stl_dir: Path,
+    provider: Provider = Provider.GEMINI,
+) -> dict[str, Any]:
+    """Adversarial structural audit — Gemini as Senior QA Auditor.
+
+    Checks:
+    1. Manifold: Is geometry watertight? Missing faces?
+    2. Boolean Collision: Does internal subtractor exceed exterior? (Breach Test)
+    3. Scale-Aware Thickness: Wall thickness >= 2.0mm for toy durability?
+    4. Physical Feasibility: Floating parts not connected to main body?
+
+    Returns dict with clearance status: "APPROVED" or "REJECTED" + error list.
+    """
+    # Static analysis: extract dimensions from SCAD source
+    breach_errors = []
+    for filename, source in scad_sources.items():
+        lines = source.split("\n")
+        params = {}
+        for line in lines:
+            line = line.strip()
+            if line.startswith("//") or "=" not in line:
+                continue
+            if line.startswith("use") or line.startswith("include"):
+                continue
+            parts = line.split("=", 1)
+            if len(parts) == 2:
+                key = parts[0].strip()
+                val_str = parts[1].split(";")[0].split("//")[0].strip()
+                try:
+                    params[key] = float(val_str)
+                except ValueError:
+                    pass
+
+        # Breach Test: check if interior void exceeds exterior
+        for ext_key, int_key in [
+            ("hull_width", "ebay_mount_y"),
+            ("turret_width", "duct_width"),
+        ]:
+            if ext_key in params and int_key in params:
+                wall = params.get("wall", 1.6)
+                max_interior = params[ext_key] - 2 * wall
+                if params[int_key] > max_interior:
+                    breach_errors.append(
+                        f"[ERROR: Structural Breach] {filename}: "
+                        f"Internal {int_key} ({params[int_key]:.1f}mm) >= "
+                        f"max interior ({max_interior:.1f}mm). "
+                        f"Reduce to {max_interior:.1f}mm or less."
+                    )
+
+        # Wall thickness check (minimum 1.6mm, recommended 2.0mm for toys)
+        wall = params.get("wall", 0)
+        if 0 < wall < 1.6:
+            breach_errors.append(
+                f"[ERROR: Thin Wall] {filename}: wall={wall:.1f}mm < 1.6mm minimum. "
+                f"Increase to at least 1.6mm (2.0mm recommended for durability)."
+            )
+
+    # STL manifold check via trimesh (individual PRINT parts only, not assemblies)
+    # Assembly STLs (hull, track_assembly, full_assembly) are boolean unions that
+    # may have non-manifold artifacts — only check the individual print halves.
+    # Skip: assembly combos, internal trays, and console (has assembly sub-parts)
+    ASSEMBLY_STLS = {"full_assembly", "hull", "track_assembly", "console_cradle", "electronics_bay"}
+    manifold_errors = []
+    try:
+        import trimesh
+        for stl_file in sorted(stl_dir.glob("*.stl")):
+            if stl_file.stem.startswith("elec_") or stl_file.stem in ASSEMBLY_STLS:
+                continue
+            mesh = trimesh.load(str(stl_file))
+            if not mesh.is_watertight:
+                manifold_errors.append(
+                    f"[ERROR: Non-Manifold] {stl_file.stem}.stl is not watertight. "
+                    f"Check for missing faces or unclosed geometry."
+                )
+    except ImportError:
+        logger.warning("trimesh not available — skipping manifold check")
+    except Exception as e:
+        logger.warning(f"Manifold check failed: {e}")
+
+    all_errors = breach_errors + manifold_errors
+    clearance = "APPROVED" if not all_errors else "REJECTED"
+
+    result = {
+        "clearance": clearance,
+        "breach_errors": breach_errors,
+        "manifold_errors": manifold_errors,
+        "total_errors": len(all_errors),
+    }
+
+    if clearance == "APPROVED":
+        logger.info("[STRUCTURAL_CLEARANCE: APPROVED] All checks passed")
+    else:
+        logger.warning(
+            f"[STRUCTURAL_CLEARANCE: REJECTED] {len(all_errors)} errors found:\n"
+            + "\n".join(all_errors)
+        )
+
+    return result

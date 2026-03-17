@@ -252,10 +252,21 @@ async def run_pipeline(
                 gate1_score = gate1_result.get("visual_quality_score", 0)
                 results["gate1_validation"] = gate1_result
 
-                if gate1_score >= 7:
+                # Check structural clearance from adversarial audit
+                structural_clearance = gate1_result.get("structural_clearance", "REJECTED")
+                structural_audit = gate1_result.get("structural_audit", {})
+
+                if gate1_score >= 7 and structural_clearance == "APPROVED":
                     progress.update("gate1_validation", 1.0,
-                                    f"Gate 1 PASSED (score: {gate1_score}/10)")
+                                    f"Gate 1 PASSED (score: {gate1_score}/10, "
+                                    f"STRUCTURAL_CLEARANCE: APPROVED)")
                     break
+
+                if structural_clearance == "REJECTED":
+                    logger.warning(
+                        f"[STRUCTURAL_CLEARANCE: REJECTED] "
+                        f"{structural_audit.get('total_errors', 0)} errors"
+                    )
 
                 # Gate 1 failed — fix issues and retry
                 gate1_round += 1
@@ -263,19 +274,32 @@ async def run_pipeline(
                 progress.update("gate1_validation", gate1_round / GATE1_MAX_ITERATIONS,
                                 f"Gate 1 round {gate1_round}: fixing layout issues...")
 
-                # Build refinement prompt from Gate 1 checklist
-                issues = [
-                    f"- [{c.get('severity', 'major').upper()}] {c['category']}: {c['description']} "
-                    f"Suggestion: {c.get('suggestion', 'N/A')}"
-                    for c in gate1_result.get("checklist", [])
-                    if c.get("status") in ("fail", "warning")
-                ]
-                mandatory = gate1_result.get("mandatory_fixes", [])
-                if mandatory:
-                    issues = [f"- [MANDATORY] {fix}" for fix in mandatory] + issues
+                # Build refinement prompt — include structural audit errors
+                issues = []
+
+                # Structural audit errors (highest priority)
+                for err in structural_audit.get("breach_errors", []):
+                    issues.append(f"- [STRUCTURAL BREACH] {err}")
+                for err in structural_audit.get("manifold_errors", []):
+                    issues.append(f"- [NON-MANIFOLD] {err}")
+
+                # Gate checklist issues
+                for c in gate1_result.get("checklist", []):
+                    if c.get("status") in ("fail", "warning"):
+                        issues.append(
+                            f"- [{c.get('severity', 'major').upper()}] {c['category']}: "
+                            f"{c['description']} Suggestion: {c.get('suggestion', 'N/A')}"
+                        )
+
+                # Mandatory fixes from Gemini
+                for fix in gate1_result.get("mandatory_fixes", []):
+                    issues.append(f"- [MANDATORY] {fix}")
+
                 if issues:
                     refinement_prompt = (
-                        f"Gate 1 validation scored {gate1_score}/10. Fix these layout/physics issues:\n"
+                        f"Gate 1 validation scored {gate1_score}/10. "
+                        f"Structural clearance: {structural_clearance}.\n"
+                        f"You MUST acknowledge each structural error and fix it:\n"
                         + "\n".join(issues)
                     )
                     robot_spec = await _refine_spec(robot_spec, refinement_prompt)

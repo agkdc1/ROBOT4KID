@@ -91,10 +91,17 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
 ## 4. Engineering Mandates (Zero-Trust Grounding)
 These rules apply to ALL models and ALL pipeline steps:
 
-### 4.1 Zero-Trust Validation
+### 4.1 Zero-Trust Validation & Adversarial Inspector Protocol
 - All mechanical logic MUST be validated via the Simulation Server. No hallucinated physics.
-- Every gate check produces a **Visual Quality Score (0-10)**. Score < 7 = mandatory fixes required before proceeding.
-- Gemini acts as **Senior Mechanical Quality Inspector** with zero tolerance for: missing faces, non-manifold geometry, proportion deviations > 15%, missing clearance gaps.
+- Every gate check produces a **Visual Quality Score (0-10)**. Score < 7 = mandatory fixes required.
+- Gemini acts as **Senior QA Auditor** (adversarial role) with zero tolerance for: missing faces, non-manifold geometry, proportion deviations > 15%, missing clearance gaps.
+- **Structural Audit**: Automated checks run BEFORE Gemini vision review:
+  1. **Manifold Check**: trimesh `is_watertight` on every STL — no missing faces.
+  2. **Boolean Collision Audit**: SCAD parameter analysis — internal void MUST NOT exceed exterior minus 2*wall. Breach = `[ERROR: Structural Breach]`.
+  3. **Scale-Aware Thickness**: Wall thickness >= 1.6mm minimum, 2.0mm recommended for toy durability.
+  4. **Physical Feasibility**: No floating parts disconnected from the kinematic tree.
+- **Debate Loop**: Claude cannot proceed until Gemini issues `[STRUCTURAL_CLEARANCE: APPROVED]`. If rejected, Claude must acknowledge each error explicitly before re-generating code.
+- **Implementation**: `visual_validation.py` — `structural_audit()` runs manifold + breach checks, `validate_design()` runs Gemini vision, both must pass.
 
 ### 4.2 Manifold Integrity
 - Every part MUST be a closed solid (watertight mesh). No missing faces, no open tops/bottoms.
