@@ -68,3 +68,32 @@ Gemini audit scored 10/10 without catching this critical physics violation.
 - Always render visible wheel/track geometry in assembly files (not just axle holes).
 - Audit prompt must explicitly check physical orientation of wheels (vertical for trains, inside track belt for tanks).
 - Sensor aperture holes (camera, ToF) must be verified — without them the robot is BLIND.
+
+## Entry 004 — Motor-Wheel Drivetrain Mismatch (2026-03-17)
+
+### [Issue]
+Tank hardware spec changed to TT Motors (65x22x18mm) but CAD track_assembly still has N20 motor mounts (12mm diameter bore). TT motor physically cannot fit in the N20 cradle. Gemini scored the model 10/10 without catching this because the audit only checks visual appearance, not mechanical compatibility.
+
+### [Root Cause]
+1. Hardware spec was updated (N20 -> TT Motor) without updating the corresponding CAD mount geometry.
+2. The URDF/robot_spec.json doesn't encode motor-to-mount compatibility constraints.
+3. Gemini's visual audit cannot see internal motor mount dimensions — it only sees the external shell.
+4. The structural_audit() function checks boolean breach and manifold, NOT drivetrain chain compatibility.
+
+### [Resolution]
+1. Must decide: keep N20 motors (match existing CAD) OR redesign track_assembly for TT motors.
+2. Add drivetrain chain validation to the pipeline:
+   - Motor shaft diameter must match coupling bore
+   - Coupling output must match sprocket/gear shaft
+   - Gear/sprocket must mesh with driven element
+   - Driven element must connect to wheel/axle
+
+### [Pipeline Update]
+- Add "DRIVETRAIN CHAIN AUDIT" to structural_audit():
+  - Parse motor dimensions from hardware_specs.yaml
+  - Parse mount dimensions from SCAD source
+  - Verify motor_body_diameter <= mount_bore_diameter
+  - Verify shaft_diameter matches coupling bore
+- The URDF RobotSpec should include drivetrain links as joints with actuator specs.
+- Gemini prompt should include: "Verify motor type matches mount geometry. If spec says TT Motor but CAD has N20 mount, flag as CRITICAL."
+- NEVER change hardware spec without updating corresponding CAD geometry in the same commit.
