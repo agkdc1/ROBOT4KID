@@ -248,6 +248,7 @@ async def run_pipeline(
                     job_dir=job_dir_g1,
                     cad_dir=scad_dir.parent,
                     model_name=robot_spec.name,
+                    model_type=robot_spec.model_type.value if hasattr(robot_spec.model_type, "value") else str(robot_spec.model_type),
                 )
                 gate1_score = gate1_result.get("visual_quality_score", 0)
                 results["gate1_validation"] = gate1_result
@@ -459,6 +460,7 @@ async def run_pipeline(
                     job_dir=job_dir_g2,
                     cad_dir=scad_dir.parent,
                     model_name=robot_spec.name,
+                    model_type=robot_spec.model_type.value if hasattr(robot_spec.model_type, "value") else str(robot_spec.model_type),
                 )
                 gate2_score = gate2_result.get("visual_quality_score", 0)
                 results["gate2_validation"] = gate2_result

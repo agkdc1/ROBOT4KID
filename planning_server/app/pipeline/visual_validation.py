@@ -207,6 +207,62 @@ def _encode_images(image_paths: dict[str, Path]) -> list[dict]:
     return encoded
 
 
+def build_audit_context(model_type: str, model_name: str, reference_analysis: dict | None = None) -> str:
+    """Generate model-specific audit context for Gemini.
+
+    Instead of a hardcoded swiss-army-knife prompt, this builds
+    context dynamically based on model type and reference data.
+    """
+    # Base context (always included)
+    context = [
+        "COMMON RULES:",
+        "- Body/hull top deck MUST be closed (no background visible through walls).",
+        "- Split seams between print halves are INTENTIONAL (not defects).",
+        "- Green/cyan blocks are electronics placeholders (ESP32-CAM, sensors) — ignore them.",
+        "- All individual print parts must fit 180x180x180mm build volume.",
+        "- Score 0-10 integer. Below 7 = mandatory fixes required.",
+        "",
+    ]
+
+    # Model-specific physics
+    if model_type == "tank":
+        context.extend([
+            "TANK PHYSICS:",
+            "- Track belt touches ground, NOT the hull. Hull sits ABOVE tracks on suspension.",
+            "- There MUST be ground clearance between hull bottom and ground (correct).",
+            "- Road wheels sit INSIDE the track belt loop.",
+            "- Track belt (dark band at bottom) IS the ground contact surface.",
+            "",
+        ])
+    elif model_type == "train":
+        context.extend([
+            "TRAIN PHYSICS:",
+            "- This is a Plarail-compatible toy train (~130mm long).",
+            "- Wheels/bogies touch rails, train body sits above on bogie mounts.",
+            "- The nose must be aerodynamically smooth (no steps or cliff edges).",
+            "- Internal components (motor, battery, camera) mount inside the body shell.",
+            "- The body shell should be a recognizable Shinkansen/train shape.",
+            "",
+        ])
+    else:
+        context.extend([
+            f"MODEL TYPE: {model_type}",
+            "- Verify structural integrity and proportional accuracy.",
+            "",
+        ])
+
+    # Reference-specific checks
+    if reference_analysis:
+        ratios = reference_analysis.get("proportional_ratios", {})
+        if ratios:
+            context.append("REFERENCE PROPORTIONS (verify within 15%):")
+            for k, v in ratios.items():
+                context.append(f"- {k}: {v:.3f}")
+            context.append("")
+
+    return "\n".join(context)
+
+
 async def validate_design(
     model_name: str,
     assembly_views: dict[str, Path],
@@ -216,6 +272,7 @@ async def validate_design(
     robot_spec_json: str | None = None,
     reference_analysis: dict | None = None,
     provider: Provider = Provider.GEMINI,
+    model_type: str = "tank",
 ) -> dict[str, Any]:
     """Send rendered views + source data to Gemini for design validation.
 
@@ -303,6 +360,9 @@ async def validate_design(
         "Score visual_quality_score as an integer 0-10. Below 7 means mandatory fixes are required.\n"
     )
 
+    # Build model-specific audit context dynamically
+    audit_context = build_audit_context(model_type, model_name, reference_analysis)
+
     system = (
         f"You are a Senior Mechanical Quality Inspector reviewing a 3D-printable scale model of a {model_name}. "
         f"You have ZERO TOLERANCE for:\n"
@@ -323,29 +383,9 @@ async def validate_design(
         f"You MUST flag every STRUCTURAL issue explicitly. Do NOT assume problems will be fixed later. "
         f"If you see a missing surface, say exactly which surface and how to fix it. "
         f"If road wheels don't touch the ground plane, say the exact Z offset needed.\n\n"
-        f"For TRAIN models, additionally check aerodynamic continuity — the nose must be "
-        f"a smooth loft with no steps or cliff edges.\n\n"
         f"You have been given 6-angle rendered views of the assembled model, individual part views, "
-        f"the OpenSCAD source code, URDF kinematic data, and reference proportional analysis. "
-        f"Score 0-10 (integer). Below 7 = mandatory fixes required."
-        f"\n\nPHYSICS CONTEXT (model-specific):\n"
-        f"For TANK models:\n"
-        f"- Track belt touches ground, NOT the hull. Hull sits ABOVE tracks on suspension.\n"
-        f"- There MUST be ground clearance between hull bottom and ground (correct behavior).\n"
-        f"- Road wheels sit INSIDE the track belt loop.\n"
-        f"- The track belt (dark band at bottom) IS the ground contact surface.\n"
-        f"- A ground plane reference may be included in the render.\n"
-        f"\n"
-        f"For TRAIN models:\n"
-        f"- Wheels/bogies touch rails, train body sits above on bogie mounts.\n"
-        f"- The lowest point should be the wheel flanges, not the body shell.\n"
-        f"- Nose must be aerodynamically smooth (no steps or cliff edges).\n"
-        f"\n"
-        f"COMMON RULES:\n"
-        f"- Hull/body top deck MUST be closed (no background visible through walls).\n"
-        f"- Split seams between print halves are INTENTIONAL (not defects).\n"
-        f"- Green/cyan blocks are electronics placeholders (ESP32-CAM, sensors).\n"
-        f"- Score 0-10 integer. Below 7 = mandatory fixes required.\n"
+        f"the OpenSCAD source code, URDF kinematic data, and reference proportional analysis.\n\n"
+        f"{audit_context}"
     )
 
     # Note: Gemini vision would use the actual images, but our text API
@@ -372,6 +412,7 @@ async def run_visual_validation(
     job_dir: Path,
     cad_dir: Path,
     model_name: str = "M1A1 Abrams",
+    model_type: str = "tank",
     openscad_bin: str = "openscad",
 ) -> dict[str, Any]:
     """Full Step 4: Render → Gemini critique → checklist.
@@ -440,6 +481,7 @@ async def run_visual_validation(
         urdf_data=urdf_data,
         robot_spec_json=robot_spec_json,
         reference_analysis=reference_analysis,
+        model_type=model_type,
     )
 
     # 8. Structural Audit (Adversarial Inspector Protocol)
