@@ -134,33 +134,77 @@ def clear_scene():
 
 
 def setup_render_engine(samples=DEFAULT_SAMPLES):
-    """Configure Cycles with GPU and denoising."""
+    """Configure Cycles with GPU acceleration, OptiX denoising, and optimized sampling."""
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
 
-    # Try GPU acceleration
+    # ─── GPU Acceleration (OptiX > CUDA > HIP > CPU) ────────────────────
+    gpu_active = False
+    active_compute_type = "NONE"
     prefs = bpy.context.preferences.addons.get("cycles")
     if prefs:
         cprefs = prefs.preferences
-        # Try OPTIX first (NVIDIA RTX), then CUDA, then HIP (AMD)
-        for compute_type in ["OPTIX", "CUDA", "HIP", "NONE"]:
+        for compute_type in ["OPTIX", "CUDA", "HIP"]:
             try:
                 cprefs.compute_device_type = compute_type
                 cprefs.get_devices()
-                for device in cprefs.devices:
-                    device.use = True
-                scene.cycles.device = "GPU"
-                print(f"[render_pro] GPU: {compute_type}")
-                break
+                gpu_devices = [d for d in cprefs.devices if d.type != "CPU"]
+                if gpu_devices:
+                    # Activate ALL available GPUs for multi-GPU support
+                    for device in cprefs.devices:
+                        device.use = True
+                    scene.cycles.device = "GPU"
+                    gpu_active = True
+                    active_compute_type = compute_type
+                    gpu_names = [d.name for d in gpu_devices]
+                    print(f"[render_pro] GPU: {compute_type} — {', '.join(gpu_names)}")
+                    break
             except Exception:
                 continue
 
-    scene.cycles.samples = samples
-    scene.cycles.use_denoising = True
-    # Use OpenImageDenoise (works on CPU and GPU)
-    scene.cycles.denoiser = "OPENIMAGEDENOISE"
+    if not gpu_active:
+        scene.cycles.device = "CPU"
+        print("[render_pro] WARNING: No GPU detected — falling back to CPU rendering")
 
-    # Film
+    # ─── Sampling ────────────────────────────────────────────────────────
+    scene.cycles.samples = samples
+
+    # Adaptive sampling — stop calculating clean pixels early
+    scene.cycles.use_adaptive_sampling = True
+    scene.cycles.adaptive_threshold = 0.05  # Noise threshold (lower = cleaner)
+    scene.cycles.adaptive_min_samples = 16  # Minimum before adaptive kicks in
+
+    # ─── AI Denoising ────────────────────────────────────────────────────
+    scene.cycles.use_denoising = True
+    if active_compute_type == "OPTIX":
+        # OptiX AI Denoiser — fastest on NVIDIA RTX
+        scene.cycles.denoiser = "OPTIX"
+        print("[render_pro] Denoiser: OptiX AI")
+    else:
+        # OpenImageDenoise — works on CPU and all GPUs
+        scene.cycles.denoiser = "OPENIMAGEDENOISE"
+        print("[render_pro] Denoiser: OpenImageDenoise")
+
+    # Viewport denoising (for interactive preview if not headless)
+    scene.cycles.use_preview_denoising = True
+    scene.cycles.preview_denoiser = "OPENIMAGEDENOISE"
+
+    # ─── Light Path Optimization (Hero Shot) ─────────────────────────────
+    scene.cycles.max_bounces = 6       # Total max bounces
+    scene.cycles.diffuse_bounces = 2   # Diffuse (matte surfaces)
+    scene.cycles.glossy_bounces = 4    # Glossy (metal, clearcoat)
+    scene.cycles.transmission_bounces = 2  # Transmission (glass — minimal for our models)
+    scene.cycles.volume_bounces = 0    # Volume (smoke/fog — not used)
+    scene.cycles.transparent_max_bounces = 4  # Transparent (alpha)
+
+    # ─── Performance ─────────────────────────────────────────────────────
+    # Persistent data — keep scene in GPU memory between re-renders
+    scene.render.use_persistent_data = True
+
+    # Tile size — Blender 3.0+ uses automatic optimal tiling for GPU
+    # No need to set manually; the default is optimized per device
+
+    # ─── Film ────────────────────────────────────────────────────────────
     scene.render.film_transparent = False  # Will be overridden if --transparent
 
 
