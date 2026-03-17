@@ -26,7 +26,7 @@ BODY_LENGTH        = 130;   // Standard Plarail car length
 BODY_WIDTH         = 36;    // Fits between guide rails
 BODY_HEIGHT        = 30;    // Total height (top + bottom combined)
 SHELL_SPLIT_Z      = 14;    // Split line height (bottom shell height)
-NOSE_LENGTH        = 28;    // Aerodynamic nose cone length (longer for proper taper)
+NOSE_LENGTH        = 35;    // Aerodynamic nose cone length (elongated duckbill taper)
 BODY_MAIN_LENGTH   = BODY_LENGTH - NOSE_LENGTH; // Rectangular section
 
 // --- Roof Taper ---
@@ -85,10 +85,15 @@ WHEEL_BOSS_H       = 5;     // Boss protrusion below bottom shell
 WHEEL_BOSS_OD      = 8;     // Outer diameter of wheel bearing boss
 
 // --- Nose Cone Parameters ---
-NOSE_TIP_WIDTH     = 8;     // Width at the very tip
-NOSE_TIP_HEIGHT    = 10;    // Height at the very tip
-NOSE_TIP_DROP      = 5;     // How far the tip drops below body centerline
+NOSE_TIP_WIDTH     = 5;     // Width at the very tip (narrow duckbill)
+NOSE_TIP_HEIGHT    = 6;     // Height at the very tip (low profile)
+NOSE_TIP_DROP      = 8;     // How far the tip drops below body centerline (steep downslope)
 NOSE_HULL_STEPS    = 1;     // hull() does the smooth interpolation
+
+// --- Nose Mid-Section Waypoint (50% of nose length) ---
+NOSE_MID_FRAC      = 0.5;   // Position along nose length (0=base, 1=tip)
+NOSE_MID_W_FRAC    = 0.6;   // Mid-section width as fraction of body width
+NOSE_MID_H_FRAC    = 0.7;   // Mid-section height as fraction of body height
 
 // =====================================================================
 // Body Cross-Section (with tapered roof)
@@ -144,20 +149,21 @@ module nose_cone() {
                 linear_extrude(height=0.01)
                     body_cross_section_2d();
 
-        // Mid-section at 60% nose length: intermediate taper
-        translate([NOSE_LENGTH * 0.6, 0, tip_z_offset * 0.3])
+        // Mid-section waypoint at 50% nose length: creates the distinctive curved taper
+        translate([NOSE_LENGTH * NOSE_MID_FRAC, 0, tip_z_offset * NOSE_MID_FRAC])
             rotate([90, 0, 90])
                 linear_extrude(height=0.01)
                     hull() {
-                        mid_w = (BODY_WIDTH + NOSE_TIP_WIDTH) / 2;
-                        mid_h = (BODY_HEIGHT + NOSE_TIP_HEIGHT) / 2;
+                        mid_w = BODY_WIDTH * NOSE_MID_W_FRAC;
+                        mid_h = BODY_HEIGHT * NOSE_MID_H_FRAC;
                         mid_roof_w = mid_w - ROOF_TAPER;
+                        mid_r = min(3, mid_roof_w/4);
                         translate([-mid_w/2, 0])
                             square([mid_w, 0.01]);
-                        translate([-mid_roof_w/2 + 3, mid_h - 3])
-                            circle(r=3, $fn=24);
-                        translate([mid_roof_w/2 - 3, mid_h - 3])
-                            circle(r=3, $fn=24);
+                        translate([-mid_roof_w/2 + mid_r, mid_h - mid_r])
+                            circle(r=mid_r, $fn=24);
+                        translate([mid_roof_w/2 - mid_r, mid_h - mid_r])
+                            circle(r=mid_r, $fn=24);
                         translate([-mid_w/2, 0])
                             square([mid_w, 1]);
                     }
@@ -167,7 +173,7 @@ module nose_cone() {
             rotate([90, 0, 90])
                 linear_extrude(height=0.5)
                     hull() {
-                        tip_r = 2;
+                        tip_r = min(1.5, NOSE_TIP_WIDTH/4);
                         translate([-NOSE_TIP_WIDTH/2 + tip_r, tip_r])
                             circle(r=tip_r, $fn=24);
                         translate([NOSE_TIP_WIDTH/2 - tip_r, tip_r])

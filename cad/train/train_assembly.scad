@@ -14,8 +14,8 @@ use <camera_mount.scad>
 loco_length       = 130;           // BODY_LENGTH
 loco_width        = 36;            // BODY_WIDTH
 loco_height       = 30;            // BODY_HEIGHT
-loco_main_length  = 102;           // BODY_MAIN_LENGTH (130 - 28 nose)
-nose_length       = 28;            // NOSE_LENGTH (longer for aerodynamic taper)
+loco_main_length  = 95;            // BODY_MAIN_LENGTH (130 - 35 nose)
+nose_length       = 35;            // NOSE_LENGTH (elongated duckbill taper)
 wall              = 1.6;           // WALL (increased for structural integrity)
 shell_split_z     = 14;            // Split line height
 

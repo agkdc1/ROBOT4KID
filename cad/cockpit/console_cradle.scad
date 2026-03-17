@@ -318,11 +318,12 @@ module joystick_mount(x, y, z) {
 
     translate([x, y, z]) {
         // Joystick cavity (cut from body)
-        cube([sw, sd, sh + wall + 1]);
+        cube([sw, sd, sh + wall + 10]);
 
         // Thumbstick poke-through hole (centered, through top surface)
-        translate([sw / 2, sd / 2, sh])
-            cylinder(h = wall + 2, d = joy_shaft_d);
+        // Extended +/-5mm to guarantee penetration through rounded grip shell
+        translate([sw / 2, sd / 2, sh - 5])
+            cylinder(h = wall + 15, d = joy_shaft_d);
     }
 }
 
@@ -346,8 +347,9 @@ module button_holes() {
             bx = btn_grid_x + col * btn_spacing;
             by = btn_grid_y + row * btn_spacing;
             // Snap-in hole through top surface
+            // Extended +5mm above to guarantee penetration through rounded grip shell
             translate([bx, by, btn_grid_z - btn_depth])
-                cylinder(h = btn_depth + wall + 1, d = btn_dia + btn_clr * 2);
+                cylinder(h = btn_depth + wall + 10, d = btn_dia + btn_clr * 2);
         }
     }
 }
