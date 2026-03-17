@@ -77,7 +77,7 @@ rear_deck_slope_deg = 6;   // 6-degree downward slope at rear
 skirt_flare = 1.5;         // Outward flare at bottom of skirts (mm)
 
 // Chamfer sizes
-chamfer_top = 1.0;         // Top edges where deck meets sides
+chamfer_top = 0.5;         // Top edges where deck meets sides (0.5mm fillet)
 chamfer_bottom = 0.5;      // Bottom edges of hull
 chamfer_skirt = 0.5;       // Side skirt bottom edges
 
@@ -480,9 +480,14 @@ module hull_rear() {
         translate([-5, hull_width*3/4, hull_height*2/3])
             rotate([0, 90, 0]) m4_hole(depth=10);
 
-        // Slip-ring void at turret ring center
-        translate([hull_length/2, hull_width/2, hull_height - 0.05])
-            cylinder(h=turret_ring_height + 0.2, d=slip_ring_dia);
+        // Turret ring bore — cut through the top deck for turret rotation
+        // This is the ONLY opening in the closed hull top deck
+        translate([hull_length/2, hull_width/2, -0.05])
+            cylinder(h=hull_height + 0.1, d=turret_ring_id);
+
+        // Slip-ring void at turret ring center (wire pass-through, smaller than ring bore)
+        translate([hull_length/2, hull_width/2, -0.05])
+            cylinder(h=hull_height + turret_ring_height + 0.2, d=slip_ring_dia);
 
         // Electronics bay mounting holes in floor
         ebay_floor_mounts();
