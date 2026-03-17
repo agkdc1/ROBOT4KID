@@ -78,6 +78,11 @@ RETURN_ROLLER_THICK = 6;
 
 // Mud flap (front of side plate)
 MUD_FLAP_THICK  = 1;
+
+// --- Track Belt (Continuous Caterpillar Track) ---
+// Wraps around road wheels, sprocket, and idler
+TRACK_BELT_THICK = 2;        // Track link thickness
+TRACK_BELT_WIDTH = ROAD_WHEEL_THICK + 2;  // Slightly wider than wheels
 MUD_FLAP_HEIGHT = 10;
 
 // Top edge chamfer
@@ -345,6 +350,82 @@ module n20_motor_mount_positioned() {
     }
 }
 
+// --- Track Belt (Continuous Caterpillar) ---
+// Wraps around the outermost points of road wheels, sprocket, and idler
+// Creates a simplified "belt" that is the lowest point of the model
+module track_belt() {
+    // The belt is a continuous loop:
+    // Bottom run: straight along the bottom of road wheels
+    // Front wrap: around the idler
+    // Top run: straight along the top (return path)
+    // Rear wrap: around the sprocket
+
+    belt_y = -(TRACK_BELT_WIDTH / 2);  // Centered on wheel face
+
+    // Road wheel bottom Z = ROAD_WHEEL_Z - ROAD_WHEEL_DIA/2 = 11 - 9 = 2
+    rw_bottom = ROAD_WHEEL_Z - ROAD_WHEEL_DIA / 2;
+    // Track bottom = road wheel bottom - belt thickness
+    belt_bottom = rw_bottom - TRACK_BELT_THICK;
+
+    // Idler and sprocket centers
+    idler_cx = IDLER_X;
+    idler_cz = IDLER_Z;
+    idler_r = IDLER_DIA / 2;
+    sprocket_cx = SPROCKET_X;
+    sprocket_cz = SPROCKET_Z;
+    sprocket_r = SPROCKET_DIA / 2 + SPROCKET_TOOTH_H;
+
+    // Return roller at top
+    return_z = SIDE_PLATE_HEIGHT - 3;
+
+    // Bottom run — flat belt under all road wheels
+    first_wheel_x = ROAD_WHEEL_X_START;
+    last_wheel_x = ROAD_WHEEL_X_START + (ROAD_WHEEL_COUNT - 1) * ROAD_WHEEL_SPACING;
+
+    translate([first_wheel_x - 2, belt_y, belt_bottom])
+        cube([last_wheel_x - first_wheel_x + 4, TRACK_BELT_WIDTH, TRACK_BELT_THICK]);
+
+    // Front wrap — quarter arc around idler (bottom to front)
+    translate([idler_cx, belt_y, idler_cz])
+        rotate([-90, 0, 0])
+            difference() {
+                cylinder(r = idler_r + TRACK_BELT_THICK, h = TRACK_BELT_WIDTH);
+                translate([0, 0, -0.05])
+                    cylinder(r = idler_r, h = TRACK_BELT_WIDTH + 0.1);
+                // Only keep the front-bottom quadrant
+                translate([0, 0, -0.1])
+                    cube([idler_r + TRACK_BELT_THICK + 1, idler_r + TRACK_BELT_THICK + 1, TRACK_BELT_WIDTH + 0.2]);
+                translate([-idler_r - TRACK_BELT_THICK - 1, -idler_r - TRACK_BELT_THICK - 1, -0.1])
+                    cube([idler_r + TRACK_BELT_THICK + 1, idler_r + TRACK_BELT_THICK + 1, TRACK_BELT_WIDTH + 0.2]);
+            }
+
+    // Front vertical — idler front face to bottom
+    translate([idler_cx - idler_r - TRACK_BELT_THICK, belt_y, belt_bottom])
+        cube([TRACK_BELT_THICK, TRACK_BELT_WIDTH, idler_cz - belt_bottom]);
+
+    // Rear wrap — quarter arc around sprocket (bottom to rear)
+    translate([sprocket_cx, belt_y, sprocket_cz])
+        rotate([-90, 0, 0])
+            difference() {
+                cylinder(r = sprocket_r + TRACK_BELT_THICK, h = TRACK_BELT_WIDTH);
+                translate([0, 0, -0.05])
+                    cylinder(r = sprocket_r, h = TRACK_BELT_WIDTH + 0.1);
+                // Only keep the rear-bottom quadrant
+                translate([-sprocket_r - TRACK_BELT_THICK - 1, 0, -0.1])
+                    cube([sprocket_r + TRACK_BELT_THICK + 1, sprocket_r + TRACK_BELT_THICK + 1, TRACK_BELT_WIDTH + 0.2]);
+                translate([0, -sprocket_r - TRACK_BELT_THICK - 1, -0.1])
+                    cube([sprocket_r + TRACK_BELT_THICK + 1, sprocket_r + TRACK_BELT_THICK + 1, TRACK_BELT_WIDTH + 0.2]);
+            }
+
+    // Rear vertical — sprocket rear face to bottom
+    translate([sprocket_cx + sprocket_r, belt_y, belt_bottom])
+        cube([TRACK_BELT_THICK, TRACK_BELT_WIDTH, sprocket_cz - belt_bottom]);
+
+    // Top run — return path along top of side plate
+    translate([idler_cx, belt_y, return_z])
+        cube([sprocket_cx - idler_cx, TRACK_BELT_WIDTH, TRACK_BELT_THICK]);
+}
+
 // Complete left track assembly with wheels
 module track_assembly_left() {
     // Side plate with all cutouts and brackets
@@ -370,6 +451,10 @@ module track_assembly_left() {
     translate([IDLER_X, -IDLER_THICK / 2, IDLER_Z])
         rotate([90, 0, 0])
             idler_wheel();
+
+    // Continuous track belt wrapping all wheels
+    color("#2a2a2a")
+    track_belt();
 }
 
 // Right side is a mirror of the left

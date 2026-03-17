@@ -37,7 +37,7 @@ hull_assembly();
 // Ground contact: road wheel centers are at ROAD_WHEEL_Z = DIA/2 + 2,
 // so wheel bottoms sit 2mm above side plate bottom. Shift tracks down
 // by 2mm so road wheels touch Z=0 (ground plane).
-track_ground_drop = 2;  // mm — aligns road wheel bottoms to Z=0
+track_ground_drop = 0;  // Track belt bottom is at Z=0 in local coords, no offset needed
 color("#4a4a3a") {
     // Left side — front track
     translate([0, -track_width, -track_ground_drop])
