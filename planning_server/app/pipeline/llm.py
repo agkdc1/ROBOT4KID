@@ -5,6 +5,7 @@ Gemini is available for simpler tasks and expansion.
 """
 
 import logging
+import os
 from enum import Enum
 
 from anthropic import AsyncAnthropic
@@ -27,9 +28,28 @@ def _get_claude_client() -> AsyncAnthropic:
 
 
 def _get_gemini_client() -> genai.Client:
-    if not config.GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY not set")
-    return genai.Client(api_key=config.GEMINI_API_KEY)
+    """Get Gemini client — prefers Vertex AI (GCP), falls back to AI Studio (API key).
+
+    Vertex AI: higher rate limits, uses GCP billing (free credits).
+    AI Studio: 20 req/day free tier, rate limited.
+    """
+    gcp_project = os.getenv("GCP_PROJECT", getattr(config, "GCP_PROJECT_ID", ""))
+    gcp_location = os.getenv("GCP_LOCATION", "us-central1")
+
+    if gcp_project:
+        # Vertex AI — uses ADC (Application Default Credentials) or service account
+        logger.info(f"[Gemini] Using Vertex AI: project={gcp_project}, location={gcp_location}")
+        return genai.Client(
+            vertexai=True,
+            project=gcp_project,
+            location=gcp_location,
+        )
+    elif config.GEMINI_API_KEY:
+        # AI Studio fallback — rate limited
+        logger.info("[Gemini] Using AI Studio (API key)")
+        return genai.Client(api_key=config.GEMINI_API_KEY)
+    else:
+        raise ValueError("Neither GCP_PROJECT nor GEMINI_API_KEY set")
 
 
 async def generate_text(
