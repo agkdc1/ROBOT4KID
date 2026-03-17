@@ -23,3 +23,27 @@
 - When assembly uses variables from library files, use `include` not `use` in OpenSCAD.
 - Always render `assembly.scad` as a validation step before serving individual parts.
 - Gun/sensor placement must be on the same end as armor facing (front = gun + cheek armor).
+
+## Entry 002 — Track Belt & Ground Contact (2026-03-17)
+
+### [Issue]
+Track belt geometry failed to render (non-manifold from complex cylinder-arc operations).
+Gemini repeatedly flagged "floating tracks" because hull was elevated above tracks.
+Hull split line groove was flagged as "open hull gap."
+
+### [Root Cause]
+1. Complex cylinder difference() operations for track arc wraps produced non-manifold geometry that OpenSCAD silently dropped.
+2. Gemini audit lacked physics context — didn't know that tank hulls FLOAT above tracks on suspension.
+3. Top/bottom split grooves (0.4mm aesthetic detail) looked like structural gaps in renders.
+
+### [Resolution]
+1. Replaced cylinder-arc track belt with simple 4-cube rectangular loop (bottom run + top return + front/rear verticals). Reliable manifold geometry.
+2. Added physics-aware context to Gemini audit prompt: "track belt touches ground, hull floats on suspension."
+3. Removed top/bottom split grooves, kept side grooves only.
+4. Added ground plane reference to assembly.scad for visual verification.
+
+### [Pipeline Update]
+- Always use simple primitives (cubes, cylinders) for structural geometry. Avoid complex boolean intersections.
+- Gemini audit prompt MUST include model-specific physics context (tank vs train vs other).
+- Visual aesthetic grooves on critical surfaces (top deck, bottom) can be misinterpreted as defects — keep them shallow or remove.
+- Always include a ground plane in assembly renders for contact verification.
