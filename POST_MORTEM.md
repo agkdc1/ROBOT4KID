@@ -97,3 +97,29 @@ Tank hardware spec changed to TT Motors (65x22x18mm) but CAD track_assembly stil
 - The URDF RobotSpec should include drivetrain links as joints with actuator specs.
 - Gemini prompt should include: "Verify motor type matches mount geometry. If spec says TT Motor but CAD has N20 mount, flag as CRITICAL."
 - NEVER change hardware spec without updating corresponding CAD geometry in the same commit.
+
+## Entry 005 — Webots Streaming Camera Issues (2026-03-17)
+
+### [Issue]
+Webots X3D streaming viewer shows ground-level view — robots too small to see.
+Camera viewpoint from .wbt file is not properly applied in web streaming mode.
+Multiple Webots instances created when taskkill fails to terminate properly.
+
+### [Root Cause]
+1. Webots streaming X3D mode sends initial scene state but the web viewer's camera doesn't match the .wbt Viewpoint node.
+2. The robots (0.3m tank, 0.13m train) are tiny in a 2m arena — default web camera is too far.
+3. WheelEvent dispatching doesn't affect the X3D viewer's camera (server-side rendered).
+4. MJPEG mode requires different --stream arguments than X3D mode.
+5. Background bash `&` launches aren't properly tracked, causing zombie Webots processes.
+
+### [Resolution]
+1. For video capture, use Webots GUI mode with `File > Make Movie` (not streaming).
+2. Or use `--stream=mjpeg` flag specifically for MJPEG streaming.
+3. Always use `powershell.exe -Command "Get-Process webots | Stop-Process -Force"` to kill ALL instances.
+4. For production: use the React dashboard's SimulationViewer which handles the WebSocket connection properly.
+
+### [Pipeline Update]
+- Webots streaming is best consumed by the React SimulationViewer component, not the raw streaming_viewer.
+- For Gemini video audit, record via Webots GUI movie export OR supervisor controller screenshot API.
+- Never launch Webots with `&` in bash without proper PID tracking.
+- Consider Webots supervisor's `wb_supervisor_movie_start_recording()` for headless video capture.

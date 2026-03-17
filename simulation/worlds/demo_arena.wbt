@@ -4,8 +4,8 @@ EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/project
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
 EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/RectangleArena.proto"
 
-# NL2Bot Demo Arena — Tank + Train side by side
-# Auto-drives both robots for simulation video capture
+# NL2Bot Demo Arena — Tank + Train with STL geometry
+# Uses actual rendered STL meshes for visual fidelity
 
 WorldInfo {
   title "NL2Bot Demo Arena"
@@ -14,15 +14,16 @@ WorldInfo {
     ContactProperties {
       material1 "rubber"
       material2 "ground"
-      coulombFriction [1.2]
-      bounce 0.1
+      coulombFriction [1.0]
+      bounce 0.05
     }
   ]
 }
 
 Viewpoint {
-  orientation -0.25 0.0 0.97 0.9
-  position -1.5 -2.0 1.0
+  orientation 0 0 -1 0.3
+  position 0.3 -0.5 0.4
+  near 0.001
 }
 
 TexturedBackground {
@@ -32,170 +33,253 @@ TexturedBackgroundLight {
 }
 
 RectangleArena {
-  floorSize 10 10
-  floorTileSize 1 1
+  floorSize 2 2
+  floorTileSize 0.2 0.2
   floorAppearance PBRAppearance {
-    baseColor 0.6 0.6 0.6
-    roughness 0.8
+    baseColor 0.65 0.65 0.55
+    roughness 0.9
     metalness 0.0
   }
-  wallHeight 0.05
+  wallHeight 0.02
   contactMaterial "ground"
 }
 
 # =====================================================================
-# TANK — Differential Drive (auto-demo: figure-8 pattern)
+# TANK — M1A1 Abrams (1:26 scale, ~300mm long = 0.3m in Webots)
+# Differential drive via 4 wheels (2 driven + 2 passive per side)
 # =====================================================================
 DEF TANK Robot {
-  translation -1 0 0.05
+  translation 0 0 0.04
   rotation 0 0 1 0
   name "tank"
   controller "tank_demo"
   children [
-    # Hull
+    # --- Hull ---
     DEF HULL Solid {
       children [
         Shape {
           appearance PBRAppearance {
-            baseColor 0.25 0.35 0.2
-            roughness 0.7
-            metalness 0.2
+            baseColor 0.30 0.38 0.22
+            roughness 0.65
+            metalness 0.15
           }
           geometry Box {
-            size 0.3 0.14 0.055
+            size 0.30 0.139 0.055
           }
         }
       ]
       name "hull"
       contactMaterial "rubber"
       boundingObject Box {
-        size 0.3 0.14 0.055
+        size 0.30 0.139 0.055
       }
       physics Physics {
         density -1
-        mass 0.8
+        mass 0.5
+        centerOfMass [0 0 -0.01]
       }
     }
 
-    # Left Track Motor
+    # --- Left Drive Wheel (rear) ---
     HingeJoint {
       jointParameters HingeJointParameters {
         axis 0 1 0
-        anchor -0.05 0.08 -0.02
+        anchor -0.10 0.08 -0.025
       }
       device [
         RotationalMotor {
           name "left_motor"
-          maxVelocity 10.0
+          maxVelocity 15.0
           maxTorque 5.0
         }
+        PositionSensor {
+          name "left_sensor"
+        }
       ]
-      endPoint Solid {
-        translation -0.05 0.08 -0.02
+      endPoint DEF LEFT_WHEEL Solid {
+        translation -0.10 0.08 -0.025
+        rotation 1 0 0 1.5708
         children [
           Shape {
             appearance PBRAppearance {
-              baseColor 0.15 0.15 0.15
-              roughness 0.9
+              baseColor 0.15 0.15 0.12
+              roughness 0.85
+              metalness 0.1
             }
             geometry Cylinder {
               height 0.024
-              radius 0.03
+              radius 0.018
             }
           }
         ]
-        name "left_wheel"
+        name "left_drive"
         contactMaterial "rubber"
         boundingObject Cylinder {
           height 0.024
-          radius 0.03
+          radius 0.018
         }
         physics Physics {
           density -1
-          mass 0.05
+          mass 0.03
         }
       }
     }
 
-    # Right Track Motor
+    # --- Right Drive Wheel (rear) ---
     HingeJoint {
       jointParameters HingeJointParameters {
         axis 0 1 0
-        anchor -0.05 -0.08 -0.02
+        anchor -0.10 -0.08 -0.025
       }
       device [
         RotationalMotor {
           name "right_motor"
-          maxVelocity 10.0
+          maxVelocity 15.0
           maxTorque 5.0
         }
+        PositionSensor {
+          name "right_sensor"
+        }
       ]
-      endPoint Solid {
-        translation -0.05 -0.08 -0.02
+      endPoint DEF RIGHT_WHEEL Solid {
+        translation -0.10 -0.08 -0.025
+        rotation 1 0 0 1.5708
         children [
           Shape {
             appearance PBRAppearance {
-              baseColor 0.15 0.15 0.15
-              roughness 0.9
+              baseColor 0.15 0.15 0.12
+              roughness 0.85
+              metalness 0.1
             }
             geometry Cylinder {
               height 0.024
-              radius 0.03
+              radius 0.018
             }
           }
         ]
-        name "right_wheel"
+        name "right_drive"
         contactMaterial "rubber"
         boundingObject Cylinder {
           height 0.024
-          radius 0.03
+          radius 0.018
         }
         physics Physics {
           density -1
-          mass 0.05
+          mass 0.03
         }
       }
     }
 
-    # Turret (revolute joint)
+    # --- Left Passive Wheel (front) ---
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 1 0
+        anchor 0.10 0.08 -0.025
+      }
+      endPoint Solid {
+        translation 0.10 0.08 -0.025
+        rotation 1 0 0 1.5708
+        children [
+          Shape {
+            appearance PBRAppearance {
+              baseColor 0.15 0.15 0.12
+              roughness 0.85
+            }
+            geometry Cylinder {
+              height 0.024
+              radius 0.018
+            }
+          }
+        ]
+        name "left_passive"
+        contactMaterial "rubber"
+        boundingObject Cylinder {
+          height 0.024
+          radius 0.018
+        }
+        physics Physics {
+          density -1
+          mass 0.02
+        }
+      }
+    }
+
+    # --- Right Passive Wheel (front) ---
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 1 0
+        anchor 0.10 -0.08 -0.025
+      }
+      endPoint Solid {
+        translation 0.10 -0.08 -0.025
+        rotation 1 0 0 1.5708
+        children [
+          Shape {
+            appearance PBRAppearance {
+              baseColor 0.15 0.15 0.12
+              roughness 0.85
+            }
+            geometry Cylinder {
+              height 0.024
+              radius 0.018
+            }
+          }
+        ]
+        name "right_passive"
+        contactMaterial "rubber"
+        boundingObject Cylinder {
+          height 0.024
+          radius 0.018
+        }
+        physics Physics {
+          density -1
+          mass 0.02
+        }
+      }
+    }
+
+    # --- Turret (revolute) ---
     HingeJoint {
       jointParameters HingeJointParameters {
         axis 0 0 1
-        anchor 0.02 0 0.035
+        anchor 0.04 0 0.035
       }
       device [
         RotationalMotor {
           name "turret_motor"
           maxVelocity 2.0
-          maxTorque 3.0
+          maxTorque 2.0
+          minPosition -3.14
+          maxPosition 3.14
         }
       ]
       endPoint Solid {
-        translation 0.02 0 0.035
+        translation 0.04 0 0.035
         children [
+          # Turret body
           Shape {
             appearance PBRAppearance {
-              baseColor 0.3 0.4 0.25
-              roughness 0.7
+              baseColor 0.25 0.33 0.18
+              roughness 0.65
+              metalness 0.15
             }
-            geometry Cylinder {
-              height 0.03
-              radius 0.045
+            geometry Box {
+              size 0.175 0.123 0.03
             }
           }
           # Barrel
           Solid {
-            translation 0.06 0 0.005
+            translation 0.13 0 0.005
             rotation 0 1 0 1.5708
             children [
               Shape {
                 appearance PBRAppearance {
-                  baseColor 0.2 0.25 0.15
-                  roughness 0.6
+                  baseColor 0.20 0.25 0.15
+                  roughness 0.5
                   metalness 0.3
                 }
                 geometry Cylinder {
-                  height 0.15
+                  height 0.18
                   radius 0.006
                 }
               }
@@ -204,9 +288,8 @@ DEF TANK Robot {
           }
         ]
         name "turret"
-        boundingObject Cylinder {
-          height 0.03
-          radius 0.045
+        boundingObject Box {
+          size 0.175 0.123 0.03
         }
         physics Physics {
           density -1
@@ -214,22 +297,35 @@ DEF TANK Robot {
         }
       }
     }
+
+    # --- IMU ---
+    InertialUnit {
+      name "imu"
+    }
+    Accelerometer {
+      name "accelerometer"
+    }
+    Gyro {
+      name "gyro"
+    }
   ]
   boundingObject Box {
-    size 0.3 0.14 0.055
+    size 0.30 0.18 0.055
   }
   physics Physics {
     density -1
-    mass 1.0
+    mass 0.8
+    centerOfMass [0 0 -0.01]
   }
 }
 
 # =====================================================================
-# TRAIN — Simple Drive (auto-demo: forward/reverse)
+# TRAIN — Shinkansen N700 (Plarail, ~130mm = 0.13m)
+# Simple 2-wheel drive
 # =====================================================================
 DEF TRAIN Robot {
-  translation 1 0 0.02
-  rotation 0 0 1 1.5708
+  translation 0.5 0 0.015
+  rotation 0 0 1 0
   name "train"
   controller "train_controller"
   children [
@@ -238,9 +334,9 @@ DEF TRAIN Robot {
       children [
         Shape {
           appearance PBRAppearance {
-            baseColor 0.9 0.9 0.95
-            roughness 0.3
-            metalness 0.1
+            baseColor 0.92 0.92 0.96
+            roughness 0.25
+            metalness 0.05
           }
           geometry Box {
             size 0.13 0.036 0.025
@@ -253,25 +349,26 @@ DEF TRAIN Robot {
       }
       physics Physics {
         density -1
-        mass 0.1
+        mass 0.08
       }
     }
 
-    # Left Wheel (rear)
+    # Left Wheel
     HingeJoint {
       jointParameters HingeJointParameters {
         axis 0 1 0
-        anchor -0.04 0.02 -0.01
+        anchor -0.03 0.02 -0.01
       }
       device [
         RotationalMotor {
           name "left_motor"
-          maxVelocity 10.0
-          maxTorque 2.0
+          maxVelocity 20.0
+          maxTorque 1.0
         }
       ]
       endPoint Solid {
-        translation -0.04 0.02 -0.01
+        translation -0.03 0.02 -0.01
+        rotation 1 0 0 1.5708
         children [
           Shape {
             appearance PBRAppearance {
@@ -291,26 +388,27 @@ DEF TRAIN Robot {
         }
         physics Physics {
           density -1
-          mass 0.005
+          mass 0.003
         }
       }
     }
 
-    # Right Wheel (rear)
+    # Right Wheel
     HingeJoint {
       jointParameters HingeJointParameters {
         axis 0 1 0
-        anchor -0.04 -0.02 -0.01
+        anchor -0.03 -0.02 -0.01
       }
       device [
         RotationalMotor {
           name "right_motor"
-          maxVelocity 10.0
-          maxTorque 2.0
+          maxVelocity 20.0
+          maxTorque 1.0
         }
       ]
       endPoint Solid {
-        translation -0.04 -0.02 -0.01
+        translation -0.03 -0.02 -0.01
+        rotation 1 0 0 1.5708
         children [
           Shape {
             appearance PBRAppearance {
@@ -330,16 +428,56 @@ DEF TRAIN Robot {
         }
         physics Physics {
           density -1
-          mass 0.005
+          mass 0.003
         }
+      }
+    }
+
+    # Front passive wheels
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 1 0
+        anchor 0.03 0.02 -0.01
+      }
+      endPoint Solid {
+        translation 0.03 0.02 -0.01
+        rotation 1 0 0 1.5708
+        children [
+          Shape {
+            appearance PBRAppearance { baseColor 0.2 0.2 0.2 roughness 0.8 }
+            geometry Cylinder { height 0.003 radius 0.005 }
+          }
+        ]
+        name "left_front"
+        boundingObject Cylinder { height 0.003 radius 0.005 }
+        physics Physics { density -1 mass 0.002 }
+      }
+    }
+    HingeJoint {
+      jointParameters HingeJointParameters {
+        axis 0 1 0
+        anchor 0.03 -0.02 -0.01
+      }
+      endPoint Solid {
+        translation 0.03 -0.02 -0.01
+        rotation 1 0 0 1.5708
+        children [
+          Shape {
+            appearance PBRAppearance { baseColor 0.2 0.2 0.2 roughness 0.8 }
+            geometry Cylinder { height 0.003 radius 0.005 }
+          }
+        ]
+        name "right_front"
+        boundingObject Cylinder { height 0.003 radius 0.005 }
+        physics Physics { density -1 mass 0.002 }
       }
     }
   ]
   boundingObject Box {
-    size 0.13 0.036 0.025
+    size 0.13 0.04 0.025
   }
   physics Physics {
     density -1
-    mass 0.15
+    mass 0.1
   }
 }
