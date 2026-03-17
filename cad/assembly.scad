@@ -1,7 +1,7 @@
 // M1A1 Abrams — Full Assembly Visualization
 // Use this file to preview the complete tank with all components
 // Proportions from Gemini analysis at 1:26 scale
-// Hull: 300x139x55, Turret: 150x123x30, Barrel: 180mm, 7 road wheels
+// Hull: 300x139x55, Turret: 175x123x30, Barrel: 180mm, 7 road wheels
 
 include <libs/common.scad>     // include (not use) to get variables
 use <libs/electronics.scad>
@@ -18,7 +18,7 @@ hull_height = 55;           // TANK_HEIGHT
 track_width = 24;           // TRACK_WIDTH
 
 // Turret dimensions (from turret_body.scad)
-turret_length = 150;
+turret_length = 175;        // Was 150, Gemini ratio fix (175/300 = 0.58)
 turret_width = 123;
 turret_height = 30;
 

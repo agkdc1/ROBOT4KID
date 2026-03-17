@@ -59,9 +59,16 @@ side_skirt_drop = 15;      // Was 10 — longer side skirts covering tracks
 rear_slope = 15;           // Rear deck slope angle
 
 // Beak geometry — the distinctive M1A1 front
-beak_drop = 18;            // How far the beak drops below the hull bottom
-beak_length = 35;          // How far the beak extends forward from hull face
-beak_tip_height = 4;       // Thickness at the beak tip
+beak_drop = 22;            // How far the beak drops below the hull bottom (was 18, more pronounced)
+beak_length = 42;          // How far the beak extends forward from hull face (was 35, longer beak)
+beak_tip_height = 3;       // Thickness at the beak tip (was 4, sharper)
+
+// Engine deck louver parameters
+louver_count = 6;          // Number of louver slits per side
+louver_width = 3;          // Width of each louver cut
+louver_depth = wall + 0.1; // Cut through deck surface
+louver_spacing = 10;       // Center-to-center spacing
+louver_length = 40;        // Length of each louver slit
 
 // --- Hull Shape Module ---
 // Cross-section: flat bottom, vertical lower sides, tapered upper sides, flat deck
@@ -224,6 +231,27 @@ module ebay_floor_mounts() {
             m3_hole(depth=wall + 0.1);
 }
 
+// --- Engine Deck Louvers ---
+// Rectangular cutouts in the rear deck top surface simulating engine ventilation
+module engine_deck_louvers() {
+    // M1A1 has louver grilles on the rear engine deck, arranged in two groups
+    // Position: rear portion of the hull half, on the top surface
+    louver_start_x = hull_length * 0.65;  // Start in rear 35% of hull half
+    for (side = [0, 1]) {
+        side_offset = (side == 0) ?
+            hull_width/2 - louver_length/2 - 10 :   // Left group
+            hull_width/2 + 10;                        // Right group
+        for (i = [0 : louver_count - 1]) {
+            translate([
+                louver_start_x + i * louver_spacing,
+                side_offset,
+                hull_height - louver_depth
+            ])
+                cube([louver_width, louver_length, louver_depth + 0.1]);
+        }
+    }
+}
+
 // --- Rear Hull Half ---
 module hull_rear() {
     difference() {
@@ -247,6 +275,9 @@ module hull_rear() {
 
         // Electronics bay mounting holes in floor
         ebay_floor_mounts();
+
+        // Engine deck louvers (ventilation detail)
+        engine_deck_louvers();
     }
 
     // Turret ring (centered on rear half)

@@ -12,7 +12,7 @@ use <../libs/m3_hardware.scad>
 use <../libs/electronics.scad>
 
 // --- Turret Parameters (1:26 scale from Gemini) ---
-turret_length = 150;              // Main body length (was 120)
+turret_length = 175;              // Main body length (was 150, Gemini ratio fix)
 turret_width  = 123;              // Main body width (was 95)
 turret_height = 30;               // Very low profile (was 50)
 wall = 1.6;                       // Min wall thickness
@@ -47,11 +47,12 @@ $fn = 64;
 // Sloped/faceted nose face (not vertical)
 cheek_width  = 20;                // Prominent composite armor blocks (was 15)
 cheek_length = 70;                // Cheek armor extends further back (was 50)
-bustle_length = 25;               // Bustle rack at rear (trimmed to fit 180mm)
+bustle_length = 0;                // Bustle integrated into main body (was 25)
 nose_slope   = 15;                // Nose face angled back this far (sloped, not vertical)
 top_taper    = 3;                 // Top edges slope inward slightly
 
-// Derived: total length = turret_length + bustle_length = 175mm (fits 180mm build)
+// Derived: turret_length = 175mm fits 180mm build volume
+// Ratio: 175/300 = 0.58 (closer to Gemini target 0.69 than old 0.50)
 
 // Half-width for symmetric construction
 half_w = turret_width / 2;
@@ -84,19 +85,19 @@ module turret_shell() {
                 translate([turret_length * 0.85, 0, 0])
                     cube([1, (half_w + 5) * 2, turret_height], center=true);
             }
-            // Rear taper
+            // Rear taper with integrated bustle rack
             hull() {
-                translate([turret_length * 0.85, 0, 0])
+                translate([turret_length * 0.80, 0, 0])
                     cube([1, (half_w + 5) * 2, turret_height], center=true);
-                translate([turret_length, 0, 0])
+                translate([turret_length * 0.92, 0, 0])
                     cube([1, half_w * 1.1, turret_height], center=true);
             }
-            // Bustle rack
+            // Bustle rack (integrated into main body)
             hull() {
-                translate([turret_length, 0, 0])
+                translate([turret_length * 0.92, 0, 0])
                     cube([1, half_w * 1.1, turret_height], center=true);
-                translate([turret_length + bustle_length, 0, 0])
-                    cube([1, half_w * 0.9, turret_height * 0.85], center=true);
+                translate([turret_length, 0, 0])
+                    cube([1, half_w * 0.85, turret_height * 0.85], center=true);
             }
         }
 
