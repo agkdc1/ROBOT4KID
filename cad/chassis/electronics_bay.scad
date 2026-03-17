@@ -1,6 +1,7 @@
 // M1A1 Abrams — Electronics Bay / Internal Tray
-// Removable tray that sits on rear hull floor, houses all electronics
-// Fits within hull interior: 90mm wide, up to 140mm long, 80mm tall
+// Redesigned for ESP32-CAM + MB programmer stack + L9110S motor driver
+// Removable tray that sits on hull floor, houses all electronics
+// Fits within hull interior: ~134x134x50mm (after 2.5mm hull walls)
 
 use <../libs/common.scad>
 use <../libs/m3_hardware.scad>
@@ -11,33 +12,26 @@ use <../libs/electronics.scad>
 part = "assembly";  // "tray" | "assembly"
 
 // --- Tray Dimensions ---
-tray_length   = 138;           // Fits in rear hull half with clearance
-tray_width    = 86;            // Hull interior 90 - 2*tolerance
-tray_height   = 74;            // Hull interior 80 - wall(1.6) - clearance
-tray_wall     = 1.6;           // Structural wall thickness
-tray_floor    = 1.6;           // Floor thickness
+tray_length   = 130;           // Fits hull interior with clearance
+tray_width    = 130;           // Fits hull interior with clearance
+tray_height   = 40;            // Vertical clearance for components
+tray_wall     = 2.5;           // Structural wall thickness
+tray_floor    = 2.0;           // Floor thickness
 tray_corner_r = 2;             // Corner radius
 
 // --- Component Dimensions ---
-// ESP32 on Terminal Shield
-esp32_l       = 85;
-esp32_w       = 65;
-esp32_h       = 18;            // Board + components height
-esp32_standoff = 8;            // M3 standoff height
-esp32_clearance = 20;          // Wiring clearance above
+// ESP32-CAM + MB Programmer Stack
+cam_l         = 40;
+cam_w         = 27;
+cam_h         = 25;            // CAM 12mm + headers 8.5mm + MB 4mm
+cam_standoff  = 3;             // M2.5 standoff height under MB board
+cam_antenna_h = 10;            // Top 10mm must be clear (antenna zone)
 
-// L298N Motor Driver
-l298n_l       = 43;
-l298n_w       = 43;
-l298n_h       = 28;            // Board + heatsink height
-l298n_standoff = 3;            // Low standoffs, heatsink needs air
-l298n_clearance = 20;          // Above screw terminals
-
-// LM2596 Buck Converter
-lm2596_l      = 43;
-lm2596_w      = 21;
-lm2596_h      = 12;
-lm2596_standoff = 3;
+// L9110S Motor Driver
+l9110s_l      = 29;
+l9110s_w      = 23;
+l9110s_h      = 15;
+l9110s_standoff = 3;           // M2.5 standoff height
 
 // 18650 Battery Holder (2S)
 batt_l        = 77;
@@ -46,61 +40,68 @@ batt_h        = 22;
 batt_lip      = 3;            // Retaining lip height
 batt_lip_t    = 1.2;          // Lip thickness
 
-// WAGO Connectors
+// WAGO 221-413 Connectors (3-way)
 wago_l        = 20;
 wago_w        = 13;
-wago_h        = 15;
+wago_h        = 16;
 wago_count    = 3;
 wago_spacing  = 2;
 
-// MPU-6050 IMU
-imu_l         = 21;
-imu_w         = 16;
-imu_h         = 3;
-imu_standoff  = 3;            // M2.5 low-profile standoffs
+// MPU-6050 IMU (at geometric center for accurate readings)
+mpu_l         = 21;
+mpu_w         = 16;
+mpu_h         = 3;
+mpu_mount_x   = 15.2;         // M2.5 hole spacing X
+mpu_mount_y   = 12.5;         // M2.5 hole spacing Y
+mpu_clip_h    = 4;             // Snap-fit clip height (wraps over board)
+mpu_clip_t    = 1.2;           // Clip wall thickness
+mpu_clip_gap  = 0.3;           // Clearance around board
 
-// --- Wire Duct Parameters ---
-duct_width    = 10;
-duct_depth    = 8;
+// --- USB Access Port ---
+usb_port_w    = 8;            // Micro-USB opening width
+usb_port_h    = 4;            // Micro-USB opening height
+
+// --- Wire Channel Dimensions ---
+signal_ch_w   = 5;            // Signal wire channel width (GPIO → L9110S)
+power_ch_w    = 8;            // Power wire channel width (battery → WAGO → L9110S)
+ch_depth      = 8;            // Channel wall height
+ch_rib_t      = 1.2;          // Channel wall thickness
+
+// --- Z-shape Cable Relief ---
+zigzag_w      = 3;            // Zigzag channel width
+zigzag_depth  = 4;            // How deep into wall
+zigzag_step   = 6;            // Vertical step of each zig
 
 // --- Slip-Ring Void ---
 slip_ring_dia = 22;
 
 // --- Ventilation Slots ---
-vent_count    = 6;
-vent_length   = 15;
+vent_count    = 4;
+vent_length   = 12;
 vent_width    = 3;
 vent_spacing  = 5;
 
-// --- Component Positions (from tray origin, bottom-left-rear corner) ---
+// --- Component Positions (from tray origin, bottom-left corner) ---
 // All positions are [x, y] on tray floor (z = tray_floor)
 
-// ESP32 — center of bay, elevated on standoffs
-esp32_x       = (tray_length - esp32_l) / 2;
-esp32_y       = (tray_width - esp32_w) / 2;
+// ESP32-CAM + MB — front-left of tray (easy USB access from front wall)
+cam_x         = tray_wall + 3;
+cam_y         = tray_wall + 3;
 
-// L298N — near rear wall (x=0 is rear), close to motor wire exits
-l298n_x       = 4;
-l298n_y       = tray_width - l298n_w - tray_wall - 2;
+// L9110S — next to ESP32-CAM, screw terminals face outward (toward Y-max wall)
+l9110s_x      = cam_x;
+l9110s_y      = cam_y + cam_w + 5;
 
-// LM2596 — next to battery holder, short power run
-lm2596_x      = 4;
-lm2596_y      = tray_wall + 2;
+// Battery holder — opposite end of tray
+batt_x        = tray_length - tray_wall - batt_l - 2;
+batt_y        = (tray_width - batt_w) / 2;
 
-// Battery holder — along left side wall
-batt_x        = lm2596_x + lm2596_l + 4;
-batt_y        = tray_wall + 1;
-
-// WAGO connectors — between LM2596 and battery, near power components
-wago_x        = 4;
-wago_y        = lm2596_y + lm2596_w + 3;
-
-// IMU — center of hull floor for best readings
-imu_x         = (tray_length - imu_l) / 2;
-imu_y         = (tray_width - imu_w) / 2;
+// WAGO connectors — near battery for short power runs
+wago_x        = batt_x - wago_l - 8;
+wago_y        = batt_y;
 
 // --- Mounting Holes (4 corners, M3 to hull floor) ---
-mount_inset   = 6;             // From tray edge
+mount_inset   = 8;             // From tray edge
 
 // --- Zip-Tie Anchor Dimensions ---
 zt_width      = 4;
@@ -126,13 +127,25 @@ module tray_base() {
                 tray_width  - 2 * tray_wall,
                 tray_height  // Open top
             ]);
+
+        // USB access port — front wall (X=0), aligned with MB programmer Micro-USB
+        // USB port is roughly centered on the short side of the CAM+MB stack
+        usb_port_z = tray_floor + cam_standoff + 2;  // MB board USB height
+        usb_port_y = cam_y + cam_w / 2 - usb_port_w / 2;
+        translate([-0.05, usb_port_y, usb_port_z])
+            cube([tray_wall + 0.1, usb_port_w, usb_port_h]);
+
+        // Antenna clearance — remove wall material above top 10mm of ESP32-CAM
+        // The antenna is at the top of the board, near Y=0 edge
+        antenna_z = tray_floor + cam_standoff + cam_h - cam_antenna_h;
+        translate([-0.05, cam_y - 1, antenna_z])
+            cube([tray_wall + 0.1, cam_w + 5, cam_antenna_h + 5]);
     }
 }
 
 module m3_mount_bosses() {
     // 4 corner mounting bosses with M3 through-holes
     boss_d = 7;
-    boss_h = tray_floor;
     positions = [
         [mount_inset,                mount_inset],
         [tray_length - mount_inset,  mount_inset],
@@ -140,7 +153,6 @@ module m3_mount_bosses() {
         [tray_length - mount_inset,  tray_width - mount_inset]
     ];
     for (p = positions) {
-        // Boss cylinder (reinforcement around hole)
         translate([p[0], p[1], 0])
             cylinder(h=tray_floor + 2, d=boss_d);
     }
@@ -160,47 +172,32 @@ module m3_mount_holes() {
     }
 }
 
-module esp32_standoffs() {
-    // 4x M3 standoffs for ESP32 terminal shield
-    // Hole pattern: corners of 85x65 board, inset 3mm
-    inset = 3;
+module cam_standoffs() {
+    // 2x M2.5 standoffs for ESP32-CAM MB programmer mounting holes
+    // MB programmer has 2 mounting holes along the long axis
+    inset_x = 4;
+    mid_y   = cam_w / 2;
     positions = [
-        [esp32_x + inset,            esp32_y + inset],
-        [esp32_x + esp32_l - inset,  esp32_y + inset],
-        [esp32_x + inset,            esp32_y + esp32_w - inset],
-        [esp32_x + esp32_l - inset,  esp32_y + esp32_w - inset]
+        [cam_x + inset_x,            cam_y + mid_y],
+        [cam_x + cam_l - inset_x,    cam_y + mid_y]
     ];
     for (p = positions) {
         translate([p[0], p[1], tray_floor])
-            m3_pcb_standoff(height=esp32_standoff);
+            m25_standoff(height=cam_standoff, outer_dia=5.5);
     }
 }
 
-module l298n_standoffs() {
-    // 4x M3 standoffs for L298N
-    inset = 3;
+module l9110s_standoffs() {
+    // 2x M2.5 standoffs for L9110S motor driver
+    inset_x = 3;
+    mid_y   = l9110s_w / 2;
     positions = [
-        [l298n_x + inset,            l298n_y + inset],
-        [l298n_x + l298n_l - inset,  l298n_y + inset],
-        [l298n_x + inset,            l298n_y + l298n_w - inset],
-        [l298n_x + l298n_l - inset,  l298n_y + l298n_w - inset]
+        [l9110s_x + inset_x,            l9110s_y + mid_y],
+        [l9110s_x + l9110s_l - inset_x, l9110s_y + mid_y]
     ];
     for (p = positions) {
         translate([p[0], p[1], tray_floor])
-            m3_pcb_standoff(height=l298n_standoff);
-    }
-}
-
-module lm2596_standoffs() {
-    // 2x M3 standoffs for LM2596 (only 2 holes on this board)
-    inset = 3;
-    positions = [
-        [lm2596_x + inset,              lm2596_y + lm2596_w / 2],
-        [lm2596_x + lm2596_l - inset,   lm2596_y + lm2596_w / 2]
-    ];
-    for (p = positions) {
-        translate([p[0], p[1], tray_floor])
-            m3_pcb_standoff(height=lm2596_standoff);
+            m25_standoff(height=l9110s_standoff, outer_dia=5.5);
     }
 }
 
@@ -233,7 +230,7 @@ module battery_cradle() {
 }
 
 module wago_holders() {
-    // Friction-fit slots for WAGO 221 lever connectors
+    // Snap-in brackets for WAGO 221-413 lever connectors
     holder_wall = 1.2;
     holder_h = wago_h + 2;
 
@@ -251,95 +248,188 @@ module wago_holders() {
     }
 }
 
-module imu_standoffs() {
-    // 4x M2.5 standoffs for MPU-6050 — center of floor
-    inset = 2;
-    positions = [
-        [imu_x + inset,            imu_y + inset],
-        [imu_x + imu_l - inset,    imu_y + inset],
-        [imu_x + inset,            imu_y + imu_w - inset],
-        [imu_x + imu_l - inset,    imu_y + imu_w - inset]
-    ];
-    for (p = positions) {
-        translate([p[0], p[1], tray_floor])
-            m25_standoff(height=imu_standoff, outer_dia=5.5);
+// --- MPU-6050 IMU Mount (geometric center, snap-fit clips) ---
+module mpu6050_mount() {
+    // Position at geometric center of tray for accurate IMU readings
+    cx = tray_length / 2;
+    cy = tray_width / 2;
+
+    translate([cx - mpu_l/2, cy - mpu_w/2, tray_floor]) {
+        // Base platform (raised 1mm for clearance)
+        cube([mpu_l, mpu_w, 1]);
+
+        // 4 snap-fit clips (one on each edge, wrap over the board)
+        // Front clip
+        translate([mpu_l/2 - 3, -mpu_clip_t, 0])
+            snap_clip();
+        // Rear clip
+        translate([mpu_l/2 - 3, mpu_w, 0])
+            snap_clip();
+        // Left clip
+        translate([-mpu_clip_t, mpu_w/2 - 3, 0])
+            rotate([0, 0, 90]) snap_clip();
+        // Right clip
+        translate([mpu_l, mpu_w/2 - 3, 0])
+            rotate([0, 0, 90]) snap_clip();
     }
 }
 
-module wire_ducts() {
-    // Open-top channels between component areas
+module snap_clip() {
+    // L-shaped snap clip: vertical wall + inward lip
+    clip_w = 6;
+    difference() {
+        union() {
+            // Vertical wall
+            cube([clip_w, mpu_clip_t, mpu_h + mpu_clip_h]);
+            // Inward lip (snaps over board edge)
+            translate([0, 0, mpu_h + mpu_clip_h - 1])
+                cube([clip_w, mpu_clip_t + 1.5, 1]);
+        }
+        // Chamfer on lip for easy snap-in
+        translate([0, mpu_clip_t + 1.5, mpu_h + mpu_clip_h])
+            rotate([45, 0, 0])
+                cube([clip_w + 0.1, 2, 2]);
+    }
+}
+
+// --- I2C Wire Conduit (separate from motor power lines) ---
+module i2c_conduit() {
+    // Shielded channel from MPU-6050 center to ESP32-CAM GPIO 14/15
+    // Runs along the tray floor, separated from power channels
+    conduit_w = 4;     // Narrow — only 4 wires (VCC, GND, SCL, SDA)
+    conduit_h = 5;
+    cx = tray_length / 2;
+    cy = tray_width / 2;
+
+    // Route from center toward ESP32-CAM position
+    translate([cam_x + cam_l, cy - conduit_w/2, tray_floor])
+        cube([cx - cam_x - cam_l, conduit_w, conduit_h]);
+
+    // Side walls for channel
+    for (y_off = [cy - conduit_w/2 - ch_rib_t, cy + conduit_w/2]) {
+        translate([cam_x + cam_l, y_off, tray_floor])
+            cube([cx - cam_x - cam_l, ch_rib_t, conduit_h]);
+    }
+}
+
+module zigzag_cable_relief() {
+    // Z-shape cable relief brackets along tray walls
+    // Dupont connectors thread through zigzag channels to prevent pull-out
+    relief_h = 20;     // Total height of relief section
+    num_zigs = 3;
+
+    // Relief channels along the front wall (X=tray_wall, inner face)
+    // Two relief points: near ESP32-CAM and near L9110S
+    relief_positions = [
+        [tray_wall, cam_y + cam_w + 1],       // Between CAM and L9110S
+        [tray_wall, l9110s_y + l9110s_w + 1],  // After L9110S
+    ];
+
+    for (pos = relief_positions) {
+        translate([pos[0], pos[1], tray_floor]) {
+            for (i = [0 : num_zigs - 1]) {
+                z_off = i * zigzag_step;
+                // Alternating left-right notches create Z path
+                x_off = (i % 2 == 0) ? 0 : zigzag_w;
+                translate([x_off, 0, z_off])
+                    cube([zigzag_w, zigzag_w, zigzag_step]);
+            }
+        }
+    }
+
+    // Relief channels along the side wall (Y=tray_width-tray_wall)
+    // Near the power wire exit to motors
+    side_positions = [
+        [cam_x + cam_l + 5, tray_width - tray_wall - zigzag_w],
+        [l9110s_x + l9110s_l + 5, tray_width - tray_wall - zigzag_w],
+    ];
+
+    for (pos = side_positions) {
+        translate([pos[0], pos[1], tray_floor]) {
+            for (i = [0 : num_zigs - 1]) {
+                z_off = i * zigzag_step;
+                y_off = (i % 2 == 0) ? 0 : zigzag_w;
+                translate([0, y_off, z_off])
+                    cube([zigzag_w, zigzag_w, zigzag_step]);
+            }
+        }
+    }
+}
+
+module wire_channel_walls() {
+    // Raised rib walls forming separate signal and power channels
+
     translate([0, 0, tray_floor]) {
-        // Duct 1: ESP32 to L298N (rear, along Y axis)
-        translate([l298n_x + l298n_l + 2, l298n_y + l298n_w / 2 - duct_width / 2, 0])
-            cube([esp32_x - l298n_x - l298n_l - 2, duct_width, duct_depth]);
+        // === Signal channel (5mm wide) — along Y-min wall side ===
+        // Runs from ESP32-CAM GPIO pins to L9110S logic inputs
+        sig_x0 = cam_x + cam_l + 2;
+        sig_x1 = l9110s_x + l9110s_l + 2;
+        sig_y  = tray_wall + 1;
 
-        // Duct 2: ESP32 to battery/LM2596 area (left side)
-        translate([esp32_x - 2 - duct_width, esp32_y, 0])
-            cube([duct_width, esp32_w / 2, duct_depth]);
+        // Inner wall
+        translate([cam_x, sig_y, 0])
+            cube([sig_x1 - cam_x, ch_rib_t, ch_depth]);
+        // Outer wall
+        translate([cam_x, sig_y + ch_rib_t + signal_ch_w, 0])
+            cube([sig_x1 - cam_x, ch_rib_t, ch_depth]);
 
-        // Duct 3: Power rail — LM2596 to WAGO to battery (along rear wall)
-        translate([lm2596_x, lm2596_y + lm2596_w, 0])
-            cube([batt_x + batt_l - lm2596_x, duct_width, duct_depth]);
+        // === Power channel (8mm wide) — along Y-max wall side ===
+        // Runs from battery → WAGO → L9110S VCC
+        pwr_y = tray_width - tray_wall - power_ch_w - ch_rib_t - 1;
 
-        // Duct 4: Central duct under ESP32 to IMU
-        translate([imu_x + imu_l, imu_y + imu_w / 2 - duct_width / 2, 0])
-            cube([esp32_x - imu_x - imu_l + 5, duct_width, duct_depth]);
+        // Inner wall
+        translate([wago_x, pwr_y, 0])
+            cube([batt_x + batt_l - wago_x, ch_rib_t, ch_depth]);
+        // Outer wall
+        translate([wago_x, pwr_y + ch_rib_t + power_ch_w, 0])
+            cube([batt_x + batt_l - wago_x, ch_rib_t, ch_depth]);
+
+        // Cross-channel: WAGO to L9110S power (perpendicular run)
+        translate([wago_x + wago_l / 2 - ch_rib_t / 2, l9110s_y + l9110s_w + 2, 0])
+            cube([ch_rib_t, pwr_y - l9110s_y - l9110s_w - 2, ch_depth]);
+        translate([wago_x + wago_l / 2 + power_ch_w, l9110s_y + l9110s_w + 2, 0])
+            cube([ch_rib_t, pwr_y - l9110s_y - l9110s_w - 2, ch_depth]);
+    }
+}
+
+module slip_ring_void() {
+    // 22mm void at center for slip-ring / turret wiring pass-through
+    translate([tray_length / 2, tray_width / 2, -0.05])
+        cylinder(h=tray_floor + 0.1, d=slip_ring_dia + 1);
+}
+
+module ventilation_slots() {
+    // Vertical slots in tray walls for airflow
+    // Fewer needed since L9110S runs cooler than L298N
+    for (i = [0 : vent_count - 1]) {
+        // Side wall slots (Y-max wall)
+        translate([l9110s_x + 3 + i * (vent_width + vent_spacing),
+                   tray_width - tray_wall - 0.05,
+                   tray_floor + 10])
+            cube([vent_width, tray_wall + 0.1, vent_length]);
     }
 }
 
 module zip_tie_anchors() {
     // Zip-tie pass-through posts at strategic routing points
     positions = [
-        // Near ESP32 corners
-        [esp32_x - 3,              esp32_y + esp32_w / 2],
-        [esp32_x + esp32_l + 3,    esp32_y + esp32_w / 2],
-        // Near L298N output
-        [l298n_x + l298n_l + 2,    l298n_y + l298n_w - 5],
+        // Near ESP32-CAM output
+        [cam_x + cam_l + 2,     cam_y + cam_w / 2],
+        // Near L9110S output
+        [l9110s_x + l9110s_l + 2, l9110s_y + l9110s_w / 2],
         // Near battery holder
-        [batt_x + batt_l + 2,      batt_y + batt_w / 2],
+        [batt_x - 3,           batt_y + batt_w / 2],
         // Near WAGO area
-        [wago_x + wago_l + 5,      wago_y + 5],
-        // Near IMU
-        [imu_x - 3,                imu_y + imu_w / 2]
+        [wago_x + wago_l + 3,  wago_y + 5],
     ];
 
     for (p = positions) {
         translate([p[0], p[1], tray_floor]) {
-            // Two posts with a gap for the zip-tie
             for (dx = [-zt_post_w, zt_post_w]) {
                 translate([dx, -zt_post_w / 2, 0])
                     cube([zt_post_w, zt_post_w, zt_post_h]);
             }
         }
-    }
-}
-
-module slip_ring_void() {
-    // 22mm void at center top for slip-ring / turret wiring pass-through
-    // Aligned with turret ring center (center of tray)
-    translate([tray_length / 2, tray_width / 2, -0.05])
-        cylinder(h=tray_floor + 0.1, d=slip_ring_dia + 1);
-}
-
-module ventilation_slots() {
-    // Vertical slots in tray wall near L298N heatsink
-    slot_start_z = tray_floor + l298n_standoff + 5;
-    wall_x = tray_wall;  // Rear wall of tray
-
-    // Slots in the side wall nearest to L298N heatsink
-    for (i = [0 : vent_count - 1]) {
-        z_off = slot_start_z + i * (vent_width + vent_spacing);
-        // Rear wall slots
-        translate([-0.05, l298n_y + 5 + i * (vent_width + vent_spacing), tray_floor + 10])
-            cube([tray_wall + 0.1, vent_width, vent_length]);
-    }
-
-    // Side wall slots (Y-max wall, where heatsink faces)
-    for (i = [0 : vent_count - 1]) {
-        translate([l298n_x + 3 + i * (vent_width + vent_spacing),
-                   tray_width - tray_wall - 0.05,
-                   tray_floor + 10])
-            cube([vent_width, tray_wall + 0.1, vent_length]);
     }
 }
 
@@ -352,12 +442,11 @@ module electronics_tray() {
         union() {
             tray_base();
             m3_mount_bosses();
-            esp32_standoffs();
-            l298n_standoffs();
-            lm2596_standoffs();
-            imu_standoffs();
+            cam_standoffs();
+            l9110s_standoffs();
             battery_cradle();
             wago_holders();
+            zigzag_cable_relief();
             zip_tie_anchors();
         }
 
@@ -367,59 +456,25 @@ module electronics_tray() {
         ventilation_slots();
     }
 
-    // Wire ducts are additive (raised channel walls on floor)
-    // Rendered as guide ribs on the floor
-    wire_duct_walls();
-}
-
-module wire_duct_walls() {
-    // Raised walls forming open-top wire channels
-    rib_h = duct_depth;
-    rib_t = 1.2;
-
-    translate([0, 0, tray_floor]) {
-        // Duct 1 walls: ESP32 to L298N
-        duct1_x0 = l298n_x + l298n_l + 2;
-        duct1_x1 = esp32_x;
-        duct1_y  = l298n_y + l298n_w / 2;
-        // Left wall
-        translate([duct1_x0, duct1_y - duct_width / 2 - rib_t, 0])
-            cube([duct1_x1 - duct1_x0, rib_t, rib_h]);
-        // Right wall
-        translate([duct1_x0, duct1_y + duct_width / 2, 0])
-            cube([duct1_x1 - duct1_x0, rib_t, rib_h]);
-
-        // Duct 3 walls: Power rail
-        duct3_y0 = lm2596_y + lm2596_w;
-        // Left wall
-        translate([lm2596_x, duct3_y0, 0])
-            cube([batt_x + batt_l - lm2596_x, rib_t, rib_h]);
-        // Right wall
-        translate([lm2596_x, duct3_y0 + duct_width, 0])
-            cube([batt_x + batt_l - lm2596_x, rib_t, rib_h]);
-    }
+    // Wire channel walls are additive ribs on the floor
+    wire_channel_walls();
 }
 
 // =====================================================================
 // Dummy Components (for assembly visualization)
 // =====================================================================
 
-module dummy_esp32() {
+module dummy_esp32_cam() {
+    // ESP32-CAM + MB programmer stack
     color("DarkGreen", 0.7)
-    translate([esp32_x, esp32_y, tray_floor + esp32_standoff])
-        cube([esp32_l, esp32_w, esp32_h]);
+    translate([cam_x, cam_y, tray_floor + cam_standoff])
+        cube([cam_l, cam_w, cam_h]);
 }
 
-module dummy_l298n() {
+module dummy_l9110s() {
     color("Red", 0.7)
-    translate([l298n_x, l298n_y, tray_floor + l298n_standoff])
-        cube([l298n_l, l298n_w, l298n_h]);
-}
-
-module dummy_lm2596() {
-    color("Blue", 0.7)
-    translate([lm2596_x, lm2596_y, tray_floor + lm2596_standoff])
-        cube([lm2596_l, lm2596_w, lm2596_h]);
+    translate([l9110s_x, l9110s_y, tray_floor + l9110s_standoff])
+        cube([l9110s_l, l9110s_w, l9110s_h]);
 }
 
 module dummy_battery() {
@@ -438,20 +493,18 @@ module dummy_wago() {
     }
 }
 
-module dummy_imu() {
-    color("Purple", 0.7)
-    translate([imu_x, imu_y, tray_floor + imu_standoff])
-        cube([imu_l, imu_w, imu_h]);
-}
-
 module assembly() {
     electronics_tray();
-    dummy_esp32();
-    dummy_l298n();
-    dummy_lm2596();
+    mpu6050_mount();
+    i2c_conduit();
+    dummy_esp32_cam();
+    dummy_l9110s();
     dummy_battery();
     dummy_wago();
-    dummy_imu();
+    // MPU-6050 dummy volume at center
+    color("Purple", 0.7)
+    translate([tray_length/2 - mpu_l/2, tray_width/2 - mpu_w/2, tray_floor + 1])
+        cube([mpu_l, mpu_w, mpu_h]);
 }
 
 // =====================================================================

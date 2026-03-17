@@ -259,6 +259,11 @@ class ElectronicComponent(BaseModel):
         default_factory=list,
         description="Structured wire connections",
     )
+    # GPIO pin assignments
+    pin_map: dict = Field(
+        default_factory=dict,
+        description="GPIO pin assignments: {'function': 'GPIO_number'}",
+    )
     # Legacy connections (backwards compat)
     connections: list[dict] = Field(
         default_factory=list,

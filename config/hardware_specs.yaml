@@ -58,13 +58,31 @@ tank:
     hull_ip: "192.168.4.1"
     turret_ip: "192.168.4.2"
   motors:
-    type: "N20"
-    body_diameter_mm: 12
-    body_length_mm: 25
-    shaft_diameter_mm: 3
-    shaft_length_mm: 10
+    type: "TT Motor"                  # Was N20 — TT motors with 2.8mm spade terminals
+    driver: "L9110S"                   # Dual channel, screw terminals for motor, Dupont for logic
+    driver_dimensions_mm: [29, 23, 15]
     pwm_freq_hz: 5000
     pwm_resolution_bits: 8
+  imu:
+    type: "MPU-6050"
+    dimensions_mm: [21, 16, 3]
+    mount_spacing_mm: [15.2, 12.5]     # M2.5 hole spacing
+    placement: "geometric_center"       # Must be at hull center for accurate readings
+    snap_fit: true                     # Screw-less snap-fit clip (vibration-proof)
+  hull_pin_map:
+    # SD card interface DISABLED to free GPIO 12-15
+    # Camera uses: GPIO 0,5,18,19,21,22,23,25,26,27,32,34,35,36,39
+    motor_a_ia: 12                     # L9110S A-IA (PWM via LEDC)
+    motor_a_ib: 13                     # L9110S A-IB (PWM via LEDC)
+    motor_b_ia: 2                      # L9110S B-IA — CAUTION: must be LOW at boot, add 10K pull-down
+    motor_b_ib: 4                      # L9110S B-IB — flash LED pin, safe with SD disabled
+    i2c_scl: 14                        # MPU-6050 SCL (with 4.7K pull-up)
+    i2c_sda: 15                        # MPU-6050 SDA (with 4.7K pull-up)
+  solderless:
+    motor_to_driver: "2.8mm spade terminals on TT motor -> L9110S screw terminals"
+    driver_to_mcu: "Dupont female-female jumpers -> ESP32-CAM pin headers"
+    imu_to_mcu: "Dupont female-female jumpers (4 wires: VCC, GND, SCL, SDA)"
+    power: "WAGO 221-413 (3-way) for 7.4V (18650 2S) -> L9110S VCC + ESP32-CAM 5V"
   camera:
     frame_size: "VGA"               # 640x480
     jpeg_quality: 12                # 0-63, lower = better
@@ -126,10 +144,12 @@ components:
     dimensions_mm: [40, 27, 12]
     lens_protrude_mm: 4
     lens_diameter_mm: 8
-  l298n:
-    dimensions_mm: [43, 43, 27]
-    mount_spacing_mm: 36
-    terminal_clearance_mm: 15
+    mb_programmer_stack_height_mm: 25  # CAM 12mm + headers 8.5mm + MB 4mm
+  l9110s:
+    dimensions_mm: [29, 23, 15]
+    mount_spacing_mm: 22              # 2x M2.5 standoffs
+    screw_terminals: 2                # Motor A, Motor B
+    logic_input: "Dupont jumpers"
   lm2596:
     dimensions_mm: [43, 21, 14]
     mount_spacing_mm: 35
@@ -145,6 +165,10 @@ components:
     flat_depth_mm: 0.5
   mpu6050:
     dimensions_mm: [21, 16, 3]
+    mount_hole_spacing_mm: [15.2, 12.5]  # M2.5 holes
+    mount_hole_diameter_mm: 2.9
+    i2c_address: "0x68"                   # Default (AD0=LOW)
+    vcc: 3.3                              # Volts
   vl53l1x:
     dimensions_mm: [13, 18, 4]
     aperture_diameter_mm: 3
@@ -216,6 +240,28 @@ rpi_console:
     subnet: "255.255.255.0"
     dhcp_start: "192.168.5.10"
     dhcp_end: "192.168.5.50"
+
+# ============================================================
+# Hull ESP32-CAM Pin Map
+# ============================================================
+hull_pin_map:
+  motor_a_ia: GPIO12  # L9110S A-IA (PWM)
+  motor_a_ib: GPIO13  # L9110S A-IB (PWM)
+  motor_b_ia: GPIO14  # L9110S B-IA (PWM)
+  motor_b_ib: GPIO15  # L9110S B-IB (PWM)
+  # NOTE: SD card interface DISABLED in firmware to free GPIO 12-15
+  # Camera uses: GPIO 0,5,18,19,21,22,23,25,26,27,32,34,35,36,39
+  # Serial: GPIO 1 (TX), 3 (RX) — used for debug only
+  # Flash LED: GPIO 4 — available when SD disabled
+
+# ============================================================
+# Solderless Connection Strategy
+# ============================================================
+solderless_connections:
+  motor_to_driver: "2.8mm spade terminals on TT motor → L9110S screw terminals"
+  driver_to_mcu: "Dupont female-female jumpers → ESP32-CAM pin headers"
+  power_distribution: "WAGO 221-413 (3-way) for 7.4V battery → L9110S VCC + ESP32-CAM 5V"
+  signal_routing: "Separate channel from power wires (EMI reduction)"
 
 # ============================================================
 # Wiring & Clearances
