@@ -189,6 +189,25 @@ components:
     dimensions_mm: [149, 68, 14]
   sabrent_hub_um43:
     dimensions_mm: [85, 30, 15]
+  ugreen_revodok_105:
+    dimensions_mm: [121.8, 27.5, 12]
+    weight_g: 55
+    cable_length_mm: 240
+    ports: "1x USB-C PD (100W), 2x USB-A 2.0, 1x USB-A 3.0, 1x HDMI"
+  sjjx_822b_encoder:
+    dimensions_mm: [95, 35, 10]
+    interface: "USB HID gamepad"
+    inputs: "joystick 5-pin, button 2-pin (4.8mm)"
+  ps2_thumbstick_module:
+    dimensions_mm: [34, 26, 32]
+    pins: 5
+    mount_holes: "4x M4"
+    analog_axes: 2
+    button: 1
+  sanwa_24mm_button:
+    diameter_mm: 24
+    depth_mm: 20
+    mount_type: "snap-in"
   ps2_joystick:
     dimensions_mm: [40, 40, 32]
     pcb_height_mm: 10
@@ -209,20 +228,25 @@ components:
 consoles:
   tank_cradle:
     tablet:
-      model: "Galaxy Tab A 8.0 2019"
-      dimensions_mm: [210, 124, 8]
+      model: "Galaxy Tab A 8.0 with S Pen (SM-P200)"
+      dimensions_mm: [201.5, 122.4, 8.9]
       connector: "USB Type-C"
       viewing_angle_deg: 15
-    gamepad:
-      dock_width_mm: 80
-      dock_depth_mm: 50
-      channel_width_mm: 60
-      channel_depth_mm: 35
-      channel_height_mm: 6
+      s_pen_clearance_mm: 15          # Bottom-right notch for S-Pen removal
+    controls:
+      joysticks: 2                     # PS2 thumbstick modules (left + right grip)
+      buttons: 4                       # Sanwa 24mm snap-in (A, B, X, Y)
+      encoder: "sjjx_822b_encoder"     # USB HID arcade encoder
+      layout: "handheld_gamepad"       # Tablet center, grips left/right
+    power_architecture:
+      circuit_a: "PowerBank USB-C PD -> UGREEN Revodok 105 PD-IN -> Tablet (host)"
+      circuit_b: "Encoder USB -> UGREEN Revodok 105 USB-A -> Tablet reads HID"
+      circuit_c: "PowerBank USB-A IQ -> Inline Toggle Switch -> TP-Link Router"
+      isolation: "Circuit C switchable without interrupting A/B"
     network_hub:
       router: "tplink_wr802n"
       power_bank: "anker_slim_10000"
-      usb_hub: "sabrent_hub_um43"
+      usb_hub: "ugreen_revodok_105"
   train_console:
     display: "rpi_display_7in"
     computer: "raspberry_pi_4b"
