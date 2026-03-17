@@ -270,7 +270,7 @@ module hull_shape(length) {
 
         // Hollow interior (offset inward by wall thickness)
         translate([wall, wall, wall])
-            cube([length - 2*wall, hull_width - 2*wall, hull_height]);
+            cube([length - 2*wall, hull_width - 2*wall, hull_height - 2*wall]);
     }
 
     // Side skirts — full-length plates with slight outward flare at bottom

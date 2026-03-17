@@ -89,7 +89,7 @@ module turret_shell() {
             hull() {
                 // Front nose (narrow, angled)
                 translate([nose_slope, 0, 0])
-                    cube([1, half_w * 0.9, turret_height], center=true);
+                    cube([1, half_w * 0.7, turret_height], center=true);
                 // Cheek armor zone (widest point)
                 translate([cheek_length/2, 0, 0])
                     cube([cheek_length, full_cheek_w * 2, turret_height], center=true);
@@ -323,6 +323,36 @@ module trunnion_shadow_gap() {
         }
 }
 
+// --- Gun Mantlet ---
+// Armored housing around the gun barrel at the turret front face
+// On the M1A1, this is a thick rectangular block with rounded edges
+module gun_mantlet() {
+    mantlet_w = 40;
+    mantlet_h = 20;
+    mantlet_d = 10;
+    taper_angle = 2.5;  // Slight outward taper on front face
+
+    translate([15, 0, turret_height * 0.5 + trunnion_height / 2])
+    difference() {
+        // Rounded rectangular block (minkowski with sphere for rounded edges)
+        translate([-(mantlet_d + 1), 0, 0])
+        minkowski() {
+            cube([mantlet_d, mantlet_w - 4, mantlet_h - 4], center = true);
+            sphere(r = 2, $fn = 24);
+        }
+
+        // Barrel bore through the mantlet
+        rotate([0, -90, 0])
+            cylinder(h = mantlet_d + 10, d = barrel_bore, center = true);
+
+        // Front face taper: angled cut to create slight outward splay
+        translate([-(mantlet_d + 4), 0, 0])
+        rotate([0, taper_angle, 0])
+            translate([0, 0, 0])
+                cube([4, mantlet_w + 4, mantlet_h + 4], center = true);
+    }
+}
+
 // --- Main Assembly ---
 module turret_body() {
     difference() {
@@ -330,6 +360,7 @@ module turret_body() {
             turret_shell();
             turret_ring_bottom();
             gun_trunnion();
+            gun_mantlet();
             turret_cam_mount();
             turret_tof_mount();
             // Additive greebling

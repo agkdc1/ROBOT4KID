@@ -249,30 +249,33 @@ async def run_pipeline(
                     cad_dir=scad_dir.parent,
                     model_name=robot_spec.name,
                 )
-                gate1_score = gate1_result.get("overall_score", 0)
+                gate1_score = gate1_result.get("visual_quality_score", 0)
                 results["gate1_validation"] = gate1_result
 
-                if gate1_score >= 0.75:
+                if gate1_score >= 7:
                     progress.update("gate1_validation", 1.0,
-                                    f"Gate 1 PASSED (score: {gate1_score:.0%})")
+                                    f"Gate 1 PASSED (score: {gate1_score}/10)")
                     break
 
                 # Gate 1 failed — fix issues and retry
                 gate1_round += 1
-                logger.info(f"Gate 1 round {gate1_round}: score={gate1_score:.0%}, iterating...")
+                logger.info(f"Gate 1 round {gate1_round}: score={gate1_score}/10, iterating...")
                 progress.update("gate1_validation", gate1_round / GATE1_MAX_ITERATIONS,
                                 f"Gate 1 round {gate1_round}: fixing layout issues...")
 
                 # Build refinement prompt from Gate 1 checklist
                 issues = [
-                    f"- [{c['status'].upper()}] {c['category']}: {c['description']} "
+                    f"- [{c.get('severity', 'major').upper()}] {c['category']}: {c['description']} "
                     f"Suggestion: {c.get('suggestion', 'N/A')}"
                     for c in gate1_result.get("checklist", [])
                     if c.get("status") in ("fail", "warning")
                 ]
+                mandatory = gate1_result.get("mandatory_fixes", [])
+                if mandatory:
+                    issues = [f"- [MANDATORY] {fix}" for fix in mandatory] + issues
                 if issues:
                     refinement_prompt = (
-                        f"Gate 1 validation scored {gate1_score:.0%}. Fix these layout/physics issues:\n"
+                        f"Gate 1 validation scored {gate1_score}/10. Fix these layout/physics issues:\n"
                         + "\n".join(issues)
                     )
                     robot_spec = await _refine_spec(robot_spec, refinement_prompt)
@@ -433,29 +436,32 @@ async def run_pipeline(
                     cad_dir=scad_dir.parent,
                     model_name=robot_spec.name,
                 )
-                gate2_score = gate2_result.get("overall_score", 0)
+                gate2_score = gate2_result.get("visual_quality_score", 0)
                 results["gate2_validation"] = gate2_result
 
-                if gate2_score >= 0.85:
+                if gate2_score >= 8:
                     progress.update("gate2_validation", 1.0,
-                                    f"Gate 2 PASSED (score: {gate2_score:.0%})")
+                                    f"Gate 2 PASSED (score: {gate2_score}/10)")
                     break
 
                 gate2_round += 1
-                logger.info(f"Gate 2 round {gate2_round}: score={gate2_score:.0%}, iterating...")
+                logger.info(f"Gate 2 round {gate2_round}: score={gate2_score}/10, iterating...")
                 progress.update("gate2_validation", gate2_round / GATE2_MAX_ITERATIONS,
                                 f"Gate 2 round {gate2_round}: fixing aesthetics/printability...")
 
                 # Refine based on Gate 2 feedback
                 issues = [
-                    f"- [{c['status'].upper()}] {c['category']}: {c['description']} "
+                    f"- [{c.get('severity', 'major').upper()}] {c['category']}: {c['description']} "
                     f"Suggestion: {c.get('suggestion', 'N/A')}"
                     for c in gate2_result.get("checklist", [])
                     if c.get("status") in ("fail", "warning")
                 ]
+                mandatory = gate2_result.get("mandatory_fixes", [])
+                if mandatory:
+                    issues = [f"- [MANDATORY] {fix}" for fix in mandatory] + issues
                 if issues:
                     refinement_prompt = (
-                        f"Gate 2 (printability/aesthetics) scored {gate2_score:.0%}. "
+                        f"Gate 2 (printability/aesthetics) scored {gate2_score}/10. "
                         f"Fix these issues:\n" + "\n".join(issues)
                     )
                     robot_spec = await _refine_spec(robot_spec, refinement_prompt)

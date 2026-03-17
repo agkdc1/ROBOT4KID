@@ -88,11 +88,20 @@ WHEEL_SHADOW_GAP = 0.15;
 
 // --- Modules ---
 
-// Single road wheel
+// Single road wheel with center hub and bolt detail
 module road_wheel() {
     difference() {
         cylinder(d = ROAD_WHEEL_DIA, h = ROAD_WHEEL_THICK, center = true);
         cylinder(d = ROAD_WHEEL_AXLE_DIA, h = ROAD_WHEEL_THICK + 1, center = true);
+    }
+    // Center hub (raised boss on outer face)
+    translate([0, 0, ROAD_WHEEL_THICK / 2])
+        cylinder(d = 5, h = 1, $fn = 32);
+    // Four bolt heads around center hub
+    for (a = [0 : 90 : 270]) {
+        rotate([0, 0, a])
+            translate([3, 0, ROAD_WHEEL_THICK / 2])
+                cylinder(d = 1.2, h = 0.5, $fn = 12);
     }
 }
 

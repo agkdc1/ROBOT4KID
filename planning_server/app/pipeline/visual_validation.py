@@ -2,7 +2,10 @@
 
 Renders 6-angle views of the assembled model + individual parts,
 sends images + SCAD + URDF + schema to Gemini for critique,
-returns a structured 10-point constraint checklist.
+returns a structured 10-point constraint checklist with severity ratings.
+
+The Gemini prompt acts as a "Senior Mechanical Quality Inspector" with
+zero tolerance for manifold errors, proportion deviations, and printability issues.
 """
 
 import base64
@@ -31,14 +34,14 @@ CAMERA_VIEWS = {
 # Structured output schema for Gemini's validation checklist
 VALIDATION_TOOL = {
     "name": "design_validation",
-    "description": "Structured 10-point design validation checklist for a robot model.",
+    "description": "Structured 10-point design validation checklist with severity ratings for a robot model.",
     "input_schema": {
         "type": "object",
         "properties": {
             "model_name": {"type": "string"},
-            "overall_score": {
-                "type": "number",
-                "description": "Overall design quality score from 0.0 to 1.0",
+            "visual_quality_score": {
+                "type": "integer",
+                "description": "Visual Quality Score 0-10. Below 7 = mandatory fixes required.",
             },
             "checklist": {
                 "type": "array",
@@ -49,11 +52,21 @@ VALIDATION_TOOL = {
                         "category": {
                             "type": "string",
                             "enum": [
-                                "proportions", "shape_accuracy", "turret_placement",
-                                "barrel_alignment", "track_geometry", "symmetry",
-                                "ground_clearance", "printability", "electronics_fit",
-                                "overall_silhouette",
+                                "manifold_integrity",
+                                "scale_proportion",
+                                "mechanical_realism",
+                                "structural_continuity",
+                                "printability_overhangs",
+                                "printability_volume",
+                                "aesthetic_edges",
+                                "aesthetic_surface",
+                                "aerodynamic_continuity",
+                                "overall_fidelity",
                             ],
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["critical", "major", "minor", "info"],
                         },
                         "status": {
                             "type": "string",
@@ -69,9 +82,14 @@ VALIDATION_TOOL = {
                             "description": "Specific fix if status is warning/fail",
                         },
                     },
-                    "required": ["id", "category", "status", "description", "rationale"],
+                    "required": ["id", "category", "severity", "status", "description", "rationale"],
                 },
                 "description": "10 validation checks",
+            },
+            "mandatory_fixes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Fixes that MUST be applied before proceeding. Be explicit: e.g., 'Hull top deck is missing. Re-generate with closed solid.'",
             },
             "critical_issues": {
                 "type": "array",
@@ -84,7 +102,7 @@ VALIDATION_TOOL = {
                 "description": "What looks good and accurate",
             },
         },
-        "required": ["model_name", "overall_score", "checklist"],
+        "required": ["model_name", "visual_quality_score", "checklist", "mandatory_fixes"],
     },
 }
 
@@ -272,19 +290,34 @@ async def validate_design(
 
     prompt_parts.append(
         "\n\n### Instructions\n"
-        "Evaluate this model against the 10 validation categories. "
-        "For each check, compare the rendered geometry against the reference proportions. "
-        "Be specific about measurements and ratios. "
-        "Flag any issues that would affect printability or visual accuracy.\n"
+        "Evaluate this model against the 10 validation categories: "
+        "manifold_integrity, scale_proportion, mechanical_realism, structural_continuity, "
+        "printability_overhangs, printability_volume, aesthetic_edges, aesthetic_surface, "
+        "aerodynamic_continuity (train models only — mark as 'pass' with severity 'info' for non-train), "
+        "and overall_fidelity.\n\n"
+        "For each check, assign a severity (critical/major/minor/info) and status (pass/warning/fail). "
+        "Compare the rendered geometry against the reference proportions with specific measurements. "
+        "If you see a missing surface, say EXACTLY which surface and how to fix it. "
+        "If road wheels don't touch the ground plane, state the exact Z offset needed.\n\n"
+        "Populate 'mandatory_fixes' with explicit action items for every critical/major fail. "
+        "Score visual_quality_score as an integer 0-10. Below 7 means mandatory fixes are required.\n"
     )
 
     system = (
-        f"You are a mechanical design reviewer validating a 3D-printable scale model of a {model_name}. "
+        f"You are a Senior Mechanical Quality Inspector reviewing a 3D-printable scale model of a {model_name}. "
+        f"You have ZERO TOLERANCE for:\n"
+        f"- Missing faces or non-manifold geometry (like a hull without a top deck)\n"
+        f"- Parts that don't fit the build volume (180x180x180mm)\n"
+        f"- Moving joints without clearance gaps (minimum 0.1mm shadow gaps)\n"
+        f"- Proportions that deviate more than 15% from reference\n\n"
+        f"You MUST flag every issue explicitly. Do NOT assume problems will be fixed later. "
+        f"If you see a missing surface, say exactly which surface and how to fix it. "
+        f"If road wheels don't touch the ground plane, say the exact Z offset needed.\n\n"
+        f"For TRAIN models, additionally check aerodynamic continuity — the nose must be "
+        f"a smooth loft with no steps or cliff edges.\n\n"
         f"You have been given 6-angle rendered views of the assembled model, individual part views, "
         f"the OpenSCAD source code, URDF kinematic data, and reference proportional analysis. "
-        f"Evaluate the design across 10 categories: proportions, shape_accuracy, turret_placement, "
-        f"barrel_alignment, track_geometry, symmetry, ground_clearance, printability, electronics_fit, "
-        f"and overall_silhouette. Be harsh but constructive. Score 0.0-1.0 overall."
+        f"Score 0-10 (integer). Below 7 = mandatory fixes required."
     )
 
     # Note: Gemini vision would use the actual images, but our text API
@@ -299,8 +332,9 @@ async def validate_design(
     )
 
     logger.info(
-        f"Validation complete: score={result.get('overall_score', 0):.1%}, "
-        f"checks={len(result.get('checklist', []))}"
+        f"Validation complete: visual_quality_score={result.get('visual_quality_score', 0)}/10, "
+        f"checks={len(result.get('checklist', []))}, "
+        f"mandatory_fixes={len(result.get('mandatory_fixes', []))}"
     )
     return result
 

@@ -88,7 +88,34 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
   3. `[Resolution]`: How we fixed it in the CAD script.
   4. `[Pipeline Update]`: A new rule to add to our general design guidelines for all future models.
 
-## 4. Immediate Action
+## 4. Engineering Mandates (Zero-Trust Grounding)
+These rules apply to ALL models and ALL pipeline steps:
+
+### 4.1 Zero-Trust Validation
+- All mechanical logic MUST be validated via the Simulation Server. No hallucinated physics.
+- Every gate check produces a **Visual Quality Score (0-10)**. Score < 7 = mandatory fixes required before proceeding.
+- Gemini acts as **Senior Mechanical Quality Inspector** with zero tolerance for: missing faces, non-manifold geometry, proportion deviations > 15%, missing clearance gaps.
+
+### 4.2 Manifold Integrity
+- Every part MUST be a closed solid (watertight mesh). No missing faces, no open tops/bottoms.
+- Hull must have a solid top deck (not just walls). Turret must be fully enclosed.
+- Validate with OpenSCAD `--export-format=off` or trimesh `.is_watertight` check.
+
+### 4.3 Anti-Boxy Rule (Mandatory)
+- 0.3-1.0mm fillet on ALL external edges. 45-degree chamfer on structural edges.
+- Replace vertical planes with 3-15 degree sloped surfaces to catch light properly.
+- Gun mantlet required where barrel exits turret. Panel lines (0.2mm) on large flat surfaces.
+
+### 4.4 Assembly Gap Rule
+- 0.1-0.2mm shadow gaps between ALL separate URDF links (turret-hull, barrel-turret, skirt-hull).
+- Moving joints: 0.2mm clearance per side (0.4mm total diameter gap).
+- Road wheels must visually touch the ground plane (Z=0 alignment).
+
+### 4.5 Model-Specific Checks
+- **Tank:** Road wheel ground contact, turret ring rotation clearance, barrel horizontal alignment, glacis beak angle.
+- **Train:** Aerodynamic continuity — nose must be smooth lofted surface with no steps/cliffs. Bogie suspension detail. Plarail rail compatibility.
+
+## 5. Immediate Action
 Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn't exist. Ask the user which active project (Tank or Shinkansen) we are tackling today, and resume from the appropriate gate.
 
 ## Project Status
