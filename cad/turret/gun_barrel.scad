@@ -115,9 +115,22 @@ module muzzle_brake() {
     }
 }
 
+// Chamfer ring — conical transition to soften a cylinder edge
+module chamfer_ring(od, chamfer=0.3) {
+    difference() {
+        cylinder(h=chamfer, d1=od + 0.02, d2=od + 0.02);
+        translate([0, 0, -0.01])
+            cylinder(h=chamfer + 0.02, d1=od, d2=od - chamfer*2);
+    }
+}
+
 module gun_barrel() {
     // Bayonet mount at base
-    bayonet_mount();
+    difference() {
+        bayonet_mount();
+        // Chamfer on bayonet base edge (Z=0)
+        chamfer_ring(bayonet_od, 0.3);
+    }
 
     // Main barrel tube (includes bore evacuator)
     translate([0, 0, bayonet_length])
@@ -127,9 +140,13 @@ module gun_barrel() {
     translate([0, 0, bayonet_length])
         thermal_sleeve();
 
-    // Muzzle brake at tip
-    translate([0, 0, bayonet_length + barrel_length])
+    // Muzzle brake at tip with front edge chamfer
+    translate([0, 0, bayonet_length + barrel_length]) {
         muzzle_brake();
+        // Chamfer on muzzle brake front edge
+        translate([0, 0, muzzle_length - 0.3])
+            cylinder(h=0.3, d1=muzzle_od, d2=muzzle_od - 0.6);
+    }
 
     // Muzzle Reference Sensor (MRS) at very tip of muzzle
     translate([0, 0, bayonet_length + barrel_length + muzzle_length])

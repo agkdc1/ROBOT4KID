@@ -193,6 +193,12 @@ module mud_flap() {
         cube([MUD_FLAP_THICK, SIDE_PLATE_WIDTH, MUD_FLAP_HEIGHT]);
 }
 
+// Generic edge chamfer — 45-degree triangular prism for subtractive chamfering
+module edge_chamfer(length, size=0.5) {
+    rotate([0, 0, 45])
+        cube([size*1.414, size*1.414, length], center=true);
+}
+
 // Top edge chamfer — 45-degree cut along the top outer edge (Y=0 side)
 module top_edge_chamfer() {
     translate([-0.01, -0.01, SIDE_PLATE_HEIGHT - TOP_CHAMFER])
@@ -200,11 +206,46 @@ module top_edge_chamfer() {
             cube([SIDE_PLATE_LENGTH + 0.02, TOP_CHAMFER * 1.5, TOP_CHAMFER * 1.5]);
 }
 
+// Side plate chamfers — bottom and front/rear edges (outer face at Y=0)
+module side_plate_chamfers() {
+    ch = 0.5;  // Chamfer size
+
+    // Bottom outer edge (full length, Y=0 side, Z=0)
+    translate([SIDE_PLATE_LENGTH/2, 0, 0])
+        edge_chamfer(SIDE_PLATE_LENGTH + 0.2, ch);
+
+    // Bottom inner edge (full length, Y=SIDE_PLATE_WIDTH side, Z=0)
+    translate([SIDE_PLATE_LENGTH/2, SIDE_PLATE_WIDTH, 0])
+        edge_chamfer(SIDE_PLATE_LENGTH + 0.2, ch);
+
+    // Front-top edge (X=0, outer face, Z=SIDE_PLATE_HEIGHT)
+    translate([0, SIDE_PLATE_WIDTH/2, SIDE_PLATE_HEIGHT])
+        rotate([0, 90, 0])
+        edge_chamfer(SIDE_PLATE_WIDTH + 0.2, ch);
+
+    // Front-bottom edge (X=0, outer face, Z=0)
+    translate([0, SIDE_PLATE_WIDTH/2, 0])
+        rotate([0, 90, 0])
+        edge_chamfer(SIDE_PLATE_WIDTH + 0.2, ch);
+
+    // Rear-top edge (X=SIDE_PLATE_LENGTH, Z=SIDE_PLATE_HEIGHT)
+    translate([SIDE_PLATE_LENGTH, SIDE_PLATE_WIDTH/2, SIDE_PLATE_HEIGHT])
+        rotate([0, 90, 0])
+        edge_chamfer(SIDE_PLATE_WIDTH + 0.2, ch);
+
+    // Rear-bottom edge (X=SIDE_PLATE_LENGTH, Z=0)
+    translate([SIDE_PLATE_LENGTH, SIDE_PLATE_WIDTH/2, 0])
+        rotate([0, 90, 0])
+        edge_chamfer(SIDE_PLATE_WIDTH + 0.2, ch);
+}
+
 // Left side plate with all features
+// NOTE: Side plate is a fully closed (watertight) manifold — interior cavity is
+// inset by SIDE_PLATE_WALL on all 6 faces (front, rear, inner, outer, top, bottom).
 module side_plate_left() {
     difference() {
         union() {
-            // Main side plate (hollow box)
+            // Main side plate (hollow box — closed on all faces for valid manifold)
             difference() {
                 cube([SIDE_PLATE_LENGTH, SIDE_PLATE_WIDTH, SIDE_PLATE_HEIGHT]);
                 translate([SIDE_PLATE_WALL, SIDE_PLATE_WALL, SIDE_PLATE_WALL])
@@ -238,6 +279,9 @@ module side_plate_left() {
 
         // Top edge chamfer on outer face
         top_edge_chamfer();
+
+        // Chamfers on bottom, front, and rear edges
+        side_plate_chamfers();
 
         // M4 bolt holes for hull attachment (through inner wall, top region)
         for (i = [0 : BOLT_COUNT - 1]) {

@@ -130,6 +130,15 @@ module hull_chamfers(length) {
     translate([length, hull_width/2, 0])
         rotate([0, 90, 0])
         chamfer_edge(hull_width + 0.2, chamfer_bottom);
+
+    // Front top edge (where deck meets front face)
+    translate([0, hull_width/2, hull_height])
+        rotate([0, 90, 0])
+        chamfer_edge(hull_width - 2*upper_taper + 0.2, chamfer_top);
+    // Rear top edge (where deck meets rear face)
+    translate([length, hull_width/2, hull_height])
+        rotate([0, 90, 0])
+        chamfer_edge(hull_width - 2*upper_taper + 0.2, chamfer_top);
 }
 
 // --- Side Skirt Chamfers ---

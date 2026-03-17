@@ -34,18 +34,22 @@ color("#5a6e3a")
 hull_assembly();
 
 // --- Tracks (both sides, 2 per side to cover full 300mm hull) ---
+// Ground contact: road wheel centers are at ROAD_WHEEL_Z = DIA/2 + 2,
+// so wheel bottoms sit 2mm above side plate bottom. Shift tracks down
+// by 2mm so road wheels touch Z=0 (ground plane).
+track_ground_drop = 2;  // mm — aligns road wheel bottoms to Z=0
 color("#4a4a3a") {
     // Left side — front track
-    translate([0, -track_width, 0])
+    translate([0, -track_width, -track_ground_drop])
         track_assembly_left();
     // Left side — rear track
-    translate([hull_length, -track_width, 0])
+    translate([hull_length, -track_width, -track_ground_drop])
         track_assembly_left();
     // Right side — front track
-    translate([0, hull_width + track_width, 0])
+    translate([0, hull_width + track_width, -track_ground_drop])
         mirror([0, 1, 0]) track_assembly_left();
     // Right side — rear track
-    translate([hull_length, hull_width + track_width, 0])
+    translate([hull_length, hull_width + track_width, -track_ground_drop])
         mirror([0, 1, 0]) track_assembly_left();
 }
 
@@ -57,20 +61,24 @@ translate([hull_length + (hull_length - 138)/2, (hull_width - 133)/2, 1.6])
 // --- Turret (on top of hull) ---
 // Turret is Y-centered: Y ranges from -turret_width/2 to +turret_width/2
 // Position: turret ring X aligns, turret centerline aligns with hull centerline
+// Clearance: 0.2mm gap between turret bottom and hull top (printability)
+// Turret ring: ring_od - 2*PRINT_TOLERANCE = 73.6mm into 74mm hull ring → 0.2mm/side radial clearance
+turret_hull_gap = 0.2;  // mm — assembly clearance at turret-hull interface
 color("#4a5e2a")
 translate([turret_ring_cx - turret_ring_local_x,
            turret_ring_cy,
-           hull_height])
+           hull_height + turret_hull_gap])
     turret_body();
 
 // --- Gun barrel ---
 // Trunnion at turret local [15, 0, turret_height*0.6] (Y-centered turret)
 // Global X = turret_global_x + 15
 // Global Y = turret_ring_cy (centerline)
-// Global Z = hull_height + turret_height*0.6
+// Global Z = hull_height + gap + turret_height*0.6
+// Barrel-mantlet clearance: bayonet OD 13.5mm into 14mm bore → 0.25mm/side radial gap (built into turret_body)
 barrel_trunnion_x = turret_ring_cx - turret_ring_local_x + 15;
 barrel_trunnion_y = turret_ring_cy;
-barrel_trunnion_z = hull_height + turret_height * 0.6;
+barrel_trunnion_z = hull_height + turret_hull_gap + turret_height * 0.6;
 color("#3a4e1a")
 translate([barrel_trunnion_x, barrel_trunnion_y, barrel_trunnion_z])
     rotate([0, -85, 0])    // Z->-X with 5° elevation
@@ -84,10 +92,10 @@ translate([3, hull_width/2 - 13.5, hull_height * 0.4 + 5])
 // --- Turret camera (inside turret front) ---
 turret_global_x = turret_ring_cx - turret_ring_local_x;
 color("ForestGreen", 0.8)
-translate([turret_global_x + 10, turret_ring_cy - 13.5, hull_height + turret_height * 0.4 + 2])
+translate([turret_global_x + 10, turret_ring_cy - 13.5, hull_height + turret_hull_gap + turret_height * 0.4 + 2])
     esp32cam_dummy();
 
 // --- VL53L1X ToF (turret front, below camera) ---
 color("Cyan", 0.8)
-translate([turret_global_x + 15, turret_ring_cy, hull_height + turret_height * 0.35])
+translate([turret_global_x + 15, turret_ring_cy, hull_height + turret_hull_gap + turret_height * 0.35])
     vl53l1x_dummy();
