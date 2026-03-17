@@ -2,7 +2,7 @@
 // Tactical Command Cradle — Tank Control Station Enclosure
 // =====================================================================
 // Precision split enclosure for Samsung Galaxy Tab A 8.0" (2019),
-// GL.iNet Mango router, Anker PowerCore Slim 10000, Sabrent USB hub.
+// TP-Link TL-WR802N nano-router, Anker PowerCore Slim 10000, Sabrent USB hub.
 //
 // Split into FRONT (tablet area) and REAR (electronics) halves at the
 // Y-axis midpoint, joined by M4 bolts. Each half fits within the
@@ -32,11 +32,14 @@ tablet_d    = 124.4;    // Depth (landscape)
 tablet_h    = 8.0;      // Thickness
 tablet_clr  = 1.0;      // Clearance per side
 
-// GL.iNet GL-MT300N-V2 (Mango)
-router_w    = 58.0;     // Width
-router_d    = 58.0;     // Depth
-router_h    = 25.0;     // Height
-router_clr  = 0.5;      // Clearance per side
+// TP-Link TL-WR802N Nano Router
+router_w    = 57.0;     // Width
+router_d    = 57.0;     // Depth
+router_h    = 18.0;     // Height
+router_clr  = 1.0;      // Clearance per side (friction-fit, 1mm each side)
+router_chamfer = 0.8;   // Slot edge chamfer
+router_vent_w  = 1.5;   // Ventilation slit width
+router_vent_n  = 6;     // Number of ventilation slits
 
 // Anker PowerCore Slim 10000
 pbank_w     = 149.0;    // Width (long axis)
@@ -261,47 +264,90 @@ module tablet_dummy() {
 }
 
 // =====================================================================
-// Module: Router Bay — friction-fit with hex ventilation mesh
+// Module: Router Bay — side-loading friction-fit slot for TP-Link TL-WR802N
+// =====================================================================
+// Router slides in from the LEFT side (+X direction) for easy removal.
+// Ports (Micro-USB power + Ethernet RJ45) are on the same edge,
+// oriented so Micro-USB faces toward the hub (internal cable)
+// and Ethernet faces the rear wall (external cable access).
 // =====================================================================
 module router_bay() {
-    // Cradle walls around router, open top for removal
-    rw = router_w + 2 * router_clr;
-    rd = router_d + 2 * router_clr;
+    // Slot interior: 59 x 59 x 20mm (1mm clearance per side)
+    sw = router_w + 2 * router_clr;  // 59mm slot width
+    sd = router_d + 2 * router_clr;  // 59mm slot depth
+    sh = router_h + 2 * router_clr;  // 20mm slot height
 
     translate([router_x, router_y, router_z]) {
         difference() {
-            // Outer cradle shell (3 walls — open front for port access)
-            cube([rw + 2 * wall, rd + wall, router_h + router_clr + wall]);
+            // Outer block: walls on back, right, top, bottom; open left for side-loading
+            cube([sw + wall, sd + wall, sh + wall]);
 
-            // Inner cavity
-            translate([wall, 0, wall])
-                cube([rw, rd + 0.1, router_h + router_clr + 1]);
+            // Inner slot cavity — open on -X face (left side) for insertion
+            translate([-0.1, 0, wall])
+                cube([sw + 0.2, sd, sh]);
 
-            // Hex ventilation on back wall (Ethernet/USB ports face rear)
-            translate([wall, rd + wall - 0.1, wall + 2])
-                rotate([90, 0, 0])
-                    hex_mesh(rw, router_h - 2, wall + 0.2);
+            // Ventilation slits on back wall (behind router, facing enclosure rear)
+            // 6 vertical slits, 1.5mm wide, evenly spaced
+            vent_spacing = (sw - router_vent_n * router_vent_w) / (router_vent_n + 1);
+            for (i = [0 : router_vent_n - 1]) {
+                vx = vent_spacing + i * (router_vent_w + vent_spacing);
+                translate([vx, sd + wall - 0.1, wall + 2])
+                    cube([router_vent_w, wall + 0.2, sh - 4]);
+            }
+
+            // Micro-USB power port cutout — faces toward hub (left/front side of slot)
+            // Cutout on the front face of the slot (toward hub)
+            usb_cut_w = 12;
+            usb_cut_h = 8;
+            translate([(sw - usb_cut_w) / 2, -0.1, wall + (sh - usb_cut_h) / 2])
+                cube([usb_cut_w, wall + 0.2, usb_cut_h]);
+
+            // Ethernet (RJ45) port cutout — faces rear wall for external cable
+            eth_cut_w = 16;
+            eth_cut_h = 14;
+            translate([(sw - eth_cut_w) / 2, sd + wall - 0.1, wall + (sh - eth_cut_h) / 2])
+                cube([eth_cut_w, wall + 0.2, eth_cut_h]);
+
+            // 0.8mm chamfers on all slot opening edges (left face, -X)
+            // Top-left edge chamfer
+            translate([-0.1, -0.1, wall + sh])
+                rotate([0, 90, 0])
+                    linear_extrude(height = 0.2)
+                        polygon([[0, 0], [router_chamfer, 0], [0, router_chamfer]]);
+            // Bottom-left edge chamfer
+            translate([-0.1, -0.1, wall])
+                rotate([0, 90, 0])
+                    linear_extrude(height = 0.2)
+                        polygon([[0, 0], [-router_chamfer, 0], [0, router_chamfer]]);
+            // Front slot edge chamfer (vertical)
+            translate([-0.1, 0, wall - 0.1])
+                linear_extrude(height = sh + 0.2)
+                    polygon([[0, 0], [0, -router_chamfer], [0.2, 0]]);
+            // Back slot edge chamfer (vertical)
+            translate([-0.1, sd, wall - 0.1])
+                linear_extrude(height = sh + 0.2)
+                    polygon([[0, 0], [0, router_chamfer], [0.2, 0]]);
         }
 
-        // Dummy volume
-        translate([wall + router_clr, router_clr, wall])
+        // Dummy volume (ghost)
+        translate([router_clr, router_clr, wall + router_clr])
             %cube([router_w, router_d, router_h]);
     }
 }
 
 // =====================================================================
-// Module: Router Rear Port Cutout
+// Module: Router Rear Port Cutout — Ethernet RJ45 through enclosure rear wall
 // =====================================================================
 module router_port_cutout() {
-    // Ethernet + USB ports face the rear wall — cut through enclosure wall
-    rw = router_w + 2 * router_clr;
-    port_w = 50;  // Wide enough for both Ethernet and USB
-    port_h = 20;
-    port_x = router_x + wall + (rw - port_w) / 2;
-    port_z = router_z + wall + 2;
+    // Ethernet port faces rear — cut through enclosure wall for external cable
+    sw = router_w + 2 * router_clr;
+    eth_cut_w = 16;
+    eth_cut_h = 14;
+    port_x = router_x + (sw - eth_cut_w) / 2;
+    port_z = router_z + wall + (router_h + 2 * router_clr - eth_cut_h) / 2;
 
     translate([port_x, enc_d - wall - 0.1, port_z])
-        cube([port_w, wall + 0.2, port_h]);
+        cube([eth_cut_w, wall + 0.2, eth_cut_h]);
 }
 
 // =====================================================================

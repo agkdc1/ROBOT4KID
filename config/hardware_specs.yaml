@@ -181,6 +181,10 @@ components:
     dimensions_mm: [40, 20, 8]
   glinet_mt300n:
     dimensions_mm: [58, 58, 25]
+  tplink_wr802n:
+    dimensions_mm: [57, 57, 18]
+    weight_g: 32
+    power_source: "sabrent_hub_port_2"  # Micro-USB powered via hub, NOT directly from powerbank
   anker_slim_10000:
     dimensions_mm: [149, 68, 14]
   sabrent_hub_um43:
@@ -216,7 +220,7 @@ consoles:
       channel_depth_mm: 35
       channel_height_mm: 6
     network_hub:
-      router: "glinet_mt300n"
+      router: "tplink_wr802n"
       power_bank: "anker_slim_10000"
       usb_hub: "sabrent_hub_um43"
   train_console:
