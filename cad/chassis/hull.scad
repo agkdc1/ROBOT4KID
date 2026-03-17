@@ -17,7 +17,7 @@ use <../libs/electronics.scad>
 hull_length = 150;          // Per half (total 300mm)
 hull_width = 139;           // Was 90 — real M1A1 is very wide between tracks
 hull_height = 55;           // Was 80 — real M1A1 is very flat
-wall = 1.6;                 // Structural walls (min 1.6mm for strength)
+wall = 2.5;                 // Structural walls (child safety minimum 2.5mm)
 
 // Glacis plate — M1A1 has near-vertical upper plate with a beak
 glacis_angle = 82.5;        // Degrees from horizontal (was 30) — almost vertical
@@ -77,9 +77,9 @@ rear_deck_slope_deg = 6;   // 6-degree downward slope at rear
 skirt_flare = 1.5;         // Outward flare at bottom of skirts (mm)
 
 // Chamfer sizes
-chamfer_top = 0.5;         // Top edges where deck meets sides (0.5mm fillet)
-chamfer_bottom = 0.5;      // Bottom edges of hull
-chamfer_skirt = 0.5;       // Side skirt bottom edges
+chamfer_top = 1.2;         // Top edges where deck meets sides (1.2mm fillet, child-safe)
+chamfer_bottom = 1.2;      // Bottom edges of hull (1.2mm fillet, child-safe)
+chamfer_skirt = 1.2;       // Side skirt bottom edges (1.2mm fillet, child-safe)
 
 // Greebling parameters
 panel_line_depth = 0.2;    // Depth of panel line grooves

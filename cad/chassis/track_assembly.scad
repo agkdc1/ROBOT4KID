@@ -15,7 +15,7 @@ part = "assembly"; // "left", "right", "sprocket", "assembly"
 SIDE_PLATE_LENGTH = 150;
 SIDE_PLATE_WIDTH  = 24;  // real 635mm / 26.4 scale
 SIDE_PLATE_HEIGHT = 30;
-SIDE_PLATE_WALL   = 1.6;
+SIDE_PLATE_WALL   = 2.5;  // Child safety minimum
 
 // Road wheels — M1A1 has 7 per side
 ROAD_WHEEL_COUNT    = 7;

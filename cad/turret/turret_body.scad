@@ -15,7 +15,7 @@ use <../libs/electronics.scad>
 turret_length = 175;              // Main body length (was 150, Gemini ratio fix)
 turret_width  = 123;              // Main body width (was 95)
 turret_height = 30;               // Very low profile (was 50)
-wall = 1.6;                       // Min wall thickness
+wall = 2.5;                       // Child safety minimum 2.5mm
 
 // Turret ring (mates with hull turret_ring_id = 74)
 ring_od = 74;                     // Nominal=hull turret_ring_id; actual=73.6mm (0.2mm clearance per side)
@@ -52,7 +52,7 @@ nose_slope   = 15;                // Nose face angled back this far (sloped, not
 top_taper    = 3;                 // Top edges slope inward slightly
 
 // --- Aesthetic Refinement Parameters ---
-chamfer_size = 0.6;               // 45-degree edge chamfer on top perimeter
+chamfer_size = 1.2;               // 45-degree edge chamfer on top perimeter (child-safe)
 top_slope_deg = 1.5;              // Subtle crown slope on turret top (degrees)
 panel_line_depth = 0.2;           // Surface groove depth
 panel_line_width = 0.3;           // Surface groove width

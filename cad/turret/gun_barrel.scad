@@ -8,7 +8,7 @@ use <../libs/m4_hardware.scad>
 // --- Barrel Parameters ---
 barrel_length = 162;              // Total with bayonet(8)+muzzle(10) = 180mm = fits build vol
 barrel_od = 12;               // Outer diameter
-barrel_id = 8;                // Inner bore (for projectile)
+barrel_id = 8;                // Inner bore — also serves as rod channel (5mm carbon/aluminum rod + 1.5mm clearance per side)
 barrel_wall = (barrel_od - barrel_id) / 2;
 
 // Bayonet mount
