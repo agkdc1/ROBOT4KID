@@ -5,6 +5,7 @@ import {
   ListTodo,
   Cpu,
   Zap,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePlanningHealth, useSimulationHealth } from "@/hooks/useQueries";
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { to: "/", label: "INFRA", icon: Activity },
   { to: "/tasks", label: "TASKS", icon: ListTodo },
   { to: "/projects", label: "MODELS", icon: LayoutGrid },
+  { to: "/simulation", label: "SIM", icon: Radio },
 ] as const;
 
 export function Layout() {

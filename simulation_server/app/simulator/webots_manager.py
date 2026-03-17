@@ -71,6 +71,9 @@ class WebotsManager:
         self._binary: str = _find_webots_binary()
         self._stdout_task: Optional[asyncio.Task[None]] = None
         self._stderr_task: Optional[asyncio.Task[None]] = None
+        # Streaming state
+        self._streaming: bool = False
+        self._stream_port: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -80,16 +83,25 @@ class WebotsManager:
         self,
         world_path: Path | str,
         *,
+        mode: str = "headless",
+        stream_port: int = 1234,
         extra_args: list[str] | None = None,
         env: dict[str, str] | None = None,
     ) -> None:
-        """Launch Webots in headless mode with the given world file.
+        """Launch Webots with the given world file.
 
         Args:
             world_path: Absolute path to the .wbt world file.
+            mode: Launch mode — ``"headless"`` (no rendering, default) or
+                ``"stream"`` (web streaming via ``--stream``).
+            stream_port: TCP port for the Webots web-streaming WebSocket
+                server.  Only used when *mode* is ``"stream"``.
             extra_args: Additional CLI flags for Webots.
             env: Extra environment variables (merged with os.environ).
         """
+        if mode not in ("headless", "stream"):
+            raise ValueError(f"Invalid mode '{mode}'. Must be 'headless' or 'stream'.")
+
         world_path = Path(world_path).resolve()
         if not world_path.exists():
             raise FileNotFoundError(f"World file not found: {world_path}")
@@ -98,15 +110,28 @@ class WebotsManager:
             logger.warning("Simulation already running — stopping first")
             await self.stop_simulation()
 
-        cmd = [
-            self._binary,
-            "--no-rendering",
-            "--stdout",
-            "--stderr",
-            "--minimize",
-            "--batch",
-            str(world_path),
-        ]
+        if mode == "stream":
+            cmd = [
+                self._binary,
+                "--stream",
+                f"--stream=port={stream_port}",
+                "--no-gui",
+                "--batch",
+                "--stdout",
+                "--stderr",
+                str(world_path),
+            ]
+        else:
+            cmd = [
+                self._binary,
+                "--no-rendering",
+                "--stdout",
+                "--stderr",
+                "--minimize",
+                "--batch",
+                str(world_path),
+            ]
+
         if extra_args:
             cmd.extend(extra_args)
 
@@ -114,7 +139,7 @@ class WebotsManager:
         if env:
             merged_env.update(env)
 
-        logger.info("Starting Webots: %s", " ".join(cmd))
+        logger.info("Starting Webots (%s): %s", mode, " ".join(cmd))
         self._process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -122,6 +147,8 @@ class WebotsManager:
             env=merged_env,
         )
         self._world_path = world_path
+        self._streaming = mode == "stream"
+        self._stream_port = stream_port if self._streaming else None
 
         # Background tasks to drain stdout/stderr
         self._stdout_task = asyncio.create_task(
@@ -131,7 +158,47 @@ class WebotsManager:
             self._log_stream(self._process.stderr, "webots:stderr")
         )
 
-        logger.info("Webots started (PID %d)", self._process.pid)
+        logger.info("Webots started (PID %d, mode=%s)", self._process.pid, mode)
+
+    async def start_streaming(
+        self,
+        world_path: Path | str,
+        *,
+        port: int = 1234,
+        extra_args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+    ) -> dict:
+        """Launch Webots in web-streaming mode.
+
+        This is a convenience wrapper around :meth:`start_simulation` with
+        ``mode="stream"``.
+
+        Args:
+            world_path: Absolute path to the ``.wbt`` world file.
+            port: TCP port for the Webots web-streaming WebSocket server.
+            extra_args: Additional CLI flags for Webots.
+            env: Extra environment variables (merged with os.environ).
+
+        Returns:
+            A dict with ``ws_url`` and ``pid``.
+        """
+        await self.start_simulation(
+            world_path,
+            mode="stream",
+            stream_port=port,
+            extra_args=extra_args,
+            env=env,
+        )
+        return {
+            "ws_url": f"ws://localhost:{port}",
+            "pid": self.pid,
+        }
+
+    def get_stream_url(self) -> Optional[str]:
+        """Return the WebSocket URL if streaming is active, else None."""
+        if self.is_running() and self._streaming and self._stream_port is not None:
+            return f"ws://localhost:{self._stream_port}"
+        return None
 
     async def stop_simulation(self, timeout: float = 10.0) -> None:
         """Gracefully stop the Webots process.
@@ -158,6 +225,8 @@ class WebotsManager:
         finally:
             self._cancel_log_tasks()
             self._process = None
+            self._streaming = False
+            self._stream_port = None
             logger.info("Webots stopped (was PID %d)", pid)
 
     def is_running(self) -> bool:
@@ -177,6 +246,16 @@ class WebotsManager:
     @property
     def pid(self) -> Optional[int]:
         return self._process.pid if self._process else None
+
+    @property
+    def is_streaming(self) -> bool:
+        """Return True if Webots is running in streaming mode."""
+        return self._streaming and self.is_running()
+
+    @property
+    def stream_port(self) -> Optional[int]:
+        """Return the streaming port if active, else None."""
+        return self._stream_port if self._streaming else None
 
     # ------------------------------------------------------------------
     # Internals

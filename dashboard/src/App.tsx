@@ -4,6 +4,7 @@ import { Layout } from "@/components/Layout";
 import { InfrastructurePage } from "@/pages/InfrastructurePage";
 import { TasksPage } from "@/pages/TasksPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
+import { SimulationPage } from "@/pages/SimulationPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +24,7 @@ export default function App() {
             <Route index element={<InfrastructurePage />} />
             <Route path="tasks" element={<TasksPage />} />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="simulation" element={<SimulationPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

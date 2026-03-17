@@ -4,11 +4,14 @@ Provides REST and WebSocket endpoints for controlling Webots simulations
 from the planning server or any other client.
 
 Routes:
-    POST   /api/v1/webots/start     — start simulation for a job
-    POST   /api/v1/webots/stop      — stop current simulation
-    GET    /api/v1/webots/status     — get simulation status
-    WS     /api/v1/webots/{job_id}/ws — live telemetry stream
-    POST   /api/v1/webots/command   — send command to tank
+    POST   /api/v1/webots/start          — start simulation (headless)
+    POST   /api/v1/webots/stop           — stop current simulation
+    GET    /api/v1/webots/status          — get simulation status
+    POST   /api/v1/webots/command        — send command to tank
+    POST   /api/v1/webots/stream/start   — start Webots in web-streaming mode
+    POST   /api/v1/webots/stream/stop    — stop web streaming
+    GET    /api/v1/webots/stream/status  — streaming status and WebSocket URL
+    WS     /api/v1/webots/{job_id}/ws    — live telemetry stream
 """
 
 from __future__ import annotations
@@ -82,6 +85,31 @@ class StatusResponse(BaseModel):
     world_path: Optional[str] = None
     tank_connected: bool = False
     supervisor_connected: bool = False
+
+
+class StreamStartRequest(BaseModel):
+    job_id: str = Field(description="Simulation job ID")
+    world_path: Optional[str] = Field(
+        default=None,
+        description="Custom world file path. Defaults to flat_ground.wbt.",
+    )
+    port: int = Field(
+        default=1234,
+        ge=1024,
+        le=65535,
+        description="WebSocket port for Webots web streaming.",
+    )
+    convert_urdf: bool = Field(
+        default=False,
+        description="If True, convert the job's URDF to a PROTO before starting.",
+    )
+
+
+class StreamStatusResponse(BaseModel):
+    streaming: bool
+    pid: Optional[int] = None
+    ws_url: Optional[str] = None
+    world_path: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +318,98 @@ async def create_digital_twin(req: StartRequest) -> dict:
         "proto_path": str(proto_path) if proto_path.exists() else None,
         "steps": steps,
     }
+
+
+# ---------------------------------------------------------------------------
+# Streaming endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/stream/start")
+async def start_streaming(req: StreamStartRequest) -> dict:
+    """Start Webots in web-streaming mode.
+
+    Returns the WebSocket URL that clients can connect to for the live
+    3D view rendered by Webots.
+    """
+    manager = get_manager()
+
+    # Determine world path
+    if req.world_path:
+        world = Path(req.world_path)
+    else:
+        world = _DEFAULT_WORLD
+
+    if not world.exists():
+        raise HTTPException(status_code=404, detail=f"World file not found: {world}")
+
+    # Optionally convert URDF -> PROTO
+    if req.convert_urdf:
+        job_dir = config.JOBS_DIR / req.job_id
+        urdf_candidates = list(job_dir.glob("*.urdf"))
+        if urdf_candidates:
+            urdf_path = urdf_candidates[0]
+            stl_dir = job_dir / "stl"
+            proto_path = job_dir / f"{urdf_path.stem}.proto"
+            try:
+                convert_urdf_to_proto(urdf_path, stl_dir, proto_path)
+                logger.info("Converted URDF to PROTO: %s", proto_path)
+            except Exception as exc:
+                logger.error("URDF->PROTO conversion failed: %s", exc)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"PROTO conversion failed: {exc}",
+                )
+        else:
+            logger.warning(
+                "No URDF file found in job %s, skipping conversion", req.job_id,
+            )
+
+    try:
+        result = await manager.start_streaming(world, port=req.port)
+    except Exception as exc:
+        logger.error("Failed to start Webots streaming: %s", exc)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to start Webots streaming: {exc}",
+        )
+
+    return {
+        "status": "streaming",
+        "job_id": req.job_id,
+        "ws_url": result["ws_url"],
+        "pid": result["pid"],
+        "world": str(world),
+    }
+
+
+@router.post("/stream/stop")
+async def stop_streaming() -> dict:
+    """Stop Webots web streaming."""
+    manager = get_manager()
+
+    if not manager.is_running():
+        return {"status": "not_running"}
+
+    if not manager.is_streaming:
+        return {"status": "not_streaming", "detail": "Webots is running but not in streaming mode"}
+
+    bridge = get_bridge()
+    await bridge.disconnect()
+    await manager.stop_simulation()
+
+    return {"status": "stopped"}
+
+
+@router.get("/stream/status", response_model=StreamStatusResponse)
+async def stream_status() -> StreamStatusResponse:
+    """Return Webots streaming status and WebSocket URL."""
+    manager = get_manager()
+
+    return StreamStatusResponse(
+        streaming=manager.is_streaming,
+        pid=manager.pid,
+        ws_url=manager.get_stream_url(),
+        world_path=str(manager.world_path) if manager.world_path else None,
+    )
 
 
 @router.websocket("/{job_id}/ws")
