@@ -12,6 +12,7 @@ from planning_server.app.pipeline.llm import Provider, generate_with_tool
 from planning_server.app.pipeline.nlp import parse_nl_to_robot_spec
 from planning_server.app.pipeline.cad_gen import generate_scad_for_part
 from planning_server.app.pipeline.reference_search import search_and_analyze
+from planning_server.app.pipeline.visual_validation import run_visual_validation
 from planning_server.app.simulation_client.client import SimulationClient
 from shared.schemas.robot_spec import RobotSpec
 
@@ -222,6 +223,71 @@ async def run_pipeline(
     spec_path = project_dir / "robot_spec.json"
     spec_path.write_text(robot_spec.model_dump_json(indent=2))
 
+    # Gate 1: Physics & Layout Validation (blockout primitives only)
+    # "Fail fast, fail cheap" — validate proportions before spending tokens on detail
+    GATE1_MAX_ITERATIONS = int(os.getenv("GATE1_MAX_ITERATIONS", "2"))
+    gate1_round = 0
+    progress.update("gate1_validation", 0.0, "Gate 1: Validating physics & layout...")
+
+    while gate1_round < GATE1_MAX_ITERATIONS:
+        try:
+            # Submit to sim server for STL rendering
+            gate1_job_id = str(uuid.uuid4())
+            sim_client_g1 = SimulationClient()
+            await sim_client_g1.submit_simulation(
+                job_id=gate1_job_id, robot_spec=robot_spec, simulation_type="render_only",
+            )
+            gate1_feedback = await sim_client_g1.wait_for_feedback(gate1_job_id, timeout=120)
+
+            # Run visual validation (6-angle renders → composite → Gemini)
+            job_dir_g1 = config.SIM_JOBS_DIR / gate1_job_id if hasattr(config, "SIM_JOBS_DIR") else None
+            if job_dir_g1 and job_dir_g1.exists():
+                gate1_result = await run_visual_validation(
+                    project_dir=project_dir,
+                    job_dir=job_dir_g1,
+                    cad_dir=scad_dir.parent,
+                    model_name=robot_spec.name,
+                )
+                gate1_score = gate1_result.get("overall_score", 0)
+                results["gate1_validation"] = gate1_result
+
+                if gate1_score >= 0.75:
+                    progress.update("gate1_validation", 1.0,
+                                    f"Gate 1 PASSED (score: {gate1_score:.0%})")
+                    break
+
+                # Gate 1 failed — fix issues and retry
+                gate1_round += 1
+                logger.info(f"Gate 1 round {gate1_round}: score={gate1_score:.0%}, iterating...")
+                progress.update("gate1_validation", gate1_round / GATE1_MAX_ITERATIONS,
+                                f"Gate 1 round {gate1_round}: fixing layout issues...")
+
+                # Build refinement prompt from Gate 1 checklist
+                issues = [
+                    f"- [{c['status'].upper()}] {c['category']}: {c['description']} "
+                    f"Suggestion: {c.get('suggestion', 'N/A')}"
+                    for c in gate1_result.get("checklist", [])
+                    if c.get("status") in ("fail", "warning")
+                ]
+                if issues:
+                    refinement_prompt = (
+                        f"Gate 1 validation scored {gate1_score:.0%}. Fix these layout/physics issues:\n"
+                        + "\n".join(issues)
+                    )
+                    robot_spec = await _refine_spec(robot_spec, refinement_prompt)
+                    results["robot_spec"] = robot_spec.model_dump()
+                    spec_path.write_text(robot_spec.model_dump_json(indent=2))
+                else:
+                    break
+            else:
+                progress.update("gate1_validation", 1.0, "Gate 1 skipped (no job dir)")
+                break
+        except Exception as e:
+            logger.warning(f"Gate 1 validation failed: {e}")
+            results["errors"].append(f"Gate 1: {e}")
+            progress.update("gate1_validation", 1.0, f"Gate 1 skipped: {e}")
+            break
+
     # Step 3: Submit to Simulation Server
     progress.update("simulation", 0.0, "Submitting to simulation server...")
     sim_client = SimulationClient()
@@ -346,6 +412,71 @@ async def run_pipeline(
             break
 
     results["refinement_history"] = refinement_history
+
+    # Gate 2: Printability & Aesthetics Validation (refined model)
+    GATE2_MAX_ITERATIONS = int(os.getenv("GATE2_MAX_ITERATIONS", "2"))
+    gate2_round = 0
+    progress.update("gate2_validation", 0.0, "Gate 2: Validating printability & aesthetics...")
+
+    final_job_id = results.get("simulation_job_id")
+    if final_job_id:
+        while gate2_round < GATE2_MAX_ITERATIONS:
+            try:
+                job_dir_g2 = config.SIM_JOBS_DIR / final_job_id if hasattr(config, "SIM_JOBS_DIR") else None
+                if not job_dir_g2 or not job_dir_g2.exists():
+                    break
+
+                gate2_result = await run_visual_validation(
+                    project_dir=project_dir,
+                    job_dir=job_dir_g2,
+                    cad_dir=scad_dir.parent,
+                    model_name=robot_spec.name,
+                )
+                gate2_score = gate2_result.get("overall_score", 0)
+                results["gate2_validation"] = gate2_result
+
+                if gate2_score >= 0.85:
+                    progress.update("gate2_validation", 1.0,
+                                    f"Gate 2 PASSED (score: {gate2_score:.0%})")
+                    break
+
+                gate2_round += 1
+                logger.info(f"Gate 2 round {gate2_round}: score={gate2_score:.0%}, iterating...")
+                progress.update("gate2_validation", gate2_round / GATE2_MAX_ITERATIONS,
+                                f"Gate 2 round {gate2_round}: fixing aesthetics/printability...")
+
+                # Refine based on Gate 2 feedback
+                issues = [
+                    f"- [{c['status'].upper()}] {c['category']}: {c['description']} "
+                    f"Suggestion: {c.get('suggestion', 'N/A')}"
+                    for c in gate2_result.get("checklist", [])
+                    if c.get("status") in ("fail", "warning")
+                ]
+                if issues:
+                    refinement_prompt = (
+                        f"Gate 2 (printability/aesthetics) scored {gate2_score:.0%}. "
+                        f"Fix these issues:\n" + "\n".join(issues)
+                    )
+                    robot_spec = await _refine_spec(robot_spec, refinement_prompt)
+                    results["robot_spec"] = robot_spec.model_dump()
+                    spec_path.write_text(robot_spec.model_dump_json(indent=2))
+
+                    # Re-submit for new renders
+                    new_job_id = str(uuid.uuid4())
+                    await sim_client.submit_simulation(
+                        job_id=new_job_id, robot_spec=robot_spec, simulation_type="full",
+                    )
+                    new_feedback = await sim_client.wait_for_feedback(new_job_id, timeout=300)
+                    if new_feedback:
+                        results["simulation_feedback"] = new_feedback
+                        results["simulation_job_id"] = new_job_id
+                        final_job_id = new_job_id
+                else:
+                    break
+            except Exception as e:
+                logger.warning(f"Gate 2 validation failed: {e}")
+                results["errors"].append(f"Gate 2: {e}")
+                break
 
     progress.update("complete", 1.0, "Pipeline complete")
     return results

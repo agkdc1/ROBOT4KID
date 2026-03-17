@@ -12,36 +12,53 @@ All robot models (Tank, Shinkansen, etc.) must be defined by a strictly typed JS
 - **Electronics & Wiring:** Define components (e.g., TT Motor, ESP32), power requirements (V/A), pin mappings, and physical locations.
 - **Assembly Constraints:** E.g., "NO SOLDERING" (use specific connectors/fasteners), "Printable without supports," "Screws must be M3."
 
-## 3. The 5-Step Execution Pipeline
-When starting or resuming a project (e.g., Abrams Tank, Shinkansen), follow this strict sequence:
+## 3. Two-Gate Validation Pipeline ("Fail Fast, Fail Cheap")
+When starting or resuming a project, follow this strict sequence. The pipeline uses two validation gates to catch issues early before spending API tokens on detailed refinement.
 
-### Step 1: Ingest Reference Data (From Gemini)
-- The User will provide you with proportional data, key components, and constraints extracted by Gemini from real-world references.
-- **Your Task:** Draft the initial `Extended URDF` JSON schema based on these numbers.
+### Step 1: Ingest Reference Data
+- **Sonnet Action:** Analyze user intent, generate targeted web search queries to find exact dimensions, blueprints, and specifications for the target vehicle/robot.
+- **Web Search:** Execute queries, compile reference data (dimensions in mm, angles, proportional ratios, shape descriptions).
+- **Gemini Action:** Analyze compiled reference data and produce structured proportional analysis — real dimensions, scaled dimensions at target scale, key ratios (hull L:W, turret/hull length, etc.), and shape notes (glacis angle, turret profile, etc.).
+- **Sonnet Action:** Draft the initial `Extended URDF` JSON schema based on Gemini's proportional analysis.
+- **Implementation:** `planning_server/app/pipeline/reference_search.py` — `search_and_analyze()` orchestrates Sonnet query generation → web fetch → Gemini analysis.
 
-### Step 2: Boxy Prototype & Kinematics (Draft CAD)
-- Generate a programmatic 3D model (e.g., OpenSCAD scripts) using simple primitive shapes (bounding boxes, cylinders) to represent the URDF links.
-- **Goal:** Verify the scale, component fit (motors/boards), and Center of Mass (CoM) alignment without worrying about aesthetics.
+### Step 2: Blockout CAD + Gate 1 (Physics & Layout)
+- **Sonnet Action:** Generate OpenSCAD code using ONLY basic primitives (bounding boxes, simple cylinders). Do NOT add chamfers, fillets, or aesthetic details yet. Focus on correct proportions, component fit, and kinematic alignment.
+- **Render & Stitch:** Render 6-way orthographic views (Top, Bottom, Front, Back, Left, Right) + isolated component views. Use Python (Pillow) to stitch into a single composite grid image — optimizes Gemini API usage (one image instead of 6+).
+- **Gate 1 (Gemini Critic):** Send stitched image + SCAD parameter blocks + URDF data + reference ratios to Gemini. Gemini MUST ONLY check:
+  1. **Overall Proportions** vs. Reference (L:W:H ratios, turret/hull ratio).
+  2. **Component Fit** (Do motors/batteries/ESP32 fit without clipping?).
+  3. **Center of Mass & Kinematic alignment** (turret centered, barrel forward, tracks symmetric).
+- **Loop:** Fix ALL Gate 1 issues before proceeding to Step 3. Do not waste tokens on aesthetics until physics/layout is correct.
 
-### Step 3: Aesthetic & Printable Refinement (High-Fidelity)
-- Once the prototype logic is validated, **REFINE** the model.
-- Replace "boxy" placeholders with highly detailed, realistic geometries matching the target object (e.g., angled glacis plate for the Abrams, aerodynamic nose for the Shinkansen).
-- Apply chamfers, fillets, and precise tolerances for 3D printing (e.g., 0.2mm clearance for moving parts).
+### Step 3: High-Fidelity Refinement
+- Only after Gate 1 approval, upgrade primitives to detailed geometries:
+  - Angled armor plates (glacis beak, turret cheek armor)
+  - Compound curves (turret pentagram shape, hull taper)
+  - Bore evacuator on barrel, road wheel detail
+  - Side skirts, bustle rack, exhaust grilles
+- Apply physical constraints for 3D printing (0.2mm clearance for moving parts, 1.6mm minimum wall, 45deg max overhang).
+- Split parts that exceed 180x180x180mm build volume.
 
-### Step 4: Visual Validation Loop
-- Render the updated model and output the files. The User will send screenshots to Gemini.
-- Gemini will return a 10-point Constraint Checklist with rationale (e.g., "Turret CoM is off," "Track clearance too low").
-- **Your Task:** Digest Gemini's feedback, update the URDF and CAD scripts, and iterate.
+### Step 4: Gate 2 (Printability & Aesthetics)
+- **Render & Stitch:** Render refined model (6-way assembled + individual parts) into a new composite grid image.
+- **Gate 2 (Gemini Critic):** Send refined composite + SCAD code + URDF + reference analysis. Gemini MUST ONLY check:
+  1. **Printability** (Severe overhangs? Parts fit build volume? Wall thickness adequate?).
+  2. **Mechanical Tolerances** (Joints physically viable? Screw holes correct diameter?).
+  3. **Aesthetic Fidelity** (Does it accurately represent the target? Silhouette recognizable?).
+- **Loop:** Iterate until Gemini scores >= 0.85 overall AND User gives final approval.
+- **Implementation:** `planning_server/app/pipeline/visual_validation.py` — `run_visual_validation()` renders, stitches, sends to Gemini, returns 10-point checklist.
 
-### Step 5: The Post-Mortem Protocol (CRITICAL)
+### Step 5: Post-Mortem Protocol (CRITICAL)
 - **Rule:** Every time a design fails validation, physical printing issues are reported, or a structural flaw is found, you MUST create an entry in `POST_MORTEM.md`.
-- **Format:** 1. `[Issue]`: What went wrong (e.g., "Snap-fit joint broke due to layer orientation").
+- **Format:**
+  1. `[Issue]`: What went wrong (e.g., "Snap-fit joint broke due to layer orientation").
   2. `[Root Cause]`: Why it happened.
   3. `[Resolution]`: How we fixed it in the CAD script.
   4. `[Pipeline Update]`: A new rule to add to our general design guidelines for all future models.
 
 ## 4. Immediate Action
-Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn't exist. Ask the user which active project (Tank or Shinkansen) we are tackling today, and request the initial proportional data from Gemini to begin Step 1.
+Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn't exist. Ask the user which active project (Tank or Shinkansen) we are tackling today, and resume from the appropriate gate.
 
 ## Project Status
 - **Phase 0 (Bootstrap)**: COMPLETE — directory structure, shared schemas, JSON schema export, Python venvs
@@ -74,6 +91,7 @@ Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn
 - **Dual LLM**: Claude Sonnet (primary — 3D modeling, planning, structured generation) + Gemini (secondary — simpler tasks, expansion). Provider abstraction in `planning_server/app/pipeline/llm.py`.
 - **Webots Integration**: Physics simulation via Webots. Controllers communicate over TCP (binary protocol port 10200, JSON supervisor port 10201). WebSocket bridge streams telemetry at 30Hz.
 - **Service Deployment**: NSSM Windows services, Cloudflare Tunnel for external HTTPS access, VS Code tunnel for remote dev, API key auth for inter-service communication.
+- **Two-Gate Validation Pipeline**: Gate 1 (blockout) validates physics/layout with primitives only. Gate 2 (refined) validates printability/aesthetics. Both gates use 6-angle composite images stitched via Pillow, sent to Gemini vision API for structured 10-point checklist. Pipeline modules: `reference_search.py` (Step 1), `visual_validation.py` (Steps 2+4). "Fail fast, fail cheap" — fix proportions before spending tokens on detail.
 - **Iterative Refinement**: Simulation feedback is sent back to the LLM to fix design issues (max 2 rounds by default). Controlled by `MAX_REFINEMENT_ITERATIONS` env var.
 - **Management Dashboard**: React 19 SPA (`dashboard/`) on port 3000. Proxies to Planning Server (8000) and Simulation Server (8100). Uses TanStack Query for real-time polling (5s intervals). Dashboard API in `planning_server/app/dashboard/router.py`.
 
