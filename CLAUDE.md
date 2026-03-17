@@ -31,13 +31,36 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
   3. **Center of Mass & Kinematic alignment** (turret centered, barrel forward, tracks symmetric).
 - **Loop:** Fix ALL Gate 1 issues before proceeding to Step 3. Do not waste tokens on aesthetics until physics/layout is correct.
 
-### Step 3: High-Fidelity Refinement
-- Only after Gate 1 approval, upgrade primitives to detailed geometries:
-  - Angled armor plates (glacis beak, turret cheek armor)
-  - Compound curves (turret pentagram shape, hull taper)
-  - Bore evacuator on barrel, road wheel detail
-  - Side skirts, bustle rack, exhaust grilles
-- Apply physical constraints for 3D printing (0.2mm clearance for moving parts, 1.6mm minimum wall, 45deg max overhang).
+### Step 3: High-Fidelity Refinement + Aesthetic Refinement Layer
+- Only after Gate 1 approval, upgrade primitives to detailed geometries.
+- Apply the **four aesthetic refinement principles** universally (tank, train, any model):
+
+#### 3.1 Anti-Boxy Rule: Slopes & Surface Normals
+- Real objects rarely have 90-degree vertical planes. Replace vertical boxes with tapered extrusions or lofted geometries.
+- Apply 3-15 degree draft angles on vertical surfaces unless functionally required to be 90.
+- Example: hull sides slope inward above deck line, turret has faceted nose, glacis has compound beak angle.
+
+#### 3.2 Micro-Geometry Rule: Fillets & Chamfers
+- Sharp edges look fake and are hard to 3D print. Apply a global fillet/chamfer pass:
+  - **External edges**: 0.3-1.0mm fillet (rounded) for premium look.
+  - **Structural edges**: 45-degree chamfer (beveled) for mechanical strength.
+- In OpenSCAD: use `minkowski()` with small sphere for fillets, or `offset(r=-)` followed by `offset(delta=+)`.
+
+#### 3.3 High-Density Detail (Greebling)
+- Add "visual noise" to break up large flat surfaces:
+  - **Panel lines**: 0.2mm deep, 0.3mm wide indentations on hull sides and turret.
+  - **Bolt heads**: Small cylinders (1mm dia, 0.5mm tall) near joint areas and access panels.
+  - **Access hatches**: Recessed rectangles with 0.2mm border on hull deck, turret top.
+  - **Tie-down points / grab handles**: Small loops or hooks on hull edges.
+- Vehicle-specific: exhaust grilles, headlight recesses, tow hooks, antenna mounts.
+
+#### 3.4 Real-World Assembly: Shadow Gaps & Part Separation
+- Components must look assembled, not fused. Create 0.1-0.2mm visual gaps between separate URDF links.
+- Turret ring gap, hull split line, track-to-hull gap, barrel-to-trunnion gap must all be visible.
+- This makes rendered views look significantly more complex and realistic.
+
+#### Physical constraints (always applied):
+- 0.2mm clearance for moving parts, 1.6mm minimum wall, 45deg max overhang.
 - Split parts that exceed 180x180x180mm build volume.
 
 ### Step 4: Gate 2 (Printability & Aesthetics)
