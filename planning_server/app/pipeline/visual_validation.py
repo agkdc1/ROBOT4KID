@@ -232,16 +232,21 @@ def build_audit_context(model_type: str, model_name: str, reference_analysis: di
             "- There MUST be ground clearance between hull bottom and ground (correct).",
             "- Road wheels sit INSIDE the track belt loop.",
             "- Track belt (dark band at bottom) IS the ground contact surface.",
+            "- Camera aperture holes MUST exist in hull front (driver cam) and turret front (gunner cam + ToF).",
+            "- Without camera holes the tank is BLIND — flag as critical if missing.",
             "",
         ])
     elif model_type == "train":
         context.extend([
             "TRAIN PHYSICS:",
             "- This is a Plarail-compatible toy train (~130mm long).",
+            "- Wheels MUST be VERTICAL (standing upright), axles horizontal (Y-axis).",
+            "- CRITICAL: If wheels are lying flat/horizontal, this is a CRITICAL FAILURE.",
             "- Wheels/bogies touch rails, train body sits above on bogie mounts.",
             "- The nose must be aerodynamically smooth (no steps or cliff edges).",
             "- Internal components (motor, battery, camera) mount inside the body shell.",
             "- The body shell should be a recognizable Shinkansen/train shape.",
+            "- Camera aperture hole must exist in nose for ESP32-CAM lens.",
             "",
         ])
     else:

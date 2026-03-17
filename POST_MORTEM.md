@@ -47,3 +47,24 @@ Hull split line groove was flagged as "open hull gap."
 - Gemini audit prompt MUST include model-specific physics context (tank vs train vs other).
 - Visual aesthetic grooves on critical surfaces (top deck, bottom) can be misinterpreted as defects — keep them shallow or remove.
 - Always include a ground plane in assembly renders for contact verification.
+
+## Entry 003 — Train Wheel Orientation (2026-03-17)
+
+### [Issue]
+Train wheels rendered lying flat (horizontal) instead of standing upright (vertical).
+Gemini audit scored 10/10 without catching this critical physics violation.
+
+### [Root Cause]
+1. locomotive.scad only had wheel_bosses() (axle holes) — no actual visible wheel geometry.
+2. train_assembly.scad had no wheel cylinders at all.
+3. Gemini audit prompt lacked wheel orientation check for trains.
+
+### [Resolution]
+1. Added visible wheel cylinders to train_assembly.scad with rotate([90,0,0]) for vertical orientation.
+2. Added "wheels MUST be VERTICAL" as CRITICAL check in train audit context.
+3. Added camera aperture check for both tank and train audit contexts.
+
+### [Pipeline Update]
+- Always render visible wheel/track geometry in assembly files (not just axle holes).
+- Audit prompt must explicitly check physical orientation of wheels (vertical for trains, inside track belt for tanks).
+- Sensor aperture holes (camera, ToF) must be verified — without them the robot is BLIND.

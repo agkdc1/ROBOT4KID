@@ -116,6 +116,25 @@ batt_x = loco_main_length/2 - 77/2;
         n20_motor_dummy();
 
 // =====================================================================
+// Wheels — Plarail-compatible, VERTICAL orientation (rotate around Y-axis)
+// =====================================================================
+// Wheels are cylinders standing upright, axle runs in Y direction
+wheel_dia = 10;       // Plarail wheel diameter
+wheel_t   = 3;        // Wheel thickness
+track_gauge_half = 27 / 2;  // Half of Plarail track gauge
+wheel_z = -wheel_dia / 2;   // Bottom of wheel at ground level
+
+color("#333333")
+for (ax = [axle_x_rear, axle_x_front]) {
+    for (side = [-1, 1]) {
+        y_pos = side * (track_gauge_half + wheel_t / 2);
+        translate([ax, y_pos, 0])
+            rotate([90, 0, 0])  // Rotate so cylinder axis = Y (horizontal axle)
+                cylinder(h = wheel_t, d = wheel_dia, center = true, $fn = 32);
+    }
+}
+
+// =====================================================================
 // Ground Plane (visual reference)
 // =====================================================================
 color("#3a3a3a", 0.3)
