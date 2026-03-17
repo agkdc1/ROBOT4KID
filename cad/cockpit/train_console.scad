@@ -1,239 +1,621 @@
-// Train Console — RPi4 + 7" Touch Display + PS2 Joystick
-// Portable control station for train robot
-// Split into left and right halves for Bambu A1 Mini build volume
-// Overall: ~220 x 140 x 50mm (each half: 110 x 140 x 50mm)
+// Train Desktop Command Station
+// Kid-friendly control station for Shinkansen N700 Plarail train
+// Components: RPi4, 7" display, PS2 thumbstick, 100mm slide pot,
+//             4x Sanwa 24mm buttons, USB encoder, MCP3008 ADC,
+//             Anker PowerCore Slim 10000, iUniker USB-C power switch
+//
+// Split: front panel (display + controls) / rear base (electronics)
+// Each piece fits Bambu A1 Mini 180x180x180mm build volume
+//
+// Part selector via CLI: -D 'part="front"' / "rear" / "assembly"
 
 use <../libs/common.scad>
-use <../libs/electronics.scad>
-use <../libs/mounts.scad>
 use <../libs/m3_hardware.scad>
-use <../libs/m4_hardware.scad>
 
-// --- Console Dimensions ---
-TCONSOLE_WIDTH  = 220;              // Total width (split at 110mm)
-TCONSOLE_DEPTH  = 140;              // Front to back
-TCONSOLE_HEIGHT = 50;               // Overall height
-
-// --- Display (RPi 7" Touch) ---
-// From electronics.scad: RPI_DISPLAY_W=194, RPI_DISPLAY_H=110, RPI_DISPLAY_D=20
-display_tilt    = 15;               // Display tilt angle (degrees)
-display_bezel   = 5;                // Frame bezel width
-
-// --- RPi4 (mounted behind/below display) ---
-// From electronics.scad: RPI4_L=85, RPI4_W=56, RPI4_H=17
-rpi_standoff_h  = 5;                // M2.5 standoff height under RPi4
-
-// --- PS2 Joystick ---
-// From electronics.scad: PS2_JOY_L=40, PS2_JOY_W=40, PS2_JOY_H=32
-joystick_angle  = 20;               // Angled panel tilt (degrees)
-joy_panel_w     = 60;               // Joystick panel width
-joy_panel_d     = 50;               // Joystick panel depth
-
-// --- MCP3008 ADC ---
-// From electronics.scad: MCP3008_L=40, MCP3008_W=20, MCP3008_H=8
-
-// --- Anker PowerCore Slim 10000 ---
-// From electronics.scad: ANKER_SLIM_L=149, ANKER_SLIM_W=68, ANKER_SLIM_H=14
-
-// --- Structural ---
-wall            = 1.6;              // Wall thickness
-half_width      = TCONSOLE_WIDTH / 2;   // 110mm per half (< 180mm build limit)
-
-// --- Split Joint ---
-key_size        = 4;
-key_height      = 3;
-bolt_depth      = 10;
-
-// --- Rubber Feet ---
-foot_dia        = 8;
-foot_depth      = 2;
-
-// --- Ventilation ---
-vent_count      = 6;
-vent_w          = 3;
-vent_h          = 12;
-
-// --- Cable Management ---
-cable_ch_w      = 10;               // Internal cable channel width
-cable_ch_h      = 6;                // Internal cable channel depth
-ribbon_ch_w     = 18;               // DSI ribbon cable channel width
-ribbon_ch_h     = 4;                // DSI ribbon cable channel height
-
-// --- USB-C Pass-Through ---
-usbc_w          = 12;               // USB-C port opening width
-usbc_h          = 7;                // USB-C port opening height
-
-// --- Part Selector ---
-// Set via CLI: -D 'part="left"'
-part = "assembly";  // "left" | "right" | "assembly"
+// =====================================================================
+// Part Selector
+// =====================================================================
+part = "assembly";  // "front" | "rear" | "assembly"
 
 $fn = 64;
 
-// =====================================================
-// Component Placement (full console coordinate system)
-// =====================================================
+// =====================================================================
+// Structural Constants
+// =====================================================================
+WALL        = 3.0;      // Extra sturdy for desk use
+FLOOR       = 2.5;      // Bottom thickness
+FILLET      = 1.5;      // External corner fillets
+TOL         = 0.2;      // Print tolerance
+CLEARANCE   = 0.4;      // Drop-in clearance
 
-// Battery bay — centered underneath, long axis along width
-batt_x = (TCONSOLE_WIDTH - ANKER_SLIM_L) / 2;   // centered
-batt_y = (TCONSOLE_DEPTH - ANKER_SLIM_W) / 2;    // centered in depth
-batt_z = wall;                                     // sits on floor
+// =====================================================================
+// Component Dimensions (EXACT from spec)
+// =====================================================================
 
-// RPi4 — behind display, centered horizontally
-rpi_x  = (TCONSOLE_WIDTH - RPI4_L) / 2;
-rpi_y  = TCONSOLE_DEPTH - RPI4_W - wall - 5;     // near back
-rpi_z  = batt_z + ANKER_SLIM_H + 2;              // above battery
+// RPi 4B: 85x56x17mm board + 5mm heatsink = 22mm total
+RPI_L        = 85;
+RPI_W        = 56;
+RPI_H        = 17;
+RPI_HEATSINK = 5;       // Heatsink above board
+RPI_AIRFLOW  = 10;      // Airflow gap above heatsink
+RPI_MOUNT_X  = 58;      // M2.5 hole spacing X
+RPI_MOUNT_Y  = 49;      // M2.5 hole spacing Y
 
-// Display — top, centered, tilted
-disp_x = (TCONSOLE_WIDTH - RPI_DISPLAY_W) / 2;
-disp_y = TCONSOLE_DEPTH - RPI_DISPLAY_H - 10;    // near back
-disp_z = TCONSOLE_HEIGHT - 5;                     // near top
+// 7" RPi Touch Display: 194x110x20mm
+DISP_W       = 194;
+DISP_H       = 110;
+DISP_D       = 20;
+DISP_TILT    = 20;      // Tilt angle (degrees)
+DISP_MOUNT_X = 180;     // M2.5 hole spacing X
+DISP_MOUNT_Y = 96;      // M2.5 hole spacing Y
+DISP_BEZEL   = 5;       // Frame bezel width
 
-// Joystick — front center, on angled panel
-joy_x  = (TCONSOLE_WIDTH - PS2_JOY_L) / 2;
-joy_y  = 15;                                       // near front edge
-joy_z  = TCONSOLE_HEIGHT - 8;                      // panel surface
+// PS2 Thumbstick Module: 34x26x32mm (same as tank)
+JOY_L        = 34;
+JOY_W        = 26;
+JOY_H        = 32;      // Total including stick travel
+JOY_PCB_H    = 10;      // PCB + pots height
+JOY_STICK_DIA = 15;     // Stick diameter
 
-// MCP3008 — next to joystick, right side
-mcp_x  = joy_x + PS2_JOY_L + 10;
-mcp_y  = joy_y + 5;
-mcp_z  = rpi_z;
+// 100mm Slide Potentiometer (Bourns-style): 128x18x16mm
+SLIDER_L     = 128;     // Length (travel direction, mounted vertical)
+SLIDER_W     = 18;      // Width
+SLIDER_H     = 16;      // Height/depth
+SLIDER_SLOT_W = 4;      // Knob slot width
+SLIDER_KNOB_H = 12;     // Knob protrusion above panel
 
-// =====================================================
-// Modules
-// =====================================================
+// Sanwa 24mm Snap-in Buttons
+BTN_DIA      = 24;      // Mounting hole diameter
+BTN_SPACING  = 30;      // Center-to-center spacing
+BTN_DEPTH    = 20;      // Depth below panel
 
-module console_base_half() {
-    // One half of the outer shell
+// SJ@JX 822B USB Encoder: 95x35x10mm
+ENCODER_L    = 95;
+ENCODER_W    = 35;
+ENCODER_H    = 10;
+
+// MCP3008 ADC Breakout: 40x20x8mm
+ADC_L        = 40;
+ADC_W        = 20;
+ADC_H        = 8;
+
+// Anker PowerCore Slim 10000: 149x68x14mm
+ANKER_L      = 149;
+ANKER_W      = 68;
+ANKER_H      = 14;
+
+// iUniker USB-C Power Switch housing: 80x40x20mm
+SWITCH_L     = 80;
+SWITCH_W     = 40;
+SWITCH_H     = 20;
+
+// =====================================================================
+// Console Overall Dimensions
+// =====================================================================
+// Width: driven by display (194mm) + 2x wall + margin
+CONSOLE_W    = 220;
+// Depth: front controls (~55mm) + display base (~30mm) + RPi area (~60mm)
+CONSOLE_D    = 160;
+// Height: base layer (~20mm) + control panel (~35mm) + display support
+CONSOLE_BASE_H  = 22;   // Base layer (power bank + encoder + ADC)
+CONSOLE_PANEL_H = 40;   // Control panel height above base
+CONSOLE_H    = CONSOLE_BASE_H + CONSOLE_PANEL_H;  // 62mm total (without display)
+
+// Display backrest height (at rear wall, supports tilted display)
+DISP_BACK_H  = CONSOLE_H + DISP_H * sin(DISP_TILT);  // ~99.6mm
+
+// Split line: front/rear boundary (Y coordinate)
+SPLIT_Y      = 85;      // Controls in front, electronics in rear
+
+// =====================================================================
+// Layout Positions (origin = front-left-bottom of console)
+// =====================================================================
+
+// --- Bottom layer (Z = FLOOR) ---
+
+// Anker power bank: centered in rear base, on floor
+anker_x = (CONSOLE_W - ANKER_L) / 2;
+anker_y = SPLIT_Y + (CONSOLE_D - SPLIT_Y - ANKER_W) / 2;
+anker_z = FLOOR;
+
+// USB Encoder: front-left of base layer
+encoder_x = WALL + 2;
+encoder_y = WALL + 2;
+encoder_z = FLOOR;
+
+// MCP3008 ADC: front-right of base layer, near throttle
+adc_x = CONSOLE_W - WALL - ADC_L - 5;
+adc_y = WALL + 2;
+adc_z = FLOOR;
+
+// iUniker power switch: right side slot
+switch_x = CONSOLE_W - WALL - SWITCH_L;
+switch_y = SPLIT_Y + 5;
+switch_z = FLOOR;
+
+// --- Control panel (Z = CONSOLE_BASE_H) ---
+
+// PS2 Joystick: left panel
+joy_x = WALL + 8;
+joy_y = 10;
+joy_z = CONSOLE_BASE_H;
+
+// Button panel: center, 2x2 grid
+btn_center_x = CONSOLE_W / 2;
+btn_center_y = 30;
+btn_z = CONSOLE_BASE_H;
+
+// Slide potentiometer: right panel (vertical orientation)
+slider_x = CONSOLE_W - WALL - 25;
+slider_y = 10;
+slider_z = CONSOLE_BASE_H;
+
+// --- Display area (rear, tilted) ---
+
+// Display: centered horizontally, at rear
+disp_x = (CONSOLE_W - DISP_W) / 2;
+disp_y = SPLIT_Y + 5;
+disp_z = CONSOLE_H;
+
+// RPi4: behind/below display, vertically mounted against rear wall
+rpi_x = (CONSOLE_W - RPI_L) / 2;
+rpi_y = CONSOLE_D - WALL - RPI_W - 2;
+rpi_z = CONSOLE_BASE_H + 5;  // Standoff base height
+
+// =====================================================================
+// M2.5 Standoff Module (local, from m3_hardware.scad dimensions)
+// =====================================================================
+module m25_standoff_local(height=5, outer_dia=5.5) {
     difference() {
-        rounded_cube([half_width, TCONSOLE_DEPTH, TCONSOLE_HEIGHT], r=3);
-        // Hollow interior
-        translate([wall, wall, wall])
-            cube([half_width - wall, TCONSOLE_DEPTH - 2 * wall, TCONSOLE_HEIGHT]);
+        cylinder(h=height, d=outer_dia);
+        translate([0, 0, -0.05])
+            cylinder(h=height + 0.1, d=M25_HOLE_DIA);
     }
 }
 
-module display_frame_cutout() {
-    // Tilted display frame opening on top surface
-    // Full console coordinate system
-    translate([disp_x - display_bezel, disp_y - display_bezel, disp_z])
-    rotate([-display_tilt, 0, 0]) {
-        // Display recess
-        cube([RPI_DISPLAY_W + 2 * display_bezel,
-              RPI_DISPLAY_H + 2 * display_bezel,
-              RPI_DISPLAY_D + 5]);
-        // Viewing window through shell
-        translate([display_bezel + 5, display_bezel + 5, -wall - 0.1])
-            cube([RPI_DISPLAY_W - 10, RPI_DISPLAY_H - 10, wall + 0.2]);
+// =====================================================================
+// Module: display_mount()
+// 20-degree tilted frame for 7" RPi touch display
+// =====================================================================
+module display_mount() {
+    translate([disp_x, disp_y, disp_z]) {
+        rotate([-DISP_TILT, 0, 0]) {
+            // Support frame — outer border with viewing window
+            difference() {
+                // Outer frame with bezel
+                cube([DISP_W + 2 * DISP_BEZEL,
+                      DISP_H + 2 * DISP_BEZEL,
+                      WALL]);
+                // Viewing window (active area)
+                translate([DISP_BEZEL + 8, DISP_BEZEL + 8, -0.1])
+                    cube([DISP_W - 16, DISP_H - 16, WALL + 0.2]);
+            }
+
+            // Rear support lip to hold display in frame
+            translate([0, 0, WALL])
+            difference() {
+                cube([DISP_W + 2 * DISP_BEZEL,
+                      DISP_H + 2 * DISP_BEZEL,
+                      DISP_D + 2]);
+                // Cavity for display body
+                translate([DISP_BEZEL - TOL, DISP_BEZEL - TOL, -0.1])
+                    cube([DISP_W + 2 * TOL, DISP_H + 2 * TOL, DISP_D + 0.1]);
+                // Open back for cables
+                translate([DISP_BEZEL + 20, DISP_BEZEL + 20, DISP_D - 5])
+                    cube([DISP_W - 40, DISP_H - 40, 10]);
+            }
+
+            // M2.5 standoff posts (4 corners of display mount pattern)
+            disp_off_x = (DISP_W - DISP_MOUNT_X) / 2 + DISP_BEZEL;
+            disp_off_y = (DISP_H - DISP_MOUNT_Y) / 2 + DISP_BEZEL;
+            for (dx = [0, DISP_MOUNT_X])
+                for (dy = [0, DISP_MOUNT_Y])
+                    translate([disp_off_x + dx, disp_off_y + dy, WALL])
+                        m25_standoff_local(height=3);
+        }
+
+        // Triangular support struts connecting display frame to console top
+        // Left strut
+        translate([-DISP_BEZEL, 0, 0])
+        hull() {
+            cube([WALL, 2, 0.1]);
+            rotate([-DISP_TILT, 0, 0])
+                translate([0, 0, -0.1])
+                    cube([WALL, 2, 0.1]);
+        }
+        // Right strut
+        translate([DISP_W + DISP_BEZEL, 0, 0])
+        hull() {
+            cube([WALL, 2, 0.1]);
+            rotate([-DISP_TILT, 0, 0])
+                translate([0, 0, -0.1])
+                    cube([WALL, 2, 0.1]);
+        }
+    }
+
+    // Rear backrest wall to support tilted display
+    // Extends from console top up to display back edge
+    backrest_h = DISP_H * sin(DISP_TILT) + DISP_D * cos(DISP_TILT) + 10;
+    translate([disp_x - DISP_BEZEL, CONSOLE_D - WALL, CONSOLE_H - 5])
+        cube([DISP_W + 2 * DISP_BEZEL, WALL, backrest_h]);
+}
+
+// =====================================================================
+// Module: rpi4_mount()
+// Behind display, 4x M2.5 standoffs, heatsink + airflow clearance
+// =====================================================================
+module rpi4_mount() {
+    standoff_h = 5;
+
+    translate([rpi_x, rpi_y, rpi_z]) {
+        // 4x M2.5 standoffs at 58x49mm pattern
+        off_x = (RPI_L - RPI_MOUNT_X) / 2;
+        off_y = (RPI_W - RPI_MOUNT_Y) / 2;
+        for (dx = [0, RPI_MOUNT_X])
+            for (dy = [0, RPI_MOUNT_Y])
+                translate([off_x + dx, off_y + dy, 0])
+                    m25_standoff_local(height=standoff_h);
+
+        // Support platform connecting standoffs
+        cube([RPI_L, 3, standoff_h]);
+        translate([0, RPI_W - 3, 0])
+            cube([RPI_L, 3, standoff_h]);
     }
 }
 
-module display_mount_standoffs() {
-    // M2.5 standoffs for display mounting
-    // Full console coordinate system
-    translate([disp_x, disp_y, disp_z - rpi_standoff_h])
-    rotate([-display_tilt, 0, 0])
-        rpi_display_7in_mount(standoff_h=rpi_standoff_h);
+// =====================================================================
+// Module: rpi4_rear_cutout()
+// Cutout in rear wall for Ethernet + 2x USB-A ports
+// =====================================================================
+module rpi4_rear_cutout() {
+    // RPi4 USB/Ethernet ports are on the long edge at +X direction
+    // Port block: ~45mm wide x 17mm tall, on the back face
+    port_w = 50;
+    port_h = RPI_H + RPI_HEATSINK + 5;  // Generous clearance
+    port_x = rpi_x + RPI_L - 5;         // Ports near one end
+    port_z = rpi_z;
+
+    translate([rpi_x + 15, CONSOLE_D - WALL - 0.1, port_z])
+        cube([port_w, WALL + 0.2, port_h]);
 }
 
-module rpi4_mount_area() {
-    // RPi4 M2.5 standoffs behind display
-    translate([rpi_x, rpi_y, rpi_z])
-        rpi4_mount(standoff_h=rpi_standoff_h);
-}
-
+// =====================================================================
+// Module: rpi4_ventilation()
+// Vent slots above RPi4 heatsink for airflow
+// =====================================================================
 module rpi4_ventilation() {
-    // Vent slots on back wall above RPi4
-    slot_spacing = 50 / (vent_count - 1);
-    vent_start_x = rpi_x + 10;
-    vent_z_start = rpi_z + 3;
+    vent_count = 8;
+    vent_w = 3;
+    vent_len = 40;
+    vent_spacing = 7;
+    start_x = rpi_x + (RPI_L - vent_count * vent_spacing) / 2;
+    vent_z = rpi_z + 5 + RPI_H + RPI_HEATSINK + RPI_AIRFLOW;
 
-    for (i = [0 : vent_count - 1]) {
-        translate([vent_start_x + i * slot_spacing, TCONSOLE_DEPTH - wall - 0.1, vent_z_start])
-            cube([vent_w, wall + 0.2, vent_h]);
+    // Top surface vents (if covered by top panel)
+    for (i = [0 : vent_count - 1])
+        translate([start_x + i * vent_spacing, rpi_y + 5, CONSOLE_H - WALL - 0.1])
+            cube([vent_w, RPI_W - 10, WALL + 0.2]);
+
+    // Rear wall vents for cross-flow
+    for (i = [0 : 5])
+        translate([rpi_x + 10 + i * 10, CONSOLE_D - WALL - 0.1, rpi_z + 5])
+            cube([vent_w, WALL + 0.2, RPI_H + 5]);
+}
+
+// =====================================================================
+// Module: joystick_mount()
+// Left panel — PS2 thumbstick pokes through angled surface
+// =====================================================================
+module joystick_mount() {
+    translate([joy_x, joy_y, joy_z]) {
+        // Raised angled platform for joystick
+        panel_w = JOY_L + 16;
+        panel_d = JOY_W + 14;
+        panel_angle = 15;  // Slight tilt toward operator
+
+        // Platform base
+        difference() {
+            // Angled panel
+            hull() {
+                cube([panel_w, panel_d, WALL]);
+                translate([0, 0, 12])
+                    cube([panel_w, 3, WALL]);
+            }
+
+            // Joystick stick hole (centered)
+            translate([panel_w / 2, panel_d / 2, -0.1])
+                cylinder(h=20, d=JOY_STICK_DIA + 3);
+        }
+
+        // Side cradle walls for PCB
+        cradle_h = JOY_PCB_H + 3;
+        cradle_wall = 2;
+        // Left wall
+        translate([5, 5, -cradle_h])
+            cube([cradle_wall, JOY_W + TOL, cradle_h]);
+        // Right wall
+        translate([5 + cradle_wall + JOY_L + CLEARANCE, 5, -cradle_h])
+            cube([cradle_wall, JOY_W + TOL, cradle_h]);
+        // Back wall
+        translate([5, 5 + JOY_W + CLEARANCE, -cradle_h])
+            cube([JOY_L + 2 * cradle_wall + CLEARANCE, cradle_wall, cradle_h]);
+
+        // Shelf for PCB to rest on
+        translate([5, 5, -cradle_h])
+            cube([JOY_L + 2 * cradle_wall + CLEARANCE, JOY_W + CLEARANCE + cradle_wall, 2]);
     }
 }
 
-module joystick_panel_cutout() {
-    // Angled panel area in front for joystick
-    // Full console coordinate system
-    panel_base_h = 10;  // base height before angle starts
+// =====================================================================
+// Module: joystick_cutout()
+// Hole for joystick stick through panel
+// =====================================================================
+module joystick_cutout() {
+    translate([joy_x + (JOY_L + 16) / 2, joy_y + (JOY_W + 14) / 2, joy_z - 1])
+        cylinder(h=20, d=JOY_STICK_DIA + 3);
+}
 
-    translate([joy_x - 10, joy_y - 5, TCONSOLE_HEIGHT - 15])
-    rotate([-joystick_angle, 0, 0]) {
-        // Cutout for joystick stick to poke through
-        translate([10 + PS2_JOY_L / 2, 5 + PS2_JOY_W / 2, -wall - 0.1])
-            cylinder(h=wall + 5, d=PS2_JOY_STICK_DIA + 4);
+// =====================================================================
+// Module: throttle_slot()
+// Right panel — 100mm slide potentiometer in vertical slot
+// =====================================================================
+module throttle_slot() {
+    translate([slider_x, slider_y, slider_z]) {
+        // Vertical mounting frame for slider
+        frame_w = SLIDER_W + 12;
+        frame_h = SLIDER_L + 10;  // Vertical travel direction
+
+        // Mounting frame (raised panel on right side)
+        difference() {
+            // Frame body
+            hull() {
+                cube([frame_w, WALL + SLIDER_H + 2, 5]);
+                translate([0, 0, frame_h])
+                    cube([frame_w, WALL + SLIDER_H + 2, 3]);
+            }
+
+            // Slider body cavity
+            translate([(frame_w - SLIDER_W - CLEARANCE) / 2,
+                       WALL,
+                       5])
+                cube([SLIDER_W + CLEARANCE,
+                      SLIDER_H + CLEARANCE,
+                      SLIDER_L + CLEARANCE]);
+
+            // Knob slot (through front face) — long vertical slot
+            translate([(frame_w - SLIDER_SLOT_W) / 2,
+                       -0.1,
+                       5 + 5])
+                cube([SLIDER_SLOT_W + 2,
+                      WALL + 0.2,
+                      SLIDER_L - 10]);
+        }
+
+        // Retaining clips at top and bottom
+        clip_w = 8;
+        clip_depth = 1.5;
+        for (z_off = [7, frame_h - 5])
+            translate([(frame_w - clip_w) / 2, WALL + SLIDER_H + CLEARANCE, z_off])
+                cube([clip_w, clip_depth, 3]);
     }
 }
 
-module joystick_mount_area() {
-    // PS2 joystick standoffs on angled panel
-    translate([joy_x, joy_y, joy_z - PS2_JOY_PCB_H - 5])
-        ps2_joystick_mount(standoff_h=5);
+// =====================================================================
+// Module: button_panel()
+// Center front — 4x Sanwa 24mm snap-in button holes in 2x2 grid
+// =====================================================================
+module button_panel() {
+    // 2x2 grid centered at btn_center_x, btn_center_y
+    translate([btn_center_x, btn_center_y, btn_z]) {
+        // Raised panel surface
+        panel_w = BTN_SPACING + BTN_DIA + 16;
+        panel_d = BTN_SPACING + BTN_DIA + 16;
+
+        difference() {
+            // Panel body
+            translate([-panel_w / 2, -panel_d / 2, 0])
+                rounded_cube([panel_w, panel_d, WALL + 2], r=FILLET);
+
+            // 4x button holes (2x2 grid)
+            for (col = [-0.5, 0.5])
+                for (row = [-0.5, 0.5])
+                    translate([col * BTN_SPACING, row * BTN_SPACING, -0.1])
+                        cylinder(h=WALL + 2 + 0.2, d=BTN_DIA + TOL);
+        }
+    }
 }
 
-module mcp3008_mount_area() {
-    // MCP3008 rail mount next to joystick
-    translate([mcp_x, mcp_y, mcp_z])
-        mcp3008_mount(standoff_h=5);
+// =====================================================================
+// Module: button_cutouts()
+// Subtracted from shell — 4x holes for snap-in buttons
+// =====================================================================
+module button_cutouts() {
+    for (col = [-0.5, 0.5])
+        for (row = [-0.5, 0.5])
+            translate([btn_center_x + col * BTN_SPACING,
+                       btn_center_y + row * BTN_SPACING,
+                       btn_z - 0.1])
+                cylinder(h=WALL + 5, d=BTN_DIA + TOL);
 }
 
-module battery_bay() {
-    // Pocket for Anker PowerCore Slim 10000
-    // Full console coordinate system
-    tol = 0.3;
-    translate([batt_x - tol, batt_y - tol, batt_z - 0.1])
-        cube([ANKER_SLIM_L + 2 * tol, ANKER_SLIM_W + 2 * tol, ANKER_SLIM_H + tol + 0.1]);
+// =====================================================================
+// Module: encoder_bay()
+// Under console — SJ@JX 822B USB Encoder
+// =====================================================================
+module encoder_bay() {
+    translate([encoder_x, encoder_y, encoder_z]) {
+        // Rail mount cradle
+        rail_w = 2.5;
+        inner_l = ENCODER_L + CLEARANCE;
+        inner_w = ENCODER_W + CLEARANCE;
 
-    // Access opening on one short side for USB-C ports
-    translate([batt_x + ANKER_SLIM_L - 0.1, batt_y + 10, batt_z])
-        cube([wall + 5, ANKER_SLIM_W - 20, ANKER_SLIM_H]);
+        // Base
+        cube([inner_l + 2 * rail_w, inner_w + 2 * rail_w, 1.5]);
+        // Side rails
+        cube([inner_l + 2 * rail_w, rail_w, ENCODER_H + 2]);
+        translate([0, rail_w + inner_w, 0])
+            cube([inner_l + 2 * rail_w, rail_w, ENCODER_H + 2]);
+        // Back stop
+        cube([rail_w, inner_w + 2 * rail_w, ENCODER_H + 2]);
+    }
 }
 
-module battery_bay_cradle() {
-    // Retaining lips for battery
-    lip = 1.5;
-    lip_h = 2;
-    // Corner lips
-    for (x = [batt_x - 0.5, batt_x + ANKER_SLIM_L - lip])
-        for (y = [batt_y - 0.5, batt_y + ANKER_SLIM_W - lip])
-            translate([x, y, batt_z + ANKER_SLIM_H])
-                cube([lip + 0.5, lip + 0.5, lip_h]);
+// =====================================================================
+// Module: adc_mount()
+// Near throttle — MCP3008 on M2.5 standoffs
+// =====================================================================
+module adc_mount() {
+    standoff_h = 4;
+    translate([adc_x, adc_y, adc_z]) {
+        // 2x M2.5 standoffs along center length
+        mount_spacing = 32;  // MCP3008 typical hole spacing
+        off_x = (ADC_L - mount_spacing) / 2;
+        center_y = ADC_W / 2;
+
+        for (dx = [0, mount_spacing])
+            translate([off_x + dx, center_y, 0])
+                m25_standoff_local(height=standoff_h);
+
+        // Support rails
+        cube([ADC_L, 2, standoff_h]);
+        translate([0, ADC_W - 2, 0])
+            cube([ADC_L, 2, standoff_h]);
+    }
 }
 
-module ribbon_cable_channel() {
-    // DSI ribbon cable channel from RPi4 to display
-    // Full console coordinate system
-    translate([TCONSOLE_WIDTH / 2 - ribbon_ch_w / 2, rpi_y + RPI4_W - 5, rpi_z + RPI4_H])
-        cube([ribbon_ch_w, 20, disp_z - rpi_z - RPI4_H + 5]);
+// =====================================================================
+// Module: power_bay()
+// Anker PowerCore cradle + iUniker switch side slot
+// =====================================================================
+module power_bay() {
+    // --- Anker PowerCore Slim 10000 cradle ---
+    translate([anker_x, anker_y, anker_z]) {
+        cradle_wall = 2.5;
+        inner_l = ANKER_L + CLEARANCE;
+        inner_w = ANKER_W + CLEARANCE;
+        cradle_h = ANKER_H * 0.7;
+
+        // Cradle walls
+        difference() {
+            cube([inner_l + 2 * cradle_wall, inner_w + 2 * cradle_wall, cradle_h]);
+            translate([cradle_wall, cradle_wall, 2])
+                cube([inner_l, inner_w, cradle_h + 1]);
+        }
+
+        // Retaining lips at corners
+        lip = 2;
+        for (x = [0, inner_l + cradle_wall])
+            for (y = [0, inner_w + cradle_wall])
+                translate([x, y, cradle_h])
+                    cube([cradle_wall, cradle_wall, lip]);
+    }
 }
 
-module gpio_cable_channel() {
-    // Internal cable routing from RPi4 GPIO to MCP3008 to joystick
-    // Full console coordinate system
-    // Horizontal channel from RPi4 GPIO area to MCP3008
-    translate([rpi_x + RPI4_L - 55, rpi_y - 5, rpi_z - 1])
-        cube([cable_ch_w, rpi_y - mcp_y + 15, cable_ch_h]);
-
-    // Vertical channel from MCP3008 down to joystick area
-    translate([mcp_x + MCP3008_L / 2 - cable_ch_w / 2, joy_y + PS2_JOY_W, mcp_z - 2])
-        cube([cable_ch_w, mcp_y - joy_y - PS2_JOY_W + 10, cable_ch_h]);
+// =====================================================================
+// Module: anker_usbc_cutout()
+// Side cutout for Anker USB-C charging port
+// =====================================================================
+module anker_usbc_cutout() {
+    // USB-C port on short end of Anker — expose through side wall
+    usbc_w = 14;
+    usbc_h = 10;
+    translate([anker_x + ANKER_L + 1, anker_y + (ANKER_W - usbc_w) / 2, anker_z])
+        cube([WALL + 5, usbc_w, usbc_h]);
 }
 
-module usbc_passthrough() {
-    // USB-C power pass-through opening on back wall
-    translate([TCONSOLE_WIDTH / 2 - usbc_w / 2, TCONSOLE_DEPTH - wall - 0.1, wall + ANKER_SLIM_H / 2 - usbc_h / 2])
-        cube([usbc_w, wall + 0.2, usbc_h]);
+// =====================================================================
+// Module: power_switch_slot()
+// Dedicated side-mount slot for iUniker USB-C power switch
+// =====================================================================
+module power_switch_slot() {
+    // Right side of console, accessible slot
+    slot_x = CONSOLE_W - WALL - 0.1;
+    slot_y = switch_y;
+    slot_z = switch_z;
+
+    // Through-wall opening for switch housing
+    translate([slot_x, slot_y, slot_z])
+        cube([WALL + 0.2, SWITCH_L + CLEARANCE, SWITCH_H + CLEARANCE]);
+
+    // Internal cavity for switch body
+    translate([CONSOLE_W - WALL - SWITCH_W - 2, slot_y, slot_z])
+        cube([SWITCH_W + 2, SWITCH_L + CLEARANCE, SWITCH_H + CLEARANCE]);
 }
 
-module rubber_feet_recesses() {
-    // 4x rubber foot recesses on bottom
-    inset = 12;
+// =====================================================================
+// Module: cable_guides()
+// SPI signal vs power wire separation
+// =====================================================================
+module cable_guides() {
+    guide_wall = 1.5;
+    guide_h = 10;
+
+    // --- SPI signal channel (MCP3008 to RPi4 GPIO) ---
+    // Runs from ADC area toward rear (RPi4)
+    translate([adc_x + ADC_L / 2 - 5, adc_y + ADC_W + 2, FLOOR]) {
+        // Left wall
+        cube([guide_wall, SPLIT_Y - adc_y - ADC_W, guide_h]);
+        // Right wall (10mm channel width)
+        translate([10 + guide_wall, 0, 0])
+            cube([guide_wall, SPLIT_Y - adc_y - ADC_W, guide_h]);
+    }
+
+    // --- Power wire channel (Anker to encoder, switch) ---
+    // Runs along left side of base
+    translate([WALL + 2, WALL + ENCODER_W + 8, FLOOR]) {
+        cube([guide_wall, SPLIT_Y - WALL - ENCODER_W - 10, guide_h]);
+        translate([15 + guide_wall, 0, 0])
+            cube([guide_wall, SPLIT_Y - WALL - ENCODER_W - 10, guide_h]);
+    }
+
+    // --- Divider wall between SPI and power zones ---
+    translate([CONSOLE_W / 2 - guide_wall / 2, WALL + 2, FLOOR])
+        cube([guide_wall, SPLIT_Y - WALL - 5, guide_h + 2]);
+}
+
+// =====================================================================
+// Module: console_shell()
+// Complete outer shell with filleted corners
+// =====================================================================
+module console_shell() {
+    difference() {
+        union() {
+            // Main box body
+            rounded_cube([CONSOLE_W, CONSOLE_D, CONSOLE_H], r=FILLET);
+
+            // Display backrest (raised rear wall)
+            translate([0, CONSOLE_D - WALL - 3, 0])
+                rounded_cube([CONSOLE_W, WALL + 3, DISP_BACK_H], r=FILLET);
+        }
+
+        // Hollow interior
+        translate([WALL, WALL, FLOOR])
+            cube([CONSOLE_W - 2 * WALL,
+                  CONSOLE_D - 2 * WALL,
+                  CONSOLE_H + DISP_BACK_H]);  // Open top
+
+        // Display backrest interior
+        translate([WALL, CONSOLE_D - WALL - 3 + WALL, FLOOR])
+            cube([CONSOLE_W - 2 * WALL,
+                  3,
+                  DISP_BACK_H]);
+    }
+}
+
+// =====================================================================
+// Module: rubber_feet()
+// 4x recesses on bottom for adhesive rubber feet
+// =====================================================================
+module rubber_feet() {
+    foot_dia = 10;
+    foot_depth = 1.5;
+    inset = 15;
+
     positions = [
-        [inset,                     inset],
-        [TCONSOLE_WIDTH - inset,    inset],
-        [inset,                     TCONSOLE_DEPTH - inset],
-        [TCONSOLE_WIDTH - inset,    TCONSOLE_DEPTH - inset]
+        [inset,                 inset],
+        [CONSOLE_W - inset,     inset],
+        [inset,                 CONSOLE_D - inset],
+        [CONSOLE_W - inset,     CONSOLE_D - inset]
     ];
 
     for (p = positions)
@@ -241,326 +623,245 @@ module rubber_feet_recesses() {
             cylinder(h=foot_depth + 0.1, d=foot_dia);
 }
 
-module side_ventilation() {
-    // Vent slots on both side walls for RPi4 airflow
-    vent_z_start = rpi_z;
-    vent_spacing = (vent_h + 4);
-
-    for (side = [0, 1]) {
-        x_pos = side == 0 ? -0.1 : TCONSOLE_WIDTH - wall;
-        for (i = [0 : 2]) {
-            translate([x_pos, TCONSOLE_DEPTH / 2 - 15 + i * 12, vent_z_start + 2])
-                cube([wall + 0.2, vent_w, vent_h]);
-        }
-    }
-}
-
-// =====================================================
-// Split Joint (same pattern as tank console_cradle.scad)
-// =====================================================
+// =====================================================================
+// Module: split_keys()
+// Alignment keys/sockets along the split line (Y = SPLIT_Y)
+// =====================================================================
+KEY_SIZE   = 5;
+KEY_HEIGHT = 4;
 
 module split_keys_male() {
-    key_y1 = TCONSOLE_DEPTH * 0.25;
-    key_y2 = TCONSOLE_DEPTH * 0.75;
-    key_z  = TCONSOLE_HEIGHT * 0.33;
-
-    translate([half_width, key_y1, key_z])
-        rotate([0, 90, 0])
-            split_key(size=key_size, height=key_height);
-    translate([half_width, key_y2, key_z])
-        rotate([0, 90, 0])
-            split_key(size=key_size, height=key_height);
+    // Male keys on front piece, facing rear
+    for (x = [CONSOLE_W * 0.25, CONSOLE_W * 0.75])
+        for (z = [CONSOLE_H * 0.33, CONSOLE_H * 0.66])
+            translate([x, SPLIT_Y, z])
+                rotate([-90, 0, 0])
+                    split_key(size=KEY_SIZE, height=KEY_HEIGHT);
 }
 
-module split_sockets_female() {
-    key_y1 = TCONSOLE_DEPTH * 0.25;
-    key_y2 = TCONSOLE_DEPTH * 0.75;
-    key_z  = TCONSOLE_HEIGHT * 0.33;
-
-    translate([0, key_y1, key_z])
-        rotate([0, 90, 0])
-            split_socket(size=key_size, height=key_height);
-    translate([0, key_y2, key_z])
-        rotate([0, 90, 0])
-            split_socket(size=key_size, height=key_height);
+module split_keys_female() {
+    // Female sockets on rear piece, facing front
+    for (x = [CONSOLE_W * 0.25, CONSOLE_W * 0.75])
+        for (z = [CONSOLE_H * 0.33, CONSOLE_H * 0.66])
+            translate([x, SPLIT_Y, z])
+                rotate([-90, 0, 0])
+                    split_socket(size=KEY_SIZE, height=KEY_HEIGHT);
 }
 
-module split_bolts_left() {
-    bolt_y1 = TCONSOLE_DEPTH * 0.25;
-    bolt_y2 = TCONSOLE_DEPTH * 0.75;
-    bolt_z  = TCONSOLE_HEIGHT * 0.66;
-
-    translate([half_width - bolt_depth / 2, bolt_y1, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth=bolt_depth);
-    translate([half_width - bolt_depth / 2, bolt_y2, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth=bolt_depth);
+// M3 bolt holes along split seam
+module split_bolts() {
+    bolt_depth = 12;
+    for (x = [CONSOLE_W * 0.2, CONSOLE_W * 0.5, CONSOLE_W * 0.8])
+        translate([x, SPLIT_Y, CONSOLE_H * 0.5])
+            rotate([-90, 0, 0])
+                translate([0, 0, -bolt_depth / 2])
+                    m3_hole(depth=bolt_depth);
 }
 
-module split_bolts_right() {
-    bolt_y1 = TCONSOLE_DEPTH * 0.25;
-    bolt_y2 = TCONSOLE_DEPTH * 0.75;
-    bolt_z  = TCONSOLE_HEIGHT * 0.66;
-
-    translate([-bolt_depth / 2, bolt_y1, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth=bolt_depth);
-    translate([-bolt_depth / 2, bolt_y2, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth=bolt_depth);
-}
-
-// =====================================================
-// Dummy Component Visualization
-// =====================================================
-
-module show_components() {
-    // Display dummy
-    color("DarkSlateGray", 0.4)
-    translate([disp_x, disp_y, disp_z])
-    rotate([-display_tilt, 0, 0])
-        rpi_display_7in_dummy();
-
-    // RPi4 dummy
-    color("Green", 0.4)
-    translate([rpi_x, rpi_y, rpi_z + rpi_standoff_h])
-        rpi4_dummy();
-
-    // PS2 joystick dummy
-    color("Blue", 0.4)
-    translate([joy_x, joy_y, joy_z - PS2_JOY_PCB_H])
-        ps2_joystick_dummy();
-
-    // MCP3008 dummy
-    color("Red", 0.4)
-    translate([mcp_x, mcp_y, mcp_z + 5])
-        mcp3008_dummy();
-
-    // Anker battery dummy
-    color("Gray", 0.3)
-    translate([batt_x, batt_y, batt_z])
-        anker_slim10000_dummy();
-}
-
-// =====================================================
-// Half Assemblies
-// =====================================================
-
-module console_left() {
+// =====================================================================
+// Module: console_front()
+// Front piece: display frame area + control panel + front base
+// Printable part (fits 180x180x180mm on its back)
+// =====================================================================
+module console_front() {
     difference() {
         union() {
-            console_base_half();
-            // Alignment keys
+            // Front portion of shell
+            intersection() {
+                console_shell();
+                cube([CONSOLE_W + 10, SPLIT_Y, DISP_BACK_H + 10]);
+            }
+
+            // Male alignment keys
             split_keys_male();
-            // Battery retaining lips (left portion)
+
+            // Joystick mount
+            joystick_mount();
+
+            // Button panel
+            button_panel();
+
+            // Throttle slot frame
+            throttle_slot();
+
+            // Encoder bay
+            encoder_bay();
+
+            // ADC mount
+            adc_mount();
+
+            // Cable guides (front portion)
             intersection() {
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-                battery_bay_cradle();
-            }
-            // Display mount standoffs (left portion)
-            intersection() {
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 50, TCONSOLE_HEIGHT + 50]);
-                display_mount_standoffs();
-            }
-            // RPi4 mount standoffs (left portion)
-            intersection() {
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-                rpi4_mount_area();
-            }
-            // Joystick mount (left portion)
-            intersection() {
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-                joystick_mount_area();
+                cable_guides();
+                cube([CONSOLE_W + 10, SPLIT_Y, CONSOLE_H + 10]);
             }
         }
 
-        // Display frame cutout (left portion)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 50, TCONSOLE_HEIGHT + 50]);
-            display_frame_cutout();
-        }
+        // Joystick hole through panel
+        joystick_cutout();
 
-        // Joystick panel cutout (left portion)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            joystick_panel_cutout();
-        }
+        // Button holes
+        button_cutouts();
 
-        // Battery bay (left portion)
+        // Rubber feet (front portion)
         intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            battery_bay();
-        }
-
-        // Ribbon cable channel (left portion)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            ribbon_cable_channel();
-        }
-
-        // GPIO cable channel (left portion)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            gpio_cable_channel();
-        }
-
-        // RPi4 ventilation (left portion)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            rpi4_ventilation();
-        }
-
-        // Side ventilation (left wall)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            side_ventilation();
-        }
-
-        // USB-C pass-through (left portion)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            usbc_passthrough();
-        }
-
-        // Rubber feet (left side)
-        intersection() {
-            cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            rubber_feet_recesses();
+            rubber_feet();
+            cube([CONSOLE_W + 10, SPLIT_Y, CONSOLE_H + 10]);
         }
 
         // Split bolt holes
-        split_bolts_left();
+        split_bolts();
     }
 }
 
-module console_right() {
-    // Right half — origin at seam, extends to +half_width
+// =====================================================================
+// Module: console_rear()
+// Rear piece: RPi4 area, display support, power bay, switch slot
+// Printable part (fits 180x180x180mm)
+// =====================================================================
+module console_rear() {
     difference() {
         union() {
-            console_base_half();
-            // Battery retaining lips (right portion)
+            // Rear portion of shell (including display backrest)
             intersection() {
-                translate([-0.1, 0, 0])
-                    cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-                translate([-half_width, 0, 0])
-                    battery_bay_cradle();
+                console_shell();
+                translate([0, SPLIT_Y, 0])
+                    cube([CONSOLE_W + 10,
+                          CONSOLE_D - SPLIT_Y + 10,
+                          DISP_BACK_H + 10]);
             }
-            // Display mount standoffs (right portion)
+
+            // RPi4 mount standoffs
+            rpi4_mount();
+
+            // Power bay cradle
             intersection() {
-                translate([-0.1, 0, 0])
-                    cube([half_width + 0.1, TCONSOLE_DEPTH + 50, TCONSOLE_HEIGHT + 50]);
-                translate([-half_width, 0, 0])
-                    display_mount_standoffs();
+                power_bay();
+                translate([0, SPLIT_Y, 0])
+                    cube([CONSOLE_W + 10, CONSOLE_D, CONSOLE_H + 10]);
             }
-            // RPi4 mount standoffs (right portion)
+
+            // Display mount frame and backrest
+            display_mount();
+
+            // Cable guides (rear portion)
             intersection() {
-                translate([-0.1, 0, 0])
-                    cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-                translate([-half_width, 0, 0])
-                    rpi4_mount_area();
-            }
-            // MCP3008 mount (right portion)
-            intersection() {
-                translate([-0.1, 0, 0])
-                    cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-                translate([-half_width, 0, 0])
-                    mcp3008_mount_area();
+                cable_guides();
+                translate([0, SPLIT_Y, 0])
+                    cube([CONSOLE_W + 10, CONSOLE_D, CONSOLE_H + 10]);
             }
         }
 
-        // Alignment sockets
-        split_sockets_female();
+        // Female alignment sockets
+        split_keys_female();
 
-        // Display frame cutout (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 50, TCONSOLE_HEIGHT + 50]);
-            translate([-half_width, 0, 0])
-                display_frame_cutout();
-        }
+        // RPi4 Ethernet + USB rear cutout
+        rpi4_rear_cutout();
 
-        // Joystick panel cutout (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                joystick_panel_cutout();
-        }
+        // RPi4 ventilation slots
+        rpi4_ventilation();
 
-        // Battery bay (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                battery_bay();
-        }
+        // Anker USB-C port cutout
+        anker_usbc_cutout();
 
-        // Ribbon cable channel (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                ribbon_cable_channel();
-        }
+        // iUniker power switch side slot
+        power_switch_slot();
 
-        // GPIO cable channel (right portion)
+        // Rubber feet (rear portion)
         intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                gpio_cable_channel();
-        }
-
-        // RPi4 ventilation (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                rpi4_ventilation();
-        }
-
-        // Side ventilation (right wall)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                side_ventilation();
-        }
-
-        // USB-C pass-through (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                usbc_passthrough();
-        }
-
-        // Rubber feet (right side)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_width + 0.1, TCONSOLE_DEPTH + 10, TCONSOLE_HEIGHT + 10]);
-            translate([-half_width, 0, 0])
-                rubber_feet_recesses();
+            rubber_feet();
+            translate([0, SPLIT_Y, 0])
+                cube([CONSOLE_W + 10, CONSOLE_D, CONSOLE_H + 10]);
         }
 
         // Split bolt holes
-        split_bolts_right();
+        split_bolts();
     }
 }
 
-module console_assembly() {
-    console_left();
-    translate([half_width, 0, 0])
-        console_right();
+// =====================================================================
+// Module: show_components()
+// Transparent dummy volumes for assembly visualization
+// =====================================================================
+module show_components() {
+    // 7" Display (tilted)
+    color("DarkSlateGray", 0.3)
+    translate([disp_x, disp_y, disp_z])
+    rotate([-DISP_TILT, 0, 0])
+        cube([DISP_W, DISP_H, DISP_D]);
 
-    // Show component dummies in assembly view
+    // RPi 4B
+    color("Green", 0.35)
+    translate([rpi_x, rpi_y, rpi_z + 5])
+        cube([RPI_L, RPI_W, RPI_H]);
+
+    // RPi heatsink
+    color("Silver", 0.3)
+    translate([rpi_x + 15, rpi_y + 10, rpi_z + 5 + RPI_H])
+        cube([40, 30, RPI_HEATSINK]);
+
+    // PS2 Joystick
+    color("Blue", 0.35)
+    translate([joy_x + 8, joy_y + 7, joy_z - JOY_PCB_H]) {
+        cube([JOY_L, JOY_W, JOY_PCB_H]);
+        translate([JOY_L / 2, JOY_W / 2, JOY_PCB_H])
+            cylinder(h=JOY_H - JOY_PCB_H, d=JOY_STICK_DIA);
+    }
+
+    // Slide Potentiometer (vertical)
+    color("DarkRed", 0.35)
+    translate([slider_x + (SLIDER_W + 12 - SLIDER_W) / 2,
+               slider_y + WALL,
+               slider_z + 5])
+        cube([SLIDER_W, SLIDER_H, SLIDER_L]);
+
+    // 4x Sanwa Buttons (shown as cylinders)
+    color("Red", 0.4)
+    for (col = [-0.5, 0.5])
+        for (row = [-0.5, 0.5])
+            translate([btn_center_x + col * BTN_SPACING,
+                       btn_center_y + row * BTN_SPACING,
+                       btn_z])
+                cylinder(h=8, d=BTN_DIA);
+
+    // USB Encoder
+    color("Purple", 0.3)
+    translate([encoder_x + 2.5, encoder_y + 2.5, encoder_z + 1.5])
+        cube([ENCODER_L, ENCODER_W, ENCODER_H]);
+
+    // MCP3008 ADC
+    color("Orange", 0.35)
+    translate([adc_x, adc_y, adc_z + 4])
+        cube([ADC_L, ADC_W, ADC_H]);
+
+    // Anker PowerCore Slim 10000
+    color("DimGray", 0.3)
+    translate([anker_x + 2.5, anker_y + 2.5, anker_z + 2])
+        cube([ANKER_L, ANKER_W, ANKER_H]);
+
+    // iUniker Power Switch (side slot)
+    color("Black", 0.3)
+    translate([CONSOLE_W - WALL - SWITCH_W - 1, switch_y, switch_z])
+        cube([SWITCH_W, SWITCH_L, SWITCH_H]);
+}
+
+// =====================================================================
+// Module: console_assembly()
+// Full assembly visualization (both pieces joined)
+// =====================================================================
+module console_assembly() {
+    color("LightSteelBlue", 0.6)
+        console_front();
+
+    color("SteelBlue", 0.6)
+        console_rear();
+
     show_components();
 }
 
-// =====================================================
-// Render selected part
-// =====================================================
-if (part == "left") console_left();
-else if (part == "right") console_right();
+// =====================================================================
+// Render Selected Part
+// =====================================================================
+if (part == "front")    console_front();
+else if (part == "rear")  console_rear();
 else if (part == "assembly") console_assembly();
