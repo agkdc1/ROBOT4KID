@@ -208,6 +208,15 @@ components:
     diameter_mm: 24
     depth_mm: 20
     mount_type: "snap-in"
+  slide_pot_100mm:
+    dimensions_mm: [128, 18, 16]       # Bourns-style 100mm travel
+    travel_mm: 100
+    resistance_ohm: 10000
+    mount: "PCB through-hole or screw"
+  iuniker_usbc_switch:
+    housing_mm: [80, 40, 20]           # Inline switch housing
+    cable_length_mm: 270
+    type: "USB-C power on/off toggle"
   ps2_joystick:
     dimensions_mm: [40, 40, 32]
     pcb_height_mm: 10
@@ -250,11 +259,21 @@ consoles:
   train_console:
     display: "rpi_display_7in"
     computer: "raspberry_pi_4b"
-    joystick: "ps2_joystick"
-    adc: "mcp3008"
-    power_bank: "anker_slim_10000"
-    display_tilt_deg: 15
-    joystick_tilt_deg: 20
+    rpi4_heatsink_height_mm: 5         # Active cooling heatsink on top of board
+    display_tilt_deg: 20               # Eye-level for a child at desk
+    controls:
+      joystick: "ps2_thumbstick_module"  # Same as tank cradle (left panel)
+      throttle: "slide_pot_100mm"        # Vertical slide (right panel)
+      buttons: 4                         # Sanwa 24mm (horn, doors, lights, emergency)
+      encoder: "sjjx_822b_encoder"       # USB HID (same as tank cradle)
+    adc: "mcp3008"                       # SPI to RPi4 for analog inputs
+    power:
+      battery: "anker_slim_10000"
+      switch: "iuniker_usbc_switch"      # Externally accessible on/off
+    structural:
+      wall_mm: 3.0                       # Extra sturdy for desk use
+      fillet_mm: 1.5
+      floor_mm: 2.5
     dimensions_mm: [220, 140, 50]
 
 # ============================================================
