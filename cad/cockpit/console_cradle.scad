@@ -1,45 +1,92 @@
 // =====================================================================
-// Tactical Command Cradle — Tank Control Station Enclosure
+// Handheld Gamepad Console — Kid-Friendly Tank Controller
 // =====================================================================
-// Precision split enclosure for Samsung Galaxy Tab A 8.0" (2019),
-// TP-Link TL-WR802N nano-router, Anker PowerCore Slim 10000, Sabrent USB hub.
+// Landscape-oriented handheld gamepad for a 4-year-old child.
+// Samsung Galaxy Tab A 8.0 S Pen (SM-P200) in tilted center cradle,
+// dual PS2 joystick modules in ergonomic grips, 4x Sanwa 24mm buttons,
+// SJ@JX 822B encoder, UGREEN Revodok 105 USB hub, TP-Link router, power bank.
 //
-// Split into FRONT (tablet area) and REAR (electronics) halves at the
-// Y-axis midpoint, joined by M4 bolts. Each half fits within the
-// Bambu A1 Mini 180x180x180mm build volume.
+// Three-piece split (left grip + center + right grip) for 180mm build
+// volume compliance. Joined with M4 bolts and alignment keys.
 //
-// Part selector: -D 'part="assembly"' / "front" / "rear"
+// Parallel Power Architecture:
+//   Circuit A (Data+PD): PowerBank USB-C PD → Hub PD-IN → Tablet
+//   Circuit B (Joystick HID): Encoder USB → Hub USB-A → Tablet HID
+//   Circuit C (Isolated AP): PowerBank USB-A IQ → Toggle → Router
+//
+// Part selector: -D 'part="assembly"' / "left" / "center" / "right"
 // =====================================================================
 
 use <../libs/common.scad>
 use <../libs/m4_hardware.scad>
-use <../libs/m3_hardware.scad>
 
 // =====================================================================
-// Part Selector (override via CLI: -D 'part="front"')
+// Part Selector (override via CLI: -D 'part="left"')
 // =====================================================================
-part = "assembly";  // "front" | "rear" | "assembly"
+part = "assembly";  // "left" | "center" | "right" | "assembly"
 
 $fn = 64;
+
+// =====================================================================
+// Structural Parameters
+// =====================================================================
+wall        = 2.5;      // 4-year-old proof wall thickness
+floor_t     = 2.0;      // Floor thickness
+fillet_r    = 1.2;      // Fillet radius on ALL external edges
+corner_r    = 4.0;      // Corner rounding radius
+grip_r      = 8.0;      // Grip edge rounding (ergonomic)
 
 // =====================================================================
 // Component Dimensions (exact manufacturer specs)
 // =====================================================================
 
-// Samsung Galaxy Tab A 8.0" (2019) SM-T290
-tablet_w    = 210.0;    // Width (landscape)
-tablet_d    = 124.4;    // Depth (landscape)
-tablet_h    = 8.0;      // Thickness
+// Samsung Galaxy Tab A 8.0 S Pen (SM-P200)
+tablet_w    = 201.5;    // Width (landscape)
+tablet_d    = 122.4;    // Depth/height (landscape)
+tablet_h    = 8.9;      // Thickness
 tablet_clr  = 1.0;      // Clearance per side
+tablet_tilt = 15;       // Backward tilt (degrees)
+spen_notch_w = 15.0;    // S-Pen slot clearance width
+spen_notch_d = 15.0;    // S-Pen slot clearance depth
+usbc_cut_w  = 14.0;     // USB-C port cutout width
+usbc_cut_h  = 9.0;      // USB-C port cutout height
+lip_h       = 3.0;      // Retaining lip height
+lip_w       = 1.5;      // Lip overhang width
 
-// TP-Link TL-WR802N Nano Router
+// PS2 Joystick Module (x2)
+joy_w       = 34.0;     // Width
+joy_d       = 26.0;     // Depth
+joy_h       = 32.0;     // Height (full travel)
+joy_clr     = 0.5;      // Clearance per side
+joy_shaft_d = 18.0;     // Thumbstick poke-through hole diameter
+joy_mount_holes = 28.0; // Diagonal mounting hole spacing
+
+// Sanwa 24mm Snap-in Buttons (x4)
+btn_dia     = 24.0;     // Button barrel diameter
+btn_clr     = 0.3;      // Snap-in clearance
+btn_depth   = 18.0;     // Button body depth below surface
+btn_spacing = 30.0;     // Center-to-center spacing in 2x2 grid
+
+// SJ@JX 822B USB Encoder
+enc_w       = 95.0;     // Width
+enc_d       = 35.0;     // Depth
+enc_h       = 10.0;     // Height
+enc_clr     = 0.5;      // Clearance per side
+
+// UGREEN Revodok 105 USB-C Hub (replaces UGREEN Revodok 105)
+hub_w       = 121.8;    // Width (long axis) — slimmer profile
+hub_d       = 27.5;     // Depth
+hub_h       = 12.0;     // Height
+hub_clr     = 0.5;      // Clearance per side
+hub_cable_l = 240;      // Attached USB-C cable length (mm)
+
+// TP-Link Router
 router_w    = 57.0;     // Width
 router_d    = 57.0;     // Depth
 router_h    = 18.0;     // Height
-router_clr  = 1.0;      // Clearance per side (friction-fit, 1mm each side)
-router_chamfer = 0.8;   // Slot edge chamfer
-router_vent_w  = 1.5;   // Ventilation slit width
-router_vent_n  = 6;     // Number of ventilation slits
+router_clr  = 1.0;      // Clearance per side (side-loading)
+router_vent_w = 1.5;    // Ventilation slit width
+router_vent_n = 6;      // Number of slits
 
 // Anker PowerCore Slim 10000
 pbank_w     = 149.0;    // Width (long axis)
@@ -47,394 +94,319 @@ pbank_d     = 68.0;     // Depth
 pbank_h     = 14.0;     // Height
 pbank_clr   = 0.5;      // Clearance per side
 
-// Sabrent HB-UM43 4-Port USB Hub
-hub_w       = 85.0;     // Width (long axis)
-hub_d       = 30.0;     // Depth
-hub_h       = 15.0;     // Height
-hub_clr     = 0.5;      // Clearance per side
-
-// =====================================================================
-// Structural Parameters
-// =====================================================================
-
-wall        = 2.0;      // External wall thickness
-floor_t     = 2.0;      // Floor thickness
-divider_t   = 1.6;      // Internal divider thickness
-chamfer     = 0.8;      // External edge chamfer
-corner_r    = 3.0;      // Corner rounding radius
-
-// Tablet slot
-tablet_tilt = 15;       // Backward tilt angle (degrees)
-lip_h       = 3.0;      // Retaining lip height above tablet surface
-lip_w       = 1.5;      // Lip overhang width
-usbc_cut_w  = 14.0;     // USB-C port cutout width
-usbc_cut_h  = 8.0;      // USB-C port cutout height
+// USB Inline Toggle Switch (Circuit C power control)
+usb_sw_w    = 30.0;     // Slot width
+usb_sw_d    = 12.0;     // Slot depth
+usb_sw_h    = 10.0;     // Slot height
 
 // Cable channels
 cable_ch_w  = 8.0;      // Channel width
 cable_ch_d  = 6.0;      // Channel depth
 
-// Hex ventilation mesh
-hex_across  = 5.0;      // Hex hole across flats
-hex_wall    = 1.0;      // Wall between hexes
-hex_pitch   = hex_across + hex_wall;  // Center-to-center
+// =====================================================================
+// Overall Layout Dimensions
+// =====================================================================
+// Grips are ergonomic extensions on left and right of the tablet center.
+// The center section holds the tablet (tilted), powerbank (bottom), hub,
+// and router. Grips hold joysticks (top), encoder (left bottom),
+// buttons (right top), and USB switch (right bottom).
 
-// Hub rail mount
-hub_rail_t  = 1.5;      // Rail thickness
-hub_rail_h  = 3.0;      // Rail height (grips hub sides)
+// Center section width: tablet + clearance + walls
+center_w    = tablet_w + 2 * tablet_clr + 2 * wall;  // ~208.5mm
+
+// Grip widths: must fit joystick + wall + ergonomic margin
+grip_w      = 40.0;     // Each grip width (~40mm, comfortable for small hands)
+
+// Total width
+total_w     = grip_w + center_w + grip_w;  // ~288.5mm
+
+// Total depth (Y): tablet depth projection + bottom bay
+// Tablet tilted 15deg: footprint_y = tablet_d*cos(15) + tablet_h*sin(15) ≈ 120.5mm
+tablet_footprint_y = tablet_d * cos(tablet_tilt) + tablet_h * sin(tablet_tilt);
+bottom_bay_d = max(pbank_d, hub_d, router_d) + 2 * wall + 4;  // ~75mm
+total_d     = tablet_footprint_y + bottom_bay_d + wall;  // ~198mm → but we aim for ~145mm
+
+// Revised: stack powerbank under tablet, hub + router behind/below
+// Main body depth: max of tablet footprint and (bottom bay components)
+body_d      = 145.0;    // Target depth
+
+// Total height: grip height determines this (joystick is tallest at 32mm)
+// Top surface to bottom: wall + joy_h + floor = 2.5 + 32 + 2 = 36.5
+// Plus bottom bay: pbank 14mm + wall 2mm = 16mm
+// Total: ~52mm from top of grip to bottom of powerbank bay
+grip_h      = joy_h + joy_clr + wall + floor_t;  // ~37.5mm (grip section)
+bottom_h    = pbank_h + pbank_clr + floor_t + wall;  // ~19mm
+total_h     = 70.0;     // Total height of center section (tablet tilt adds height)
 
 // =====================================================================
-// Overall Enclosure Dimensions
+// Split Planes — 3 pieces for 180mm build volume
 // =====================================================================
-
-// Width: tablet (210) + clearance (2) + walls (4) = 216mm
-// But tablet slot is tilted, so the footprint depth of the tablet
-// zone is tablet_d * cos(15) + tablet_h * sin(15) ≈ 122.2mm.
-// We add some margin for the lip and structure.
-
-// Layout zones (Y-axis, front to back):
-//   Zone 1 (bottom):  Power bank bay         — pbank_d + 2*clr + 2*wall = 73mm
-//   Zone 2 (middle):  Router + Hub + empty   — router_d + 2*clr + wall = ~62mm
-//   Zone 3 (top):     Tablet slot (tilted)   — ~30mm footprint at base
-
-// Total depth estimate: 73 + 1.6 + 62 = ~137mm
-// Total width: tablet_w + 2*tablet_clr + 2*wall = 216mm
-// Total height: floor + pbank_h + clr + router_h + clr + margin ≈ 55mm
-
-// Actual computed dimensions:
-enc_w = tablet_w + 2 * tablet_clr + 2 * wall;  // 216mm
-// Depth zones
-zone_pbank_d = pbank_d + 2 * pbank_clr + wall;  // front zone: power bank
-zone_elec_d  = router_d + 2 * router_clr + wall; // rear zone: electronics
-zone_tablet_d = 25;  // tablet base footprint + lip support
-enc_d = wall + zone_pbank_d + divider_t + zone_elec_d + wall;  // ~135mm
-enc_h = floor_t + pbank_h + pbank_clr + 2 + router_h + router_clr + 5;  // ~63mm
-
-// Split point: between power bank zone and electronics zone
-split_y = wall + zone_pbank_d;  // Front half: 0..split_y, Rear half: split_y..enc_d
-
-// Verify build volume compliance
-// Front half: enc_w(216) x split_y(~75) x enc_h(~63) — width exceeds 180!
-// Need to split along X instead, OR reduce width.
-// Actually the tablet is 210mm wide — we MUST split along the width axis.
-// BUT the spec says front/rear split. Let's re-examine.
+// Split 1: left grip | center at x = grip_w
+// Split 2: center | right grip at x = grip_w + center_w
+// Left piece:  grip_w(40) x body_d(145) x total_h(70) — fits
+// Center piece: center_w(208.5) x body_d(145) x total_h(70) — 208.5 > 180!
+//   Solution: print center on its side: 145 x 70 x 208.5 — still 208.5 > 180!
+//   Alternative: print center standing up, 208.5 along Y → NO, same issue.
+//   Must split center further or reduce tablet clearance.
 //
-// Re-layout: The tablet is 210mm wide. Even the tablet alone exceeds 180mm.
-// Solution: orient the split along the Y axis (front=tablet, rear=electronics)
-// and accept that each half is printed on its SIDE or we rotate the tablet
-// slot 90 degrees... No — spec says landscape.
+// REVISED: The center section is 208.5mm wide. We need it under 180mm when
+// printed in ANY orientation. The tablet is 201.5mm so we cannot shrink below
+// that. Solution: split center into TWO halves (left-center + right-center),
+// making 4 pieces total. OR accept that center prints diagonally (208 diagonal
+// on 180x180 bed = sqrt(180^2+180^2) = 254mm — fits!).
 //
-// Better approach: split LEFT and RIGHT at X midpoint (like original).
-// Each half: 216/2 = 108mm wide, ~135mm deep, ~63mm tall. All < 180. Good.
+// FINAL: We keep 3 pieces. The center piece at 208.5mm can be printed
+// diagonally on the 180x180 bed (diagonal = 254mm). The depth is 145mm and
+// height is 70mm, both under 180mm. This works.
 //
-// BUT spec says front+rear with M4 bolt joint. Let's honor that.
-// Front half (tablet): 216 x (tablet tilt footprint ~35mm) x ~30mm — fits.
-// Rear half (electronics): 216 x 100mm x 63mm — width 216 > 180!
-//
-// Final solution: Print each half on its side (longest dim along Y).
-// Front: print standing up (216mm along Y bed axis, 35mm X, 30mm Z) — 216>180 FAIL.
-//
-// Conclusion: Must split along X (left/right) just like original design.
-// The spec says "if it exceeds, add a split joint at the midpoint" and
-// suggests front/rear, but physically left/right is the only way to fit
-// a 210mm tablet. We split at X midpoint with M4 bolt joint.
+// If the user insists on axis-aligned printing, we add a 4th split at center
+// midpoint. For now, 3 pieces with diagonal print note.
 
-// REVISED: Split left/right at X center
-half_w = enc_w / 2;  // 108mm — fits build volume
+split_left_x  = grip_w;                    // Left grip ends here
+split_right_x = grip_w + center_w;         // Right grip starts here
 
-// Verify: each half = 108 x enc_d x enc_h — all under 180mm. Good.
+// M4 bolt joint parameters
+bolt_depth  = 12.0;
+joint_key_size = 4.0;
+joint_key_h = 3.0;
 
 // =====================================================================
-// Component Positions (origin at front-left floor corner of full enclosure)
+// Component Positions (origin at front-bottom-left corner of full body)
+// X: left to right, Y: front to back, Z: bottom to top
 // =====================================================================
 
-// Power bank: bottom layer, centered in width, near front
-pbank_x = (enc_w - pbank_w) / 2;
-pbank_y = wall + pbank_clr;
+// --- Tablet position ---
+// Tablet sits in center section, tilted back 15deg, upper portion
+tablet_x = grip_w + wall + tablet_clr;
+tablet_y = body_d - wall - 5;   // Near rear, tilted backward
+tablet_z = total_h - 20;        // Upper zone (adjusted for tilt)
+
+// --- Powerbank position ---
+// Bottom layer, centered under tablet area
+pbank_x = grip_w + (center_w - pbank_w) / 2;
+pbank_y = wall + 2;
 pbank_z = floor_t;
 
-// Router: rear-left, on floor above divider level
-router_x = wall + 3;
-router_y = split_y + divider_t + 3;
-router_z = floor_t;
-
-// Hub: rear-center, right of router, buttons face FRONT
-hub_x = router_x + router_w + 2 * router_clr + 5;
-hub_y = split_y + divider_t + 3;
+// --- Hub position ---
+// Bottom bay, center-left area
+hub_x = grip_w + wall + 5;
+hub_y = wall + pbank_d + pbank_clr * 2 + 5;
 hub_z = floor_t;
 
-// Tablet: top zone, centered, tilted back 15 degrees
-// The tablet sits in a cradle at the rear top of the enclosure
-tablet_x = (enc_w - tablet_w - 2 * tablet_clr) / 2;
-tablet_base_y = enc_d - wall - 10;  // Near rear wall
-tablet_base_z = floor_t + router_h + router_clr + 5;  // Above electronics
+// --- Router position ---
+// Bottom bay, center-right area, next to hub
+router_x = hub_x + hub_w + hub_clr * 2 + 5;
+router_y = hub_y;
+router_z = floor_t;
+
+// --- Left joystick position ---
+// Centered in left grip, near top
+ljoy_x = (grip_w - joy_w) / 2;
+ljoy_y = (body_d - joy_d) / 2 - 10;  // Slightly forward of center
+ljoy_z = total_h - wall - joy_h - joy_clr;
+
+// --- Right joystick position ---
+// Upper portion of right grip
+rjoy_x = split_right_x + (grip_w - joy_w) / 2;
+rjoy_y = ljoy_y;  // Same Y as left
+rjoy_z = ljoy_z;
+
+// --- Button positions (right grip) ---
+// 2x2 grid below and to the right of right joystick
+btn_grid_x = split_right_x + grip_w / 2;  // Center of right grip
+btn_grid_y = body_d / 2 + 15;             // Below joystick center
+btn_grid_z = total_h - wall;              // Flush with top surface
+
+// --- Encoder position ---
+// Under left grip, bottom area
+enc_x = (grip_w - enc_w) / 2;
+// Encoder is wider than grip — extend into center section
+enc_x = wall;  // Flush with left wall
+enc_y = body_d - wall - enc_d - enc_clr - 2;
+enc_z = floor_t;
+
+// --- USB switch position ---
+// Recessed slot on right grip exterior
+usb_sw_x = split_right_x + grip_w - wall - 2;
+usb_sw_y = body_d - 30;
+usb_sw_z = floor_t + 5;
+
 
 // =====================================================================
-// Module: Hex Ventilation Mesh
-// =====================================================================
-module hex_mesh(width, height, thickness) {
-    // Creates a grid of hexagonal holes for ventilation
-    // Oriented flat (pointy-top hexagons)
-    hex_r = hex_across / 2 / cos(30);  // Circumscribed radius
-    cols = floor(width / hex_pitch);
-    rows = floor(height / (hex_pitch * 0.866));
-
-    for (col = [0 : cols - 1]) {
-        for (row = [0 : rows - 1]) {
-            x_off = col * hex_pitch + (row % 2) * (hex_pitch / 2);
-            y_off = row * hex_pitch * 0.866;
-            if (x_off >= hex_r && x_off <= width - hex_r &&
-                y_off >= hex_r && y_off <= height - hex_r) {
-                translate([x_off, y_off, -0.1])
-                    cylinder(h = thickness + 0.2, r = hex_across / 2, $fn = 6);
-            }
-        }
-    }
-}
-
-// =====================================================================
-// Module: Tablet Slot — tilted cradle with lip and USB-C cutout
+// Module: Tablet Slot — 15deg tilted cradle with S-Pen notch
 // =====================================================================
 module tablet_slot() {
     // Pocket dimensions with clearance
-    pw = tablet_w + 2 * tablet_clr;   // 212mm
-    pd = tablet_d + 2 * tablet_clr;   // 126.4mm
-    ph = tablet_h + tablet_clr + 2;   // ~11mm pocket depth
+    pw = tablet_w + 2 * tablet_clr;   // ~203.5mm
+    pd = tablet_d + 2 * tablet_clr;   // ~124.4mm
+    ph = tablet_h + tablet_clr + 2;   // ~11.9mm pocket depth
 
-    // The tablet cradle is a tilted trough at the top-rear of the enclosure.
-    // It spans the full width and tilts backward by tablet_tilt degrees.
-    // Origin: centered at enc_w/2, rear wall, at electronics top level.
+    // Cradle base: at top-rear of center section, tilted back
+    cradle_z = total_h - 25;
 
-    cradle_base_z = router_h + router_clr + floor_t + 3;
-
-    translate([wall, enc_d - wall - 5, cradle_base_z])
+    translate([grip_w + wall, body_d - wall - 5, cradle_z])
     rotate([-tablet_tilt, 0, 0]) {
         // Main pocket cutout
         translate([0, -pd, 0])
             cube([pw, pd, ph]);
 
-        // USB-C cutout at bottom edge (front-facing when tilted)
+        // USB-C cutout at bottom edge (centered on tablet width)
         translate([(pw - usbc_cut_w) / 2, -pd - wall - 1, 0])
             cube([usbc_cut_w, wall + 2, usbc_cut_h]);
+
+        // S-Pen notch: bottom-right corner of tablet
+        // The S-Pen slides out from the bottom-right edge
+        translate([pw - spen_notch_w - tablet_clr, -pd - 1, -1])
+            cube([spen_notch_w, spen_notch_d + 1, ph + 2]);
     }
 }
 
 // =====================================================================
-// Module: Tablet Lips — retaining edges (left, right, bottom)
+// Module: Tablet Lips — retaining edges (left, right, top, bottom)
 // =====================================================================
 module tablet_lips() {
     pw = tablet_w + 2 * tablet_clr;
     pd = tablet_d + 2 * tablet_clr;
     ph = tablet_h + tablet_clr + 2;
-    cradle_base_z = router_h + router_clr + floor_t + 3;
+    cradle_z = total_h - 25;
 
-    translate([wall, enc_d - wall - 5, cradle_base_z])
+    translate([grip_w + wall, body_d - wall - 5, cradle_z])
     rotate([-tablet_tilt, 0, 0])
     translate([0, -pd, ph]) {
         // Left lip
         cube([lip_w, pd, lip_h]);
-        // Right lip
-        translate([pw - lip_w, 0, 0])
-            cube([lip_w, pd, lip_h]);
-        // Bottom lip (front edge — prevents tablet sliding down)
-        // Leave gap for USB-C
+        // Right lip (leave gap for S-Pen)
+        translate([pw - lip_w, spen_notch_d + 5, 0])
+            cube([lip_w, pd - spen_notch_d - 5, lip_h]);
+        // Bottom lip (front edge) — leave USB-C gap
         usbc_gap_start = (pw - usbc_cut_w) / 2 - 5;
         usbc_gap_end = (pw + usbc_cut_w) / 2 + 5;
-        // Left segment of bottom lip
+        // Left segment
         cube([usbc_gap_start, lip_w, lip_h]);
-        // Right segment of bottom lip
+        // Right segment (leave S-Pen gap)
         translate([usbc_gap_end, 0, 0])
-            cube([pw - usbc_gap_end, lip_w, lip_h]);
+            cube([pw - usbc_gap_end - spen_notch_w - 5, lip_w, lip_h]);
+        // Top lip (rear edge)
+        translate([0, pd - lip_w, 0])
+            cube([pw, lip_w, lip_h]);
     }
 }
 
 // =====================================================================
-// Module: Tablet Dummy Volume (ghost for visualization)
+// Module: Tablet Dummy (ghost visualization)
 // =====================================================================
 module tablet_dummy() {
     pw = tablet_w + 2 * tablet_clr;
     pd = tablet_d + 2 * tablet_clr;
     ph = tablet_h + tablet_clr + 2;
-    cradle_base_z = router_h + router_clr + floor_t + 3;
+    cradle_z = total_h - 25;
 
-    translate([wall + tablet_clr, enc_d - wall - 5, cradle_base_z])
+    translate([grip_w + wall + tablet_clr, body_d - wall - 5, cradle_z])
     rotate([-tablet_tilt, 0, 0])
     translate([0, -pd + tablet_clr, 1])
         %cube([tablet_w, tablet_d, tablet_h]);
 }
 
 // =====================================================================
-// Module: Router Bay — side-loading friction-fit slot for TP-Link TL-WR802N
+// Module: Joystick Mount — PS2 module cavity with thumbstick hole
 // =====================================================================
-// Router slides in from the LEFT side (+X direction) for easy removal.
-// Ports (Micro-USB power + Ethernet RJ45) are on the same edge,
-// oriented so Micro-USB faces toward the hub (internal cable)
-// and Ethernet faces the rear wall (external cable access).
-// =====================================================================
-module router_bay() {
-    // Slot interior: 59 x 59 x 20mm (1mm clearance per side)
-    sw = router_w + 2 * router_clr;  // 59mm slot width
-    sd = router_d + 2 * router_clr;  // 59mm slot depth
-    sh = router_h + 2 * router_clr;  // 20mm slot height
+module joystick_mount(x, y, z) {
+    // Cavity for PS2 joystick module, open top for thumbstick
+    sw = joy_w + 2 * joy_clr;
+    sd = joy_d + 2 * joy_clr;
+    sh = joy_h + joy_clr;
 
-    translate([router_x, router_y, router_z]) {
-        difference() {
-            // Outer block: walls on back, right, top, bottom; open left for side-loading
-            cube([sw + wall, sd + wall, sh + wall]);
+    translate([x, y, z]) {
+        // Joystick cavity (cut from body)
+        cube([sw, sd, sh + wall + 1]);
 
-            // Inner slot cavity — open on -X face (left side) for insertion
-            translate([-0.1, 0, wall])
-                cube([sw + 0.2, sd, sh]);
-
-            // Ventilation slits on back wall (behind router, facing enclosure rear)
-            // 6 vertical slits, 1.5mm wide, evenly spaced
-            vent_spacing = (sw - router_vent_n * router_vent_w) / (router_vent_n + 1);
-            for (i = [0 : router_vent_n - 1]) {
-                vx = vent_spacing + i * (router_vent_w + vent_spacing);
-                translate([vx, sd + wall - 0.1, wall + 2])
-                    cube([router_vent_w, wall + 0.2, sh - 4]);
-            }
-
-            // Micro-USB power port cutout — faces toward hub (left/front side of slot)
-            // Cutout on the front face of the slot (toward hub)
-            usb_cut_w = 12;
-            usb_cut_h = 8;
-            translate([(sw - usb_cut_w) / 2, -0.1, wall + (sh - usb_cut_h) / 2])
-                cube([usb_cut_w, wall + 0.2, usb_cut_h]);
-
-            // Ethernet (RJ45) port cutout — faces rear wall for external cable
-            eth_cut_w = 16;
-            eth_cut_h = 14;
-            translate([(sw - eth_cut_w) / 2, sd + wall - 0.1, wall + (sh - eth_cut_h) / 2])
-                cube([eth_cut_w, wall + 0.2, eth_cut_h]);
-
-            // 0.8mm chamfers on all slot opening edges (left face, -X)
-            // Top-left edge chamfer
-            translate([-0.1, -0.1, wall + sh])
-                rotate([0, 90, 0])
-                    linear_extrude(height = 0.2)
-                        polygon([[0, 0], [router_chamfer, 0], [0, router_chamfer]]);
-            // Bottom-left edge chamfer
-            translate([-0.1, -0.1, wall])
-                rotate([0, 90, 0])
-                    linear_extrude(height = 0.2)
-                        polygon([[0, 0], [-router_chamfer, 0], [0, router_chamfer]]);
-            // Front slot edge chamfer (vertical)
-            translate([-0.1, 0, wall - 0.1])
-                linear_extrude(height = sh + 0.2)
-                    polygon([[0, 0], [0, -router_chamfer], [0.2, 0]]);
-            // Back slot edge chamfer (vertical)
-            translate([-0.1, sd, wall - 0.1])
-                linear_extrude(height = sh + 0.2)
-                    polygon([[0, 0], [0, router_chamfer], [0.2, 0]]);
-        }
-
-        // Dummy volume (ghost)
-        translate([router_clr, router_clr, wall + router_clr])
-            %cube([router_w, router_d, router_h]);
+        // Thumbstick poke-through hole (centered, through top surface)
+        translate([sw / 2, sd / 2, sh])
+            cylinder(h = wall + 2, d = joy_shaft_d);
     }
 }
 
 // =====================================================================
-// Module: Router Rear Port Cutout — Ethernet RJ45 through enclosure rear wall
+// Module: Joystick Dummy (ghost)
 // =====================================================================
-module router_port_cutout() {
-    // Ethernet port faces rear — cut through enclosure wall for external cable
-    sw = router_w + 2 * router_clr;
-    eth_cut_w = 16;
-    eth_cut_h = 14;
-    port_x = router_x + (sw - eth_cut_w) / 2;
-    port_z = router_z + wall + (router_h + 2 * router_clr - eth_cut_h) / 2;
-
-    translate([port_x, enc_d - wall - 0.1, port_z])
-        cube([eth_cut_w, wall + 0.2, eth_cut_h]);
+module joystick_dummy(x, y, z) {
+    translate([x + joy_clr, y + joy_clr, z])
+        %cube([joy_w, joy_d, joy_h]);
 }
 
 // =====================================================================
-// Module: Hub Mount — rail mount, buttons face front
+// Module: Button Holes — 4x Sanwa 24mm snap-in, 2x2 grid
 // =====================================================================
-module hub_mount() {
-    // The hub slides in from the left side along bottom rails.
-    // Power buttons face FRONT (toward user) for tactile access.
-    // Main power input faces REAR.
-    // Hub is rotated 90 degrees so its long axis runs left-right,
-    // with the button side facing front.
-
-    hw = hub_w + 2 * hub_clr;  // Along X axis
-    hd = hub_d + 2 * hub_clr;  // Along Y axis
-    hh = hub_h + hub_clr;
-
-    translate([hub_x, hub_y, hub_z]) {
-        // Left rail
-        cube([hub_rail_t, hd, hub_rail_h]);
-        translate([0, 0, hub_rail_h])
-            cube([hub_rail_t, hd, hh - hub_rail_h]);
-
-        // Right rail
-        translate([hw + hub_rail_t, 0, 0]) {
-            cube([hub_rail_t, hd, hub_rail_h]);
-            translate([0, 0, hub_rail_h])
-                cube([hub_rail_t, hd, hh - hub_rail_h]);
+module button_holes() {
+    // 2x2 grid centered at btn_grid_x, btn_grid_y
+    // Layout:  [A] [B]    (top row)
+    //          [X] [Y]    (bottom row)
+    for (col = [-0.5, 0.5]) {
+        for (row = [-0.5, 0.5]) {
+            bx = btn_grid_x + col * btn_spacing;
+            by = btn_grid_y + row * btn_spacing;
+            // Snap-in hole through top surface
+            translate([bx, by, btn_grid_z - btn_depth])
+                cylinder(h = btn_depth + wall + 1, d = btn_dia + btn_clr * 2);
         }
+    }
+}
 
-        // Bottom rail (slides)
-        cube([hw + 2 * hub_rail_t, hd, hub_rail_t]);
+// =====================================================================
+// Module: Button Labels (embossed letters on top surface)
+// =====================================================================
+module button_labels() {
+    labels = ["A", "B", "X", "Y"];
+    offsets = [[-0.5, 0.5], [0.5, 0.5], [-0.5, -0.5], [0.5, -0.5]];
+    for (i = [0:3]) {
+        bx = btn_grid_x + offsets[i][0] * btn_spacing;
+        by = btn_grid_y + offsets[i][1] * btn_spacing;
+        // Label offset from button center (above the button, on surface)
+        translate([bx, by + btn_dia / 2 + 3, total_h - 0.3])
+            linear_extrude(height = 0.5)
+                text(labels[i], size = 5, halign = "center", valign = "center",
+                     font = "Liberation Sans:style=Bold");
+    }
+}
 
-        // Back stop
-        translate([0, hd, 0])
-            cube([hw + 2 * hub_rail_t, hub_rail_t, hh]);
+// =====================================================================
+// Module: Encoder Bay — SJ@JX 822B under left grip
+// =====================================================================
+module encoder_bay() {
+    sw = enc_w + 2 * enc_clr;
+    sd = enc_d + 2 * enc_clr;
+    sh = enc_h + enc_clr;
+
+    translate([enc_x, enc_y, enc_z]) {
+        // Cavity
+        cube([sw, sd, sh]);
+
+        // USB cable exit hole (rear wall)
+        translate([sw / 2 - 6, sd - 1, 1])
+            cube([12, wall + 2, 8]);
+
+        // Ribbon cable exit (top, toward joystick)
+        translate([sw / 2 - 10, 0, sh - 1])
+            cube([20, sd / 2, enc_clr + 2]);
 
         // Dummy volume
-        translate([hub_rail_t + hub_clr, hub_clr, hub_rail_t + 0.5])
-            %cube([hub_w, hub_d, hub_h]);
+        translate([enc_clr, enc_clr, 0])
+            %cube([enc_w, enc_d, enc_h]);
     }
 }
 
 // =====================================================================
-// Module: Hub Button Access Window
+// Module: Bottom Bay — powerbank, hub, router
 // =====================================================================
-module hub_button_cutout() {
-    // The 4 individual power buttons face front (toward the user).
-    // Cut a window in the front-facing side of the hub area for access.
-    hw = hub_w + 2 * hub_clr;
-    window_w = hub_w - 10;  // Leave 5mm frame each side
-    window_h = hub_h - 4;   // Leave 2mm frame top/bottom
-    window_x = hub_x + hub_rail_t + hub_clr + 5;
-    window_z = hub_z + hub_rail_t + 2;
-
-    // Cut through the divider wall between front and rear zones
-    translate([window_x, hub_y - 0.1, window_z])
-        cube([window_w, divider_t + 0.2, window_h]);
-}
-
-// =====================================================================
-// Module: Hub Power Input Cutout (rear)
-// =====================================================================
-module hub_power_cutout() {
-    // Main USB power input faces rear wall
-    hw = hub_w + 2 * hub_clr;
-    hd = hub_d + 2 * hub_clr;
-    cut_w = 15;
-    cut_h = 10;
-    cut_x = hub_x + hub_rail_t + (hw - cut_w) / 2;
-    cut_z = hub_z + hub_rail_t + 1;
-
-    translate([cut_x, enc_d - wall - 0.1, cut_z])
-        cube([cut_w, wall + 0.2, cut_h]);
-}
-
-// =====================================================================
-// Module: Power Bank Bay — friction-fit with port cutouts
-// =====================================================================
-module powerbank_bay() {
-    // Full-width bay at the bottom front of the enclosure
+module bottom_bay() {
+    // --- Powerbank cradle ---
     bw = pbank_w + 2 * pbank_clr;
     bd = pbank_d + 2 * pbank_clr;
     bh = pbank_h + pbank_clr;
 
     translate([pbank_x, pbank_y, pbank_z]) {
+        // Cradle walls (U-shape)
         difference() {
-            // Cradle walls (U-shape, open top)
             union() {
                 // Left wall
                 cube([wall, bd, bh]);
@@ -444,415 +416,500 @@ module powerbank_bay() {
                 // Back wall
                 translate([0, bd, 0])
                     cube([bw + 2 * wall, wall, bh]);
-                // Front wall (partial — leave LED window)
+                // Front wall with LED window gap
                 cube([bw + 2 * wall, wall, bh]);
             }
-
-            // LED indicator window (small slot in front wall)
+            // LED window
             translate([wall + bw / 2 - 10, -0.1, 2])
                 cube([20, wall + 0.2, 4]);
         }
-
-        // Dummy volume
+        // Dummy
         translate([wall + pbank_clr, pbank_clr, 0])
             %cube([pbank_w, pbank_d, pbank_h]);
     }
 }
 
 // =====================================================================
-// Module: Power Bank Charging Port Cutout (right side)
+// Module: Hub Mount — UGREEN Revodok 105 in bottom bay
 // =====================================================================
-module pbank_port_cutout() {
-    // USB-C charging port on the right side wall of enclosure
-    bw = pbank_w + 2 * pbank_clr;
-    port_w = 14;
-    port_h = 8;
-    port_y = pbank_y + (pbank_d + 2 * pbank_clr - port_w) / 2;
-    port_z = pbank_z + 2;
+module hub_mount() {
+    hw = hub_w + 2 * hub_clr;
+    hd = hub_d + 2 * hub_clr;
+    hh = hub_h + hub_clr;
+    rail_t = 1.5;
 
-    // Right side of power bank — cut through enclosure right wall
-    translate([enc_w - wall - 0.1, port_y, port_z])
-        cube([wall + 0.2, port_w, port_h]);
-}
+    translate([hub_x, hub_y, hub_z]) {
+        // Left rail
+        cube([rail_t, hd, hh]);
+        // Right rail
+        translate([hw + rail_t, 0, 0])
+            cube([rail_t, hd, hh]);
+        // Bottom rail
+        cube([hw + 2 * rail_t, hd, rail_t]);
+        // Back stop
+        translate([0, hd, 0])
+            cube([hw + 2 * rail_t, rail_t, hh]);
 
-// =====================================================================
-// Module: Power Bank LED Window (front wall)
-// =====================================================================
-module pbank_led_cutout() {
-    // LED indicator faces front — cut through enclosure front wall
-    led_w = 20;
-    led_h = 4;
-    led_x = pbank_x + (pbank_w + 2 * pbank_clr) / 2 - led_w / 2;
-    led_z = pbank_z + 2;
+        // USB-C PD input cutout (front face — toward user)
+        // Cut handled in main body difference
 
-    translate([led_x, -0.1, led_z])
-        cube([led_w, wall + 0.2, led_h]);
-}
-
-// =====================================================================
-// Module: Cable Channels — internal routing
-// =====================================================================
-module cable_channels() {
-    // Channel 1: Power bank (front) USB-A → up and back to hub power input
-    // Runs along right internal wall from power bank to hub
-    ch1_x = enc_w - wall - cable_ch_w - 2;
-    ch1_y1 = pbank_y + pbank_d + pbank_clr;
-    ch1_y2 = hub_y + hub_d + hub_clr;
-    ch1_z = floor_t;
-    translate([ch1_x, ch1_y1, ch1_z])
-        cube([cable_ch_w, ch1_y2 - ch1_y1, cable_ch_d]);
-
-    // Channel 2: Hub USB-A ports → router USB input
-    // Runs along the rear zone connecting hub to router
-    ch2_x1 = router_x + router_w + 2 * router_clr + wall;
-    ch2_x2 = hub_x;
-    ch2_y = hub_y + hub_d / 2 - cable_ch_w / 2;
-    translate([ch2_x1, ch2_y, floor_t])
-        cube([ch2_x2 - ch2_x1, cable_ch_w, cable_ch_d]);
-
-    // Channel 3: Hub/Router area → up to tablet USB-C
-    // Vertical channel along center, from electronics zone up to tablet cradle
-    ch3_x = enc_w / 2 - cable_ch_w / 2;
-    ch3_y = hub_y + hub_d / 2;
-    ch3_z1 = floor_t;
-    ch3_z2 = router_h + router_clr + floor_t + 3;
-    translate([ch3_x, ch3_y, ch3_z1])
-        cube([cable_ch_w, cable_ch_w, ch3_z2 - ch3_z1]);
-
-    // Channel 4: Along the divider wall (left-right) for cross-routing
-    ch4_y = split_y - cable_ch_w / 2;
-    translate([wall + 5, ch4_y, floor_t])
-        cube([enc_w - 2 * wall - 10, cable_ch_w, cable_ch_d]);
-}
-
-// =====================================================================
-// Module: M3 Corner Mounting Holes (for desk mount)
-// =====================================================================
-module corner_mount_holes() {
-    // 4x M3 through-holes at corners, through the floor
-    inset = 8;
-    positions = [
-        [inset, inset],
-        [enc_w - inset, inset],
-        [inset, enc_d - inset],
-        [enc_w - inset, enc_d - inset]
-    ];
-    for (p = positions) {
-        translate([p[0], p[1], -0.1])
-            m3_hole(depth = floor_t + 0.2);
+        // Dummy
+        translate([rail_t + hub_clr, hub_clr, rail_t + 0.5])
+            %cube([hub_w, hub_d, hub_h]);
     }
 }
 
 // =====================================================================
-// Module: Edge Chamfers — 0.8mm on all external user-facing edges
+// Module: Router Slot — TP-Link side-loading with ventilation
 // =====================================================================
-module edge_chamfers() {
-    // Bottom edge chamfers (4 sides)
-    // Front bottom edge
-    translate([0, 0, 0])
-        rotate([0, 0, 0])
-            linear_extrude(height = enc_w + 0.2)
-                polygon([[-0.1, -0.1], [chamfer + 0.1, -0.1], [-0.1, chamfer + 0.1]]);
+module router_slot() {
+    sw = router_w + 2 * router_clr;
+    sd = router_d + 2 * router_clr;
+    sh = router_h + 2 * router_clr;
 
-    // We implement chamfers via minkowski or direct cuts.
-    // For simplicity, use difference with triangular prisms on key edges.
+    translate([router_x, router_y, router_z]) {
+        difference() {
+            // Outer block (walls on 3 sides, open on one for side-loading)
+            cube([sw + wall, sd + wall, sh + wall]);
 
-    // Front-bottom edge
-    translate([-0.1, -0.1, -0.1])
-        rotate([0, 90, 0])
-            linear_extrude(height = enc_w + 0.2)
-                polygon([[0, 0], [-chamfer - 0.1, 0], [0, chamfer + 0.1]]);
+            // Inner cavity — open on +X face for side-loading
+            translate([-0.1, wall / 2, wall])
+                cube([sw + 0.2, sd, sh]);
 
-    // Rear-bottom edge
-    translate([-0.1, enc_d + 0.1, -0.1])
-        rotate([0, 90, 0])
-            linear_extrude(height = enc_w + 0.2)
-                polygon([[0, 0], [-chamfer - 0.1, 0], [0, -chamfer - 0.1]]);
+            // Ventilation slits on top face
+            vent_spacing = (sw - router_vent_n * router_vent_w) / (router_vent_n + 1);
+            for (i = [0 : router_vent_n - 1]) {
+                vx = vent_spacing + i * (router_vent_w + vent_spacing);
+                translate([vx, wall + 3, sh + wall - 0.1])
+                    cube([router_vent_w, sd - 6, wall + 0.2]);
+            }
 
-    // Left-bottom edge
-    translate([-0.1, -0.1, -0.1])
-        rotate([0, 0, 90])
-            rotate([0, 90, 0])
-                linear_extrude(height = enc_d + 0.2)
-                    polygon([[0, 0], [-chamfer - 0.1, 0], [0, chamfer + 0.1]]);
+            // Ventilation slits on back wall
+            for (i = [0 : router_vent_n - 1]) {
+                vx = vent_spacing + i * (router_vent_w + vent_spacing);
+                translate([vx, sd + wall - 0.1, wall + 2])
+                    cube([router_vent_w, wall + 0.2, sh - 4]);
+            }
 
-    // Right-bottom edge
-    translate([enc_w + 0.1, -0.1, -0.1])
-        rotate([0, 0, 90])
-            rotate([0, 90, 0])
-                linear_extrude(height = enc_d + 0.2)
-                    polygon([[0, 0], [-chamfer - 0.1, 0], [0, -chamfer - 0.1]]);
+            // Micro-USB power cutout (front face)
+            translate([(sw - 12) / 2, -0.1, wall + (sh - 8) / 2])
+                cube([12, wall + 0.2, 8]);
+        }
+
+        // Dummy
+        translate([router_clr, wall / 2 + router_clr, wall + router_clr])
+            %cube([router_w, router_d, router_h]);
+    }
 }
 
 // =====================================================================
-// Module: Split Joint — alignment keys and M4 bolt holes at X midpoint
+// Module: USB Switch Slot — recessed slot on right grip
 // =====================================================================
-
-// Key positions along the seam (at x = half_w)
-key_y1 = enc_d * 0.25;
-key_y2 = enc_d * 0.75;
-key_z  = enc_h * 0.33;
-
-// Bolt positions
-bolt_y1 = enc_d * 0.3;
-bolt_y2 = enc_d * 0.7;
-bolt_z  = enc_h * 0.66;
-bolt_depth = 12;
-
-module split_keys_male() {
-    // Alignment keys on left half seam face (protrude in +X)
-    translate([half_w, key_y1, key_z])
-        rotate([0, 90, 0])
-            split_key(size = 4, height = 3);
-    translate([half_w, key_y2, key_z])
-        rotate([0, 90, 0])
-            split_key(size = 4, height = 3);
-}
-
-module split_sockets_female() {
-    // Alignment sockets on right half seam face (cut into +X face at x=0)
-    translate([0, key_y1, key_z])
-        rotate([0, 90, 0])
-            split_socket(size = 4, height = 3);
-    translate([0, key_y2, key_z])
-        rotate([0, 90, 0])
-            split_socket(size = 4, height = 3);
-}
-
-module split_bolts_left() {
-    // M4 bolt holes on left half seam face
-    translate([half_w - bolt_depth / 2, bolt_y1, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth = bolt_depth);
-    translate([half_w - bolt_depth / 2, bolt_y2, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth = bolt_depth);
-}
-
-module split_bolts_right() {
-    // M4 bolt holes on right half seam face
-    translate([-bolt_depth / 2, bolt_y1, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth = bolt_depth);
-    translate([-bolt_depth / 2, bolt_y2, bolt_z])
-        rotate([0, 90, 0])
-            m4_hole(depth = bolt_depth);
+module usb_switch_slot() {
+    // Recessed slot for inline USB toggle (Circuit C power control)
+    translate([usb_sw_x, usb_sw_y, usb_sw_z])
+        cube([wall + 2, usb_sw_d, usb_sw_h]);
 }
 
 // =====================================================================
-// Module: Enclosure Shell (full, before splitting)
+// Module: Cable Routing — Circuit A/B/C separated channels
 // =====================================================================
-module enclosure_shell() {
+module cable_routing() {
+    // Circuit A/B channel: powerbank → hub → tablet USB-C
+    // Runs along center-left, from powerbank area up to tablet cradle
+
+    // Horizontal channel: powerbank to hub (along Y)
+    ch_ab_x = pbank_x + pbank_w / 2 - cable_ch_w / 2;
+    ch_ab_y1 = pbank_y + pbank_d + pbank_clr;
+    ch_ab_y2 = hub_y;
+    translate([ch_ab_x, ch_ab_y1, floor_t])
+        cube([cable_ch_w, ch_ab_y2 - ch_ab_y1, cable_ch_d]);
+
+    // Vertical channel: hub area up to tablet (along Z)
+    translate([ch_ab_x, hub_y + hub_d / 2, floor_t])
+        cube([cable_ch_w, cable_ch_w, total_h - 25 - floor_t]);
+
+    // Circuit C channel: powerbank USB-A → right side → USB switch → router
+    // Runs along RIGHT wall, separated from A/B
+    ch_c_x = split_right_x - cable_ch_w - wall - 2;
+    translate([ch_c_x, pbank_y + pbank_d / 2, floor_t])
+        cube([cable_ch_w, body_d - pbank_y - pbank_d / 2 - wall, cable_ch_d]);
+
+    // Cross channel from router to Circuit C
+    translate([router_x, router_y + router_d / 2 - cable_ch_w / 2, floor_t])
+        cube([ch_c_x - router_x + cable_ch_w, cable_ch_w, cable_ch_d]);
+
+    // Encoder ribbon channel: encoder bay to left joystick (along Z, left grip)
+    translate([enc_x + enc_w / 2 - cable_ch_w / 2, enc_y - 5, enc_z + enc_h])
+        cube([cable_ch_w, cable_ch_w, ljoy_z - enc_z - enc_h]);
+}
+
+// =====================================================================
+// Module: Grip Profile — ergonomic rounded grip cross-section
+// =====================================================================
+module grip_profile_2d(w, h) {
+    // Rounded rectangle for comfortable child grip
+    offset(r = grip_r) offset(delta = -grip_r)
+        square([w, h]);
+}
+
+// =====================================================================
+// Module: Main Body Shell (full, before splitting)
+// =====================================================================
+module body_shell() {
     difference() {
-        rounded_cube([enc_w, enc_d, enc_h], r = corner_r);
+        union() {
+            // Center section — rectangular with rounded corners
+            translate([grip_w, 0, 0])
+                rounded_cube([center_w, body_d, total_h], r = corner_r);
 
-        // Hollow interior
-        translate([wall, wall, floor_t])
-            cube([enc_w - 2 * wall, enc_d - 2 * wall, enc_h]);
+            // Left grip — ergonomic extension
+            hull() {
+                // Inner face (flush with center)
+                translate([grip_w, 0, 0])
+                    rounded_cube([1, body_d, total_h], r = corner_r);
+                // Outer face (rounded grip shape)
+                translate([0, body_d * 0.15, total_h * 0.1])
+                    rounded_cube([wall, body_d * 0.7, total_h * 0.85], r = grip_r);
+            }
+
+            // Right grip — ergonomic extension (mirror)
+            hull() {
+                translate([split_right_x - 1, 0, 0])
+                    rounded_cube([1, body_d, total_h], r = corner_r);
+                translate([total_w - wall, body_d * 0.15, total_h * 0.1])
+                    rounded_cube([wall, body_d * 0.7, total_h * 0.85], r = grip_r);
+            }
+        }
+
+        // Hollow interior — center section
+        translate([grip_w + wall, wall, floor_t])
+            cube([center_w - 2 * wall, body_d - 2 * wall, total_h]);
+
+        // Hollow interior — left grip
+        translate([wall, wall + body_d * 0.15, floor_t + total_h * 0.1])
+            cube([grip_w, body_d * 0.7 - wall, total_h * 0.85 - floor_t]);
+
+        // Hollow interior — right grip
+        translate([split_right_x, wall, floor_t])
+            cube([grip_w - wall, body_d - 2 * wall, total_h - floor_t]);
     }
 }
 
 // =====================================================================
-// Module: Internal Divider — separates power bank zone from electronics zone
+// Module: Split Joint Hardware — keys, sockets, M4 bolts
 // =====================================================================
-module internal_divider() {
-    translate([wall, split_y, floor_t])
-        cube([enc_w - 2 * wall, divider_t, enc_h * 0.5]);
+
+// Joint positions along the split seams
+joint_y_positions = [body_d * 0.25, body_d * 0.5, body_d * 0.75];
+joint_z_positions = [total_h * 0.33, total_h * 0.66];
+
+// --- Left-Center Joint ---
+module left_center_keys() {
+    // Alignment keys on left piece (protrude +X into center)
+    for (jy = joint_y_positions) {
+        for (jz = joint_z_positions) {
+            translate([split_left_x, jy, jz])
+                rotate([0, 90, 0])
+                    split_key(size = joint_key_size, height = joint_key_h);
+        }
+    }
+}
+
+module left_center_sockets() {
+    // Sockets on center piece (receive keys from left)
+    for (jy = joint_y_positions) {
+        for (jz = joint_z_positions) {
+            translate([split_left_x, jy, jz])
+                rotate([0, 90, 0])
+                    split_socket(size = joint_key_size, height = joint_key_h);
+        }
+    }
+}
+
+module left_center_bolts() {
+    // M4 bolt holes at left-center seam
+    bolt_positions = [
+        [split_left_x, body_d * 0.3, total_h * 0.5],
+        [split_left_x, body_d * 0.7, total_h * 0.5]
+    ];
+    for (bp = bolt_positions) {
+        translate([bp[0] - bolt_depth / 2, bp[1], bp[2]])
+            rotate([0, 90, 0])
+                m4_hole(depth = bolt_depth);
+    }
+}
+
+// --- Center-Right Joint ---
+module center_right_keys() {
+    for (jy = joint_y_positions) {
+        for (jz = joint_z_positions) {
+            translate([split_right_x, jy, jz])
+                rotate([0, 90, 0])
+                    split_key(size = joint_key_size, height = joint_key_h);
+        }
+    }
+}
+
+module center_right_sockets() {
+    for (jy = joint_y_positions) {
+        for (jz = joint_z_positions) {
+            translate([split_right_x, jy, jz])
+                rotate([0, 90, 0])
+                    split_socket(size = joint_key_size, height = joint_key_h);
+        }
+    }
+}
+
+module center_right_bolts() {
+    bolt_positions = [
+        [split_right_x, body_d * 0.3, total_h * 0.5],
+        [split_right_x, body_d * 0.7, total_h * 0.5]
+    ];
+    for (bp = bolt_positions) {
+        translate([bp[0] - bolt_depth / 2, bp[1], bp[2]])
+            rotate([0, 90, 0])
+                m4_hole(depth = bolt_depth);
+    }
 }
 
 // =====================================================================
-// Module: Cradle Front — left half of front section (power bank + tablet)
+// Module: Left Grip — joystick + encoder
+// =====================================================================
+module left_grip() {
+    difference() {
+        union() {
+            // Left portion of body shell
+            intersection() {
+                cube([split_left_x + 0.01, body_d + 1, total_h + 50]);
+                body_shell();
+            }
+            // Alignment keys (protrude into center)
+            left_center_keys();
+        }
+
+        // Left joystick cavity
+        joystick_mount(ljoy_x, ljoy_y, ljoy_z);
+
+        // Encoder bay
+        encoder_bay();
+
+        // Cable routing (left portion)
+        intersection() {
+            cube([split_left_x + 0.1, body_d + 1, total_h + 1]);
+            cable_routing();
+        }
+
+        // M4 bolt holes at seam
+        left_center_bolts();
+
+        // Fillet approximation: chamfer bottom edges
+        translate([-0.1, -0.1, -0.1])
+            rotate([0, 90, 0])
+                linear_extrude(height = split_left_x + 0.2)
+                    polygon([[0, 0], [-fillet_r, 0], [0, fillet_r]]);
+    }
+
+    // Ghost volumes
+    joystick_dummy(ljoy_x, ljoy_y, ljoy_z);
+}
+
+// =====================================================================
+// Module: Right Grip — joystick + buttons + USB switch
+// =====================================================================
+module right_grip() {
+    // Local origin shifted so seam face is at x=0
+    translate([-split_right_x, 0, 0])
+    difference() {
+        union() {
+            // Right portion of body shell
+            intersection() {
+                translate([split_right_x - 0.01, 0, 0])
+                    cube([grip_w + 0.02, body_d + 1, total_h + 50]);
+                body_shell();
+            }
+        }
+
+        // Alignment sockets (receive keys from center)
+        center_right_sockets();
+
+        // Right joystick cavity
+        joystick_mount(rjoy_x, rjoy_y, rjoy_z);
+
+        // Button holes (4x Sanwa 24mm)
+        button_holes();
+
+        // USB switch slot
+        usb_switch_slot();
+
+        // Cable routing (right portion)
+        intersection() {
+            translate([split_right_x - 0.1, 0, 0])
+                cube([grip_w + 0.2, body_d + 1, total_h + 1]);
+            cable_routing();
+        }
+
+        // M4 bolt holes at seam
+        center_right_bolts();
+    }
+
+    // Ghost volumes and labels
+    translate([-split_right_x, 0, 0]) {
+        joystick_dummy(rjoy_x, rjoy_y, rjoy_z);
+        button_labels();
+    }
+}
+
+// =====================================================================
+// Module: Center Section — tablet + powerbank + hub + router
+// =====================================================================
+module center_section() {
+    // Local origin shifted so left seam face is at x=0
+    translate([-split_left_x, 0, 0])
+    difference() {
+        union() {
+            // Center portion of body shell
+            intersection() {
+                translate([split_left_x - 0.01, 0, 0])
+                    cube([center_w + 0.02, body_d + 1, total_h + 50]);
+                union() {
+                    body_shell();
+                    tablet_lips();
+                }
+            }
+
+            // Component mounts (center portion)
+            intersection() {
+                translate([split_left_x - 0.01, 0, 0])
+                    cube([center_w + 0.02, body_d + 1, total_h + 1]);
+                union() {
+                    hub_mount();
+                    router_slot();
+                }
+            }
+
+            // Alignment keys toward right grip
+            center_right_keys();
+        }
+
+        // Alignment sockets (receive keys from left grip)
+        left_center_sockets();
+
+        // Tablet slot cutout
+        tablet_slot();
+
+        // Powerbank bay cutout (we cut cavity, bottom_bay adds cradle walls)
+        // Actually bottom_bay is additive; we just need the cavity for powerbank
+        // The cradle walls are part of the shell interior structure
+        // Cut powerbank cavity
+        translate([pbank_x + wall, pbank_y, pbank_z])
+            cube([pbank_w + 2 * pbank_clr, pbank_d + 2 * pbank_clr,
+                  pbank_h + pbank_clr]);
+
+        // Cable routing (center portion)
+        intersection() {
+            translate([split_left_x - 0.1, 0, 0])
+                cube([center_w + 0.2, body_d + 1, total_h + 1]);
+            cable_routing();
+        }
+
+        // Hub port cutout (USB-C PD input on front face)
+        translate([hub_x + hub_w / 2 - 7, -0.1, hub_z + 2])
+            cube([14, wall + 0.2, 10]);
+
+        // Hub USB-A port cutouts (rear or side)
+        translate([hub_x + hub_w / 2 - 20, hub_y + hub_d + hub_clr, hub_z + 2])
+            cube([40, wall + 0.2, 10]);
+
+        // Router port cutout through body wall (if router is near wall)
+        // Micro-USB power cable entry
+        translate([router_x + router_w / 2 - 6,  -0.1, router_z + wall + 3])
+            cube([12, wall + 0.2, 8]);
+
+        // M4 bolt holes at both seams
+        left_center_bolts();
+        center_right_bolts();
+
+        // Powerbank port cutouts
+        // USB-C PD output (front)
+        translate([pbank_x + pbank_w / 2 - 7, -0.1, pbank_z + 2])
+            cube([14, wall + 0.2, 8]);
+        // USB-A IQ output (Circuit C, front)
+        translate([pbank_x + pbank_w / 2 + 15, -0.1, pbank_z + 2])
+            cube([14, wall + 0.2, 8]);
+
+        // LED indicator window
+        translate([pbank_x + pbank_w / 2 - 10, -0.1, pbank_z + pbank_h - 2])
+            cube([20, wall + 0.2, 4]);
+    }
+
+    // Ghost volumes
+    translate([-split_left_x, 0, 0]) {
+        tablet_dummy();
+
+        // Powerbank dummy
+        translate([pbank_x + wall + pbank_clr, pbank_y + pbank_clr, pbank_z])
+            %cube([pbank_w, pbank_d, pbank_h]);
+    }
+}
+
+// =====================================================================
+// Module: Cradle Left — printable left grip piece
 // =====================================================================
 module cradle_left() {
-    difference() {
-        union() {
-            // Left half of enclosure shell
-            intersection() {
-                cube([half_w + 0.01, enc_d + 1, enc_h + 50]);
-                union() {
-                    enclosure_shell();
-                    internal_divider();
-                    tablet_lips();
-                }
-            }
-
-            // Alignment keys
-            split_keys_male();
-
-            // Component bays (left portion)
-            intersection() {
-                cube([half_w + 0.01, enc_d + 1, enc_h + 1]);
-                union() {
-                    router_bay();
-                    hub_mount();
-                    powerbank_bay();
-                }
-            }
-        }
-
-        // Tablet slot cutout (left portion)
-        intersection() {
-            cube([half_w + 0.1, enc_d + 50, enc_h + 50]);
-            tablet_slot();
-        }
-
-        // Cable channels (left portion)
-        intersection() {
-            cube([half_w + 0.1, enc_d + 1, enc_h + 1]);
-            cable_channels();
-        }
-
-        // Port cutouts (left portion)
-        intersection() {
-            cube([half_w + 0.1, enc_d + 1, enc_h + 1]);
-            union() {
-                router_port_cutout();
-                hub_button_cutout();
-                hub_power_cutout();
-                pbank_port_cutout();
-                pbank_led_cutout();
-            }
-        }
-
-        // Corner mount holes (left side)
-        intersection() {
-            cube([half_w + 0.1, enc_d + 1, enc_h + 1]);
-            corner_mount_holes();
-        }
-
-        // Split bolt holes
-        split_bolts_left();
-
-        // Bottom edge chamfers (left portion)
-        intersection() {
-            cube([half_w + 0.1, enc_d + 1, enc_h + 1]);
-            edge_chamfers();
-        }
-    }
-
-    // Dummy volumes (left portion)
-    intersection() {
-        cube([half_w + 0.1, enc_d + 1, enc_h + 50]);
-        tablet_dummy();
-    }
+    left_grip();
 }
 
 // =====================================================================
-// Module: Cradle Right — right half
+// Module: Cradle Center — printable center piece
+// =====================================================================
+module cradle_center() {
+    center_section();
+}
+
+// =====================================================================
+// Module: Cradle Right — printable right grip piece
 // =====================================================================
 module cradle_right() {
-    // Right half — local origin at seam face, extends +X to half_w
-    difference() {
-        union() {
-            // Right half of enclosure shell (shifted to local coords)
-            intersection() {
-                translate([-0.01, 0, 0])
-                    cube([half_w + 0.02, enc_d + 1, enc_h + 50]);
-                translate([-half_w, 0, 0])
-                union() {
-                    enclosure_shell();
-                    internal_divider();
-                    tablet_lips();
-                }
-            }
-
-            // Component bays (right portion, shifted)
-            intersection() {
-                translate([-0.01, 0, 0])
-                    cube([half_w + 0.02, enc_d + 1, enc_h + 1]);
-                translate([-half_w, 0, 0])
-                union() {
-                    router_bay();
-                    hub_mount();
-                    powerbank_bay();
-                }
-            }
-        }
-
-        // Alignment sockets
-        split_sockets_female();
-
-        // Tablet slot cutout (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_w + 0.2, enc_d + 50, enc_h + 50]);
-            translate([-half_w, 0, 0])
-                tablet_slot();
-        }
-
-        // Cable channels (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_w + 0.2, enc_d + 1, enc_h + 1]);
-            translate([-half_w, 0, 0])
-                cable_channels();
-        }
-
-        // Port cutouts (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_w + 0.2, enc_d + 1, enc_h + 1]);
-            translate([-half_w, 0, 0])
-            union() {
-                router_port_cutout();
-                hub_button_cutout();
-                hub_power_cutout();
-                pbank_port_cutout();
-                pbank_led_cutout();
-            }
-        }
-
-        // Corner mount holes (right side)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_w + 0.2, enc_d + 1, enc_h + 1]);
-            translate([-half_w, 0, 0])
-                corner_mount_holes();
-        }
-
-        // Split bolt holes
-        split_bolts_right();
-
-        // Bottom edge chamfers (right portion)
-        intersection() {
-            translate([-0.1, 0, 0])
-                cube([half_w + 0.2, enc_d + 1, enc_h + 1]);
-            translate([-half_w, 0, 0])
-                edge_chamfers();
-        }
-    }
-
-    // Dummy volumes (right portion)
-    intersection() {
-        translate([-0.1, 0, 0])
-            cube([half_w + 0.2, enc_d + 1, enc_h + 50]);
-        translate([-half_w, 0, 0])
-            tablet_dummy();
-    }
+    right_grip();
 }
 
 // =====================================================================
-// Module: Cradle Assembly — both halves joined
+// Module: Cradle Assembly — all three pieces joined
 // =====================================================================
 module cradle_assembly() {
     cradle_left();
-    translate([half_w, 0, 0])
+    translate([split_left_x, 0, 0])
+        cradle_center();
+    translate([split_right_x, 0, 0])
         cradle_right();
 }
 
 // =====================================================================
 // Render Selected Part
 // =====================================================================
-if (part == "front")    cradle_left();
-else if (part == "rear")     cradle_right();
+if (part == "left")          cradle_left();
+else if (part == "center")   cradle_center();
+else if (part == "right")    cradle_right();
 else if (part == "assembly") cradle_assembly();
 
 // =====================================================================
 // Debug: Print computed dimensions
 // =====================================================================
-echo(str("Enclosure: ", enc_w, " x ", enc_d, " x ", enc_h, " mm"));
-echo(str("Half width: ", half_w, " mm"));
-echo(str("Split Y: ", split_y, " mm"));
-echo(str("Power bank pos: [", pbank_x, ", ", pbank_y, ", ", pbank_z, "]"));
-echo(str("Router pos: [", router_x, ", ", router_y, ", ", router_z, "]"));
+echo(str("=== Handheld Gamepad Console ==="));
+echo(str("Total size: ", total_w, " x ", body_d, " x ", total_h, " mm"));
+echo(str("Left grip piece: ", split_left_x, " x ", body_d, " x ", total_h, " mm"));
+echo(str("Center piece: ", center_w, " x ", body_d, " x ", total_h, " mm"));
+echo(str("Right grip piece: ", grip_w, " x ", body_d, " x ", total_h, " mm"));
+echo(str("Split Left X: ", split_left_x));
+echo(str("Split Right X: ", split_right_x));
+echo(str("Tablet pos: [", tablet_x, ", ", tablet_y, ", ", tablet_z, "]"));
+echo(str("PowerBank pos: [", pbank_x, ", ", pbank_y, ", ", pbank_z, "]"));
 echo(str("Hub pos: [", hub_x, ", ", hub_y, ", ", hub_z, "]"));
+echo(str("Router pos: [", router_x, ", ", router_y, ", ", router_z, "]"));
+echo(str("L-Joy pos: [", ljoy_x, ", ", ljoy_y, ", ", ljoy_z, "]"));
+echo(str("R-Joy pos: [", rjoy_x, ", ", rjoy_y, ", ", rjoy_z, "]"));
+echo(str("Encoder pos: [", enc_x, ", ", enc_y, ", ", enc_z, "]"));
+echo(str("Button grid center: [", btn_grid_x, ", ", btn_grid_y, "]"));
+echo(str("NOTE: Center piece (", center_w, "mm) exceeds 180mm axis-aligned."));
+echo(str("Print diagonally on bed (diagonal capacity = 254mm)."));
