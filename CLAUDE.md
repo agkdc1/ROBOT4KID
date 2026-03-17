@@ -77,7 +77,16 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
 - **Loop:** Iterate until Gemini scores >= 0.85 overall AND User gives final approval.
 - **Implementation:** `planning_server/app/pipeline/visual_validation.py` — `run_visual_validation()` renders, stitches, sends to Gemini, returns 10-point checklist.
 
-### Step 5: Pro Rendering (Blender Cycles)
+### Step 5: Webots Physics Simulation
+- After Gate 2 approval, run Webots physics simulation to validate dynamics.
+- **ALWAYS use web streaming mode** (`--stream --minimize --batch`), NEVER launch the GUI.
+- **Demo Arena:** `simulation/worlds/demo_arena.wbt` — tank + train side by side with auto-drive controllers.
+- **Controllers:** `tank_demo` (figure-8 + turret sweep), `train_controller` (forward/reverse).
+- **Video Capture:** Record simulation frames, stitch into video, send to Gemini for physics audit.
+- **Streaming:** WebSocket on port 1234, consumed by React dashboard `SimulationViewer` component.
+- **Launch:** `webots --stream --minimize --batch --port 1234 simulation/worlds/demo_arena.wbt`
+
+### Step 6: Pro Rendering (Blender Cycles)
 - After Gate 2 approval, generate box-art quality renders using Blender's Cycles engine.
 - **Script:** `system/render_pro.py` — runs headless via `blender -b -P system/render_pro.py -- --stl-dir <path>`
 - **Features:** HDRI/studio lighting, PBR materials (painted metal, matte rubber, PCB green), 85mm portrait lens with f/4 DoF, OptiX/OIDN denoising, auto-camera framing.
