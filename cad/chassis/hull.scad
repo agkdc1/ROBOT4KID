@@ -64,11 +64,174 @@ beak_length = 24;          // Forward extension; total front half ~179mm fits 18
 beak_tip_height = 3;       // Thickness at the beak tip (was 4, sharper)
 
 // Engine deck louver parameters
-louver_count = 6;          // Number of louver slits per side
-louver_width = 3;          // Width of each louver cut
+louver_count = 10;         // More numerous, thinner slits for realism
+louver_width = 1.5;        // Thinner louver cuts (was 3)
 louver_depth = wall + 0.1; // Cut through deck surface
-louver_spacing = 10;       // Center-to-center spacing
+louver_spacing = 6;        // Tighter spacing (was 10)
 louver_length = 40;        // Length of each louver slit
+
+// Rear engine deck slope
+rear_deck_slope_deg = 6;   // 6-degree downward slope at rear
+
+// Side skirt flare
+skirt_flare = 1.5;         // Outward flare at bottom of skirts (mm)
+
+// Chamfer sizes
+chamfer_top = 1.0;         // Top edges where deck meets sides
+chamfer_bottom = 0.5;      // Bottom edges of hull
+chamfer_skirt = 0.5;       // Side skirt bottom edges
+
+// Greebling parameters
+panel_line_depth = 0.2;    // Depth of panel line grooves
+panel_line_width = 0.3;    // Width of panel line grooves
+driver_hatch_w = 20;       // Driver's hatch width
+driver_hatch_l = 15;       // Driver's hatch length
+driver_hatch_depth = 0.3;  // Hatch recess depth
+tow_hook_dia = 2;          // Tow hook cylinder diameter
+tow_hook_length = 3;       // Tow hook protrusion
+
+// Shadow gaps
+split_groove_depth = 0.2;  // Visual groove at hull split line
+split_groove_width = 0.4;  // Width of split groove
+skirt_gap = 0.15;          // Visual separation between skirt and hull
+
+// === AESTHETIC REFINEMENT MODULES ===
+
+// --- Chamfer Edge ---
+// 45-degree triangular prism for subtractive edge chamfering
+module chamfer_edge(length, size=0.8) {
+    rotate([0, 0, 45])
+        cube([size*sqrt(2), size*sqrt(2), length], center=true);
+}
+
+// --- Hull Chamfers ---
+// Subtract chamfers from major hull edges
+module hull_chamfers(length) {
+    // Top edges: where deck meets sides (left and right)
+    // Left top edge
+    translate([length/2, 0, hull_height])
+        rotate([0, 0, 0])
+        chamfer_edge(length + 0.2, chamfer_top);
+    // Right top edge
+    translate([length/2, hull_width, hull_height])
+        chamfer_edge(length + 0.2, chamfer_top);
+
+    // Bottom edges (left and right)
+    translate([length/2, 0, 0])
+        chamfer_edge(length + 0.2, chamfer_bottom);
+    translate([length/2, hull_width, 0])
+        chamfer_edge(length + 0.2, chamfer_bottom);
+
+    // Front bottom edge
+    translate([0, hull_width/2, 0])
+        rotate([0, 90, 0])
+        chamfer_edge(hull_width + 0.2, chamfer_bottom);
+    // Rear bottom edge
+    translate([length, hull_width/2, 0])
+        rotate([0, 90, 0])
+        chamfer_edge(hull_width + 0.2, chamfer_bottom);
+}
+
+// --- Side Skirt Chamfers ---
+module skirt_chamfers(length) {
+    // Bottom edge chamfers on both side skirts
+    for (y_pos = [-2, hull_width]) {
+        // Bottom front edge of skirt
+        translate([length/2, y_pos + 1, -side_skirt_drop])
+            chamfer_edge(length + 0.2, chamfer_skirt);
+    }
+}
+
+// --- Panel Lines ---
+// Horizontal grooves on hull sides for surface detail
+module panel_lines(length) {
+    line_positions = [deck_height * 0.3, deck_height * 0.6, deck_height * 0.85];
+    for (z = line_positions) {
+        // Left side
+        translate([-0.1, -0.1, z - panel_line_width/2])
+            cube([length + 0.2, panel_line_depth + 0.1, panel_line_width]);
+        // Right side
+        translate([-0.1, hull_width - panel_line_depth, z - panel_line_width/2])
+            cube([length + 0.2, panel_line_depth + 0.1, panel_line_width]);
+    }
+}
+
+// --- Driver's Hatch ---
+// Recessed rectangle on front hull top deck
+module driver_hatch() {
+    // Offset from center toward left (driver sits left of turret on M1A1)
+    translate([hull_length * 0.4, hull_width/2 - driver_hatch_w - 5,
+               hull_height - driver_hatch_depth])
+        cube([driver_hatch_l, driver_hatch_w, driver_hatch_depth + 0.1]);
+}
+
+// --- Tow Hooks ---
+// Small cylindrical hooks at front corners
+module tow_hooks() {
+    for (y_off = [8, hull_width - 8]) {
+        translate([-tow_hook_length, y_off, deck_height * 0.3])
+            rotate([0, 90, 0])
+            cylinder(h=tow_hook_length, d=tow_hook_dia, $fn=16);
+    }
+}
+
+// --- Rear Deck Slope ---
+// Angled cut on rear top surface to simulate engine deck slope
+module rear_deck_slope(length) {
+    // Wedge subtracted from the top-rear of the hull
+    slope_start = length * 0.6;  // Start sloping in the rear 40%
+    slope_length = length - slope_start;
+    slope_drop = slope_length * tan(rear_deck_slope_deg);
+    translate([slope_start, -0.1, hull_height - slope_drop])
+        rotate([0, 0, 0])
+        polyhedron(
+            points = [
+                [0, 0, slope_drop],                       // 0: start-left-top
+                [slope_length, 0, 0],                     // 1: end-left-bottom
+                [slope_length, 0, slope_drop],            // 2: end-left-top
+                [0, hull_width + 0.2, slope_drop],        // 3: start-right-top
+                [slope_length, hull_width + 0.2, 0],      // 4: end-right-bottom
+                [slope_length, hull_width + 0.2, slope_drop], // 5: end-right-top
+            ],
+            faces = [
+                [0,1,2],     // left triangle
+                [3,5,4],     // right triangle
+                [0,3,4,1],   // slope face
+                [0,2,5,3],   // top
+                [1,4,5,2],   // rear
+            ]
+        );
+}
+
+// --- Split Line Groove ---
+// Visual groove at the hull split line for shadow gap effect
+module split_line_groove() {
+    // Vertical groove on both sides at the split face (X=0 or X=hull_length)
+    // Left side
+    translate([-split_groove_width/2, -0.1, 0])
+        cube([split_groove_width, split_groove_depth + 0.1, hull_height]);
+    // Right side
+    translate([-split_groove_width/2, hull_width - split_groove_depth, 0])
+        cube([split_groove_width, split_groove_depth + 0.1, hull_height]);
+    // Top
+    translate([-split_groove_width/2, upper_taper, hull_height - split_groove_depth])
+        cube([split_groove_width, hull_width - 2*upper_taper, split_groove_depth + 0.1]);
+    // Bottom
+    translate([-split_groove_width/2, -0.1, -0.1])
+        cube([split_groove_width, hull_width + 0.2, split_groove_depth + 0.1]);
+}
+
+// --- Skirt Gap ---
+// Thin groove between skirt inner face and hull body for visual separation
+module skirt_separation(length) {
+    for (y_pos = [-2, hull_width]) {
+        inner_y = (y_pos < 0) ? y_pos + 2 - skirt_gap : y_pos;
+        translate([-0.1, inner_y, -side_skirt_drop])
+            cube([length + 0.2, skirt_gap, deck_height + side_skirt_drop - 0.5]);
+    }
+}
+
+// === END AESTHETIC REFINEMENT MODULES ===
 
 // --- Hull Shape Module ---
 // Cross-section: flat bottom, vertical lower sides, tapered upper sides, flat deck
@@ -110,10 +273,32 @@ module hull_shape(length) {
             cube([length - 2*wall, hull_width - 2*wall, hull_height]);
     }
 
-    // Side skirts — full-length plates covering track system
-    for (y_pos = [-2, hull_width])
-        translate([0, y_pos, -side_skirt_drop])
-            cube([length, 2, deck_height + side_skirt_drop]);
+    // Side skirts — full-length plates with slight outward flare at bottom
+    for (y_pos = [-2, hull_width]) {
+        flare_dir = (y_pos < 0) ? -1 : 1;  // Flare outward from hull
+        polyhedron(
+            points = [
+                // Top edge (flush with hull)
+                [0, y_pos, deck_height],
+                [length, y_pos, deck_height],
+                [length, y_pos + 2, deck_height],
+                [0, y_pos + 2, deck_height],
+                // Bottom edge (flared outward)
+                [0, y_pos + flare_dir * skirt_flare, -side_skirt_drop],
+                [length, y_pos + flare_dir * skirt_flare, -side_skirt_drop],
+                [length, y_pos + 2 + flare_dir * skirt_flare, -side_skirt_drop],
+                [0, y_pos + 2 + flare_dir * skirt_flare, -side_skirt_drop],
+            ],
+            faces = [
+                [3,2,1,0],   // top
+                [4,5,6,7],   // bottom
+                [0,1,5,4],   // outer
+                [2,3,7,6],   // inner
+                [0,4,7,3],   // front
+                [1,2,6,5],   // rear
+            ]
+        );
+    }
 }
 
 // --- Beak + Glacis ---
@@ -189,12 +374,29 @@ module hull_front() {
             hull_shape(hull_length);
             glacis_plate();
             hull_cam_mount();
+            tow_hooks();  // Tow hooks at front corners
         }
 
         // ESP32-CAM front window (lens aperture)
-        // Positioned to match camera mount height
         translate([-beak_length - 0.1, hull_width/2 - hull_cam_width/2, hull_height * 0.4])
             cube([beak_length + wall + 5, hull_cam_width, hull_cam_height]);
+
+        // Aesthetic: chamfers on major edges
+        hull_chamfers(hull_length);
+        skirt_chamfers(hull_length);
+
+        // Aesthetic: panel lines on hull sides
+        panel_lines(hull_length);
+
+        // Aesthetic: driver's hatch on top deck
+        driver_hatch();
+
+        // Aesthetic: skirt visual separation
+        skirt_separation(hull_length);
+
+        // Aesthetic: split line groove at rear face (mating face)
+        translate([hull_length, 0, 0])
+            split_line_groove();
     }
 
     // Motor mounts (front pair — one per side)
@@ -276,8 +478,24 @@ module hull_rear() {
         // Electronics bay mounting holes in floor
         ebay_floor_mounts();
 
-        // Engine deck louvers (ventilation detail)
+        // Engine deck louvers (ventilation detail — thinner, more numerous)
         engine_deck_louvers();
+
+        // Aesthetic: rear engine deck slope (5-8 deg downward)
+        rear_deck_slope(hull_length);
+
+        // Aesthetic: chamfers on major edges
+        hull_chamfers(hull_length);
+        skirt_chamfers(hull_length);
+
+        // Aesthetic: panel lines on hull sides
+        panel_lines(hull_length);
+
+        // Aesthetic: skirt visual separation
+        skirt_separation(hull_length);
+
+        // Aesthetic: split line groove at front face (mating face)
+        split_line_groove();
     }
 
     // Turret ring (centered on rear half)

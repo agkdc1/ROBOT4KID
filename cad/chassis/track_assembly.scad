@@ -66,6 +66,26 @@ BOLT_Z              = SIDE_PLATE_HEIGHT - 8;
 // Hull spacing for assembly view
 HULL_W = 139;   // Match new hull width (1:26 scale)
 
+// --- Aesthetic Greebling ---
+// Track link panel lines
+PANEL_LINE_SPACING = 15;   // Horizontal groove every 15mm
+PANEL_LINE_DEPTH   = 0.2;  // 0.2mm deep
+PANEL_LINE_WIDTH   = 0.3;  // 0.3mm wide
+
+// Return roller (top of side plate, centered)
+RETURN_ROLLER_DIA   = 8;
+RETURN_ROLLER_THICK = 6;
+
+// Mud flap (front of side plate)
+MUD_FLAP_THICK  = 1;
+MUD_FLAP_HEIGHT = 10;
+
+// Top edge chamfer
+TOP_CHAMFER = 0.5;
+
+// Shadow gap between wheels and side plate
+WHEEL_SHADOW_GAP = 0.15;
+
 // --- Modules ---
 
 // Single road wheel
@@ -139,6 +159,38 @@ module tension_slot() {
     }
 }
 
+// Panel line grooves on side plate exterior (cut from outer face at Y=0)
+module panel_line_grooves() {
+    groove_count = floor(SIDE_PLATE_LENGTH / PANEL_LINE_SPACING);
+    for (i = [1 : groove_count - 1]) {
+        translate([i * PANEL_LINE_SPACING, -0.01, SIDE_PLATE_WALL])
+            cube([PANEL_LINE_WIDTH, PANEL_LINE_DEPTH + 0.01, SIDE_PLATE_HEIGHT - 2 * SIDE_PLATE_WALL]);
+    }
+}
+
+// Return roller — single small roller at top of side plate, centered
+module return_roller() {
+    translate([SIDE_PLATE_LENGTH / 2, -RETURN_ROLLER_THICK / 2, SIDE_PLATE_HEIGHT])
+        rotate([90, 0, 0])
+            difference() {
+                cylinder(d = RETURN_ROLLER_DIA, h = RETURN_ROLLER_THICK, center = true);
+                cylinder(d = ROAD_WHEEL_AXLE_DIA, h = RETURN_ROLLER_THICK + 1, center = true);
+            }
+}
+
+// Mud flap — thin plate extending down from front of side plate
+module mud_flap() {
+    translate([0, 0, -MUD_FLAP_HEIGHT])
+        cube([MUD_FLAP_THICK, SIDE_PLATE_WIDTH, MUD_FLAP_HEIGHT]);
+}
+
+// Top edge chamfer — 45-degree cut along the top outer edge (Y=0 side)
+module top_edge_chamfer() {
+    translate([-0.01, -0.01, SIDE_PLATE_HEIGHT - TOP_CHAMFER])
+        rotate([45, 0, 0])
+            cube([SIDE_PLATE_LENGTH + 0.02, TOP_CHAMFER * 1.5, TOP_CHAMFER * 1.5]);
+}
+
 // Left side plate with all features
 module side_plate_left() {
     difference() {
@@ -167,7 +219,16 @@ module side_plate_left() {
                 rotate([0, 0, 0])
                     translate([0, 0, 0])
                         n20_motor_mount_positioned();
+
+            // Mud flap at front
+            mud_flap();
         }
+
+        // Panel line grooves on exterior face
+        panel_line_grooves();
+
+        // Top edge chamfer on outer face
+        top_edge_chamfer();
 
         // M4 bolt holes for hull attachment (through inner wall, top region)
         for (i = [0 : BOLT_COUNT - 1]) {
@@ -236,14 +297,15 @@ module track_assembly_left() {
     // Side plate with all cutouts and brackets
     side_plate_left();
 
-    // Road wheels on outer face
+    // Return roller at top of side plate
+    return_roller();
+
+    // Road wheels on outer face (with shadow gap from side plate)
     for (i = [0 : ROAD_WHEEL_COUNT - 1]) {
         translate([ROAD_WHEEL_X_START + i * ROAD_WHEEL_SPACING,
-                   -ROAD_WHEEL_THICK / 2, ROAD_WHEEL_Z])
+                   -(ROAD_WHEEL_THICK / 2 + WHEEL_SHADOW_GAP), ROAD_WHEEL_Z])
             rotate([90, 0, 0])
-                rotate([0, 0, 0])
-                    translate([0, 0, 0])
-                        road_wheel();
+                road_wheel();
     }
 
     // Drive sprocket at rear

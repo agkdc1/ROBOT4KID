@@ -11,6 +11,7 @@ from planning_server.app import config
 from planning_server.app.pipeline.llm import Provider, generate_with_tool
 from planning_server.app.pipeline.nlp import parse_nl_to_robot_spec
 from planning_server.app.pipeline.cad_gen import generate_scad_for_part
+from planning_server.app.pipeline.blender_render import render_pro_shots
 from planning_server.app.pipeline.reference_search import search_and_analyze
 from planning_server.app.pipeline.visual_validation import run_visual_validation
 from planning_server.app.simulation_client.client import SimulationClient
@@ -477,6 +478,26 @@ async def run_pipeline(
                 logger.warning(f"Gate 2 validation failed: {e}")
                 results["errors"].append(f"Gate 2: {e}")
                 break
+
+    # Step 6: Pro Rendering (Blender Cycles — box art quality)
+    if final_job_id:
+        progress.update("pro_render", 0.0, "Generating pro renders (Blender Cycles)...")
+        try:
+            job_dir_render = config.SIM_JOBS_DIR / final_job_id if hasattr(config, "SIM_JOBS_DIR") else None
+            if job_dir_render and job_dir_render.exists():
+                pro_renders = await render_pro_shots(
+                    job_dir=job_dir_render,
+                    presets=["hero", "transparent"],
+                )
+                results["pro_renders"] = {k: str(v) for k, v in pro_renders.items()}
+                progress.update("pro_render", 1.0,
+                                f"Pro renders complete: {len(pro_renders)} images")
+            else:
+                progress.update("pro_render", 1.0, "Pro render skipped (no job dir)")
+        except Exception as e:
+            logger.warning(f"Pro rendering skipped: {e}")
+            results["errors"].append(f"Pro render: {e}")
+            progress.update("pro_render", 1.0, f"Pro render skipped: {e}")
 
     progress.update("complete", 1.0, "Pipeline complete")
     return results

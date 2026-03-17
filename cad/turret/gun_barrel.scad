@@ -26,6 +26,19 @@ bore_evac_pos = barrel_length * 0.6;  // 60% from breech = 40% from muzzle
 muzzle_od = 14;
 muzzle_length = 10;
 
+// Thermal sleeve — covers barrel between bayonet and bore evacuator
+thermal_sleeve_od = 13;        // Slightly larger than barrel_od (12mm)
+thermal_sleeve_start = 2;      // Start just past bayonet (offset from barrel_tube base)
+thermal_sleeve_end_margin = 3; // End just before bore evacuator
+
+// Muzzle Reference Sensor (MRS) — tiny reflector on muzzle tip
+mrs_dia = 2;
+mrs_length = 1.5;
+mrs_offset = muzzle_od / 2;   // Offset from bore center (on muzzle OD surface)
+
+// Bore evacuator taper transition
+bore_evac_taper = 3;           // 3mm cone transition on each end
+
 $fn = 64;
 
 module bayonet_mount() {
@@ -61,17 +74,32 @@ module barrel_tube() {
 }
 
 module bore_evacuator() {
-    // Smooth cylindrical bulge with tapered transitions
-    hull() {
-        // Center full-diameter section
-        translate([0, 0, bore_evac_length * 0.2])
-            cylinder(h=bore_evac_length * 0.6, d=bore_evac_od);
-        // Front taper ring
-        translate([0, 0, bore_evac_length - 0.01])
-            cylinder(h=0.01, d=barrel_od);
-        // Rear taper ring
-        cylinder(h=0.01, d=barrel_od);
-    }
+    // Cylindrical bulge with cone transitions (not sharp steps)
+    // Rear taper: barrel_od -> bore_evac_od over bore_evac_taper mm
+    cylinder(h=bore_evac_taper, d1=barrel_od, d2=bore_evac_od);
+    // Main evacuator body
+    translate([0, 0, bore_evac_taper])
+        cylinder(h=bore_evac_length - 2 * bore_evac_taper, d=bore_evac_od);
+    // Front taper: bore_evac_od -> barrel_od over bore_evac_taper mm
+    translate([0, 0, bore_evac_length - bore_evac_taper])
+        cylinder(h=bore_evac_taper, d1=bore_evac_od, d2=barrel_od);
+}
+
+module thermal_sleeve() {
+    // Thin tube wrapping barrel from just past bayonet to just before bore evacuator
+    sleeve_length = (bore_evac_pos - bore_evac_length/2) - thermal_sleeve_start - thermal_sleeve_end_margin;
+    translate([0, 0, thermal_sleeve_start])
+        difference() {
+            cylinder(h=sleeve_length, d=thermal_sleeve_od);
+            translate([0, 0, -0.05])
+                cylinder(h=sleeve_length + 0.1, d=barrel_od + 0.01);
+        }
+}
+
+module muzzle_reference_sensor() {
+    // MRS reflector — tiny cylinder on muzzle tip, offset 90 degrees from bore
+    translate([mrs_offset, 0, 0])
+        cylinder(h=mrs_length, d=mrs_dia);
 }
 
 module muzzle_brake() {
@@ -95,9 +123,17 @@ module gun_barrel() {
     translate([0, 0, bayonet_length])
         barrel_tube();
 
+    // Thermal sleeve on barrel (between bayonet and bore evacuator)
+    translate([0, 0, bayonet_length])
+        thermal_sleeve();
+
     // Muzzle brake at tip
     translate([0, 0, bayonet_length + barrel_length])
         muzzle_brake();
+
+    // Muzzle Reference Sensor (MRS) at very tip of muzzle
+    translate([0, 0, bayonet_length + barrel_length + muzzle_length])
+        muzzle_reference_sensor();
 }
 
 gun_barrel();

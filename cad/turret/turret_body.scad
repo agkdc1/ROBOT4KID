@@ -51,6 +51,22 @@ bustle_length = 0;                // Bustle integrated into main body (was 25)
 nose_slope   = 15;                // Nose face angled back this far (sloped, not vertical)
 top_taper    = 3;                 // Top edges slope inward slightly
 
+// --- Aesthetic Refinement Parameters ---
+chamfer_size = 0.6;               // 45-degree edge chamfer on top perimeter
+top_slope_deg = 1.5;              // Subtle crown slope on turret top (degrees)
+panel_line_depth = 0.2;           // Surface groove depth
+panel_line_width = 0.3;           // Surface groove width
+hatch_commander_dia = 15;         // Commander's hatch diameter
+hatch_loader_dia = 12;            // Loader's hatch diameter
+hatch_depth = 0.3;                // Hatch recess depth
+smoke_launcher_dia = 2;           // Smoke grenade launcher tube diameter
+smoke_launcher_len = 3;           // Smoke grenade launcher tube length
+smoke_launcher_angle = 30;        // Outward angle (degrees)
+antenna_dia = 1.5;                // Antenna mount base diameter
+antenna_height = 2;               // Antenna mount height
+ring_body_chamfer = 0.3;          // Visual chamfer at ring-to-body junction
+trunnion_gap = 0.15;              // Visual gap around gun trunnion
+
 // Derived: turret_length = 175mm fits 180mm build volume
 // Ratio: 175/300 = 0.58 (closer to Gemini target 0.69 than old 0.50)
 
@@ -182,6 +198,132 @@ module turret_wire_duct() {
         cube([ring_x - nose_slope - 20, duct_width, duct_depth]);
 }
 
+// --- Aesthetic Refinement Modules ---
+
+// Subtle top-surface crown: slopes ~1.5 degrees from center toward edges
+// Subtracts tilted slabs from each side of the top surface so it isn't perfectly flat
+module turret_top_crown() {
+    full_cheek_w = half_w + cheek_width;
+    crown_drop = tan(top_slope_deg) * full_cheek_w;
+    slab_thick = crown_drop + 1;
+    for (side = [-1, 1]) {
+        translate([turret_length / 2, side * (full_cheek_w + slab_thick * 0.4), turret_height / 2 + slab_thick * 0.3])
+            rotate([side * top_slope_deg, 0, 0])
+                cube([turret_length + 2, full_cheek_w * 2 + 2, slab_thick], center = true);
+    }
+}
+
+// 45-degree chamfer strips along top edges of the turret
+// Rotated cubes placed at each top edge create clean 45-degree cuts
+module turret_edge_chamfers() {
+    full_cheek_w = half_w + cheek_width;
+    cs = chamfer_size;
+
+    // Left and right side top chamfers (run along X axis)
+    for (side = [-1, 1]) {
+        translate([turret_length / 2, side * (full_cheek_w - cs / 2), turret_height / 2 - cs / 2])
+            rotate([side > 0 ? 45 : -45, 0, 0])
+                cube([turret_length * 1.1, cs * 1.5, cs * 1.5], center = true);
+    }
+
+    // Front top chamfer (across the nose face)
+    translate([nose_slope - cs / 2, 0, turret_height / 2 - cs / 2])
+        rotate([0, -45, 0])
+            cube([cs * 1.5, turret_width * 1.2, cs * 1.5], center = true);
+
+    // Rear top chamfer
+    translate([turret_length + cs / 2, 0, turret_height / 2 - cs / 2])
+        rotate([0, 45, 0])
+            cube([cs * 1.5, turret_width * 1.0, cs * 1.5], center = true);
+}
+
+// Commander's hatch (right side of turret top)
+module commander_hatch() {
+    ring_x = turret_length * 0.42;
+    translate([ring_x + 15, 25, turret_height / 2 - hatch_depth])
+        cylinder(h = hatch_depth + 0.1, d = hatch_commander_dia);
+    // Hatch rim (slightly larger, shallower)
+    translate([ring_x + 15, 25, turret_height / 2 - hatch_depth * 0.4])
+        difference() {
+            cylinder(h = hatch_depth * 0.4 + 0.1, d = hatch_commander_dia + 1.5);
+            translate([0, 0, -0.05])
+                cylinder(h = hatch_depth * 0.4 + 0.2, d = hatch_commander_dia - 1.0);
+        }
+}
+
+// Loader's hatch (left side of turret top)
+module loader_hatch() {
+    ring_x = turret_length * 0.42;
+    translate([ring_x + 10, -22, turret_height / 2 - hatch_depth])
+        cylinder(h = hatch_depth + 0.1, d = hatch_loader_dia);
+    // Hatch rim
+    translate([ring_x + 10, -22, turret_height / 2 - hatch_depth * 0.4])
+        difference() {
+            cylinder(h = hatch_depth * 0.4 + 0.1, d = hatch_loader_dia + 1.2);
+            translate([0, 0, -0.05])
+                cylinder(h = hatch_depth * 0.4 + 0.2, d = hatch_loader_dia - 1.0);
+        }
+}
+
+// Panel lines (horizontal grooves on turret sides)
+module panel_lines() {
+    full_cheek_w = half_w + cheek_width;
+    // Two horizontal grooves per side
+    for (side = [-1, 1]) {
+        for (z_frac = [0.25, 0.55]) {
+            translate([cheek_length * 0.4, side * (full_cheek_w - 0.1), -turret_height / 2 + turret_height * z_frac])
+                rotate([90, 0, 0])
+                    cube([turret_length * 0.55, panel_line_depth, panel_line_width + 0.1], center = true);
+        }
+    }
+    // Single groove on turret rear face
+    translate([turret_length - 0.1, 0, turret_height * 0.1])
+        rotate([0, 90, 0])
+            cube([panel_line_depth, half_w * 1.2, panel_line_width + 0.1], center = true);
+}
+
+// Smoke grenade launchers: 2 per side at turret front
+module smoke_launchers() {
+    full_cheek_w = half_w + cheek_width;
+    for (side = [-1, 1]) {
+        for (i = [0, 1]) {
+            translate([cheek_length * 0.3 + i * 5, side * (full_cheek_w - 1), turret_height * 0.15])
+                rotate([side * (90 - smoke_launcher_angle), 0, 0])
+                    cylinder(h = smoke_launcher_len, d = smoke_launcher_dia, $fn = 16);
+        }
+    }
+}
+
+// Antenna mount on turret rear-left
+module antenna_mount() {
+    translate([turret_length * 0.85, -half_w * 0.6, turret_height / 2])
+        cylinder(h = antenna_height, d = antenna_dia, $fn = 12);
+}
+
+// Visual chamfer at ring-to-body junction
+module ring_junction_chamfer() {
+    ring_x = turret_length * 0.42;
+    translate([ring_x, 0, -0.01])
+        difference() {
+            cylinder(h = ring_body_chamfer + 0.02, d = ring_od + ring_body_chamfer * 2);
+            translate([0, 0, -0.05])
+                cylinder(h = ring_body_chamfer + 0.2, d = ring_od - PRINT_TOLERANCE * 2 - 0.2);
+        }
+}
+
+// Visual gap ring around gun trunnion
+module trunnion_shadow_gap() {
+    translate([15, 0, turret_height * 0.5])
+        difference() {
+            translate([-trunnion_width / 2 - trunnion_gap, -trunnion_width / 2 - trunnion_gap, -trunnion_gap])
+                cube([trunnion_width + trunnion_gap * 2, trunnion_width + trunnion_gap * 2, trunnion_gap]);
+            // Keep interior solid
+            translate([-trunnion_width / 2 + 0.5, -trunnion_width / 2 + 0.5, -trunnion_gap - 0.05])
+                cube([trunnion_width - 1, trunnion_width - 1, trunnion_gap + 0.2]);
+        }
+}
+
+// --- Main Assembly ---
 module turret_body() {
     difference() {
         union() {
@@ -190,10 +332,22 @@ module turret_body() {
             gun_trunnion();
             turret_cam_mount();
             turret_tof_mount();
+            // Additive greebling
+            smoke_launchers();
+            antenna_mount();
         }
         camera_window();
         tof_window();
         turret_slip_ring_void();
+
+        // Aesthetic subtractions
+        turret_top_crown();
+        turret_edge_chamfers();
+        commander_hatch();
+        loader_hatch();
+        panel_lines();
+        trunnion_shadow_gap();
+        ring_junction_chamfer();
     }
 
     // Wire duct as raised channel walls (additive)

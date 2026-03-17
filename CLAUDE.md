@@ -72,7 +72,15 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
 - **Loop:** Iterate until Gemini scores >= 0.85 overall AND User gives final approval.
 - **Implementation:** `planning_server/app/pipeline/visual_validation.py` — `run_visual_validation()` renders, stitches, sends to Gemini, returns 10-point checklist.
 
-### Step 5: Post-Mortem Protocol (CRITICAL)
+### Step 5: Pro Rendering (Blender Cycles)
+- After Gate 2 approval, generate box-art quality renders using Blender's Cycles engine.
+- **Script:** `system/render_pro.py` — runs headless via `blender -b -P system/render_pro.py -- --stl-dir <path>`
+- **Features:** HDRI/studio lighting, PBR materials (painted metal, matte rubber, PCB green), 85mm portrait lens with f/4 DoF, OptiX/OIDN denoising, auto-camera framing.
+- **Presets:** `hero` (1920x1080), `hero_4k` (3840x2160), `transparent` (PNG with alpha), `parts_grid` (all parts).
+- **Integration:** `planning_server/app/pipeline/blender_render.py` — `render_pro_shots()` runs after Gate 2 in the orchestrator.
+- **Requires:** Blender 3.6+ installed. Set `BLENDER_BIN` env var if not in PATH.
+
+### Step 6: Post-Mortem Protocol (CRITICAL)
 - **Rule:** Every time a design fails validation, physical printing issues are reported, or a structural flaw is found, you MUST create an entry in `POST_MORTEM.md`.
 - **Format:**
   1. `[Issue]`: What went wrong (e.g., "Snap-fit joint broke due to layer orientation").
