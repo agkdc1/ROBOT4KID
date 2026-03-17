@@ -11,19 +11,19 @@ LAYER_HEIGHT = 0.2;
 NOZZLE_DIA = 0.4;
 PRINT_TOLERANCE = 0.2;
 
-// --- Tank Overall Dimensions ---
+// --- Tank Overall Dimensions (1:26 scale from real M1A1) ---
 // Target: fits within 2 build volumes length-wise (split chassis)
 TANK_LENGTH = 300;            // Total length (split into 2 halves)
-TANK_WIDTH = 140;             // Width including tracks
-TANK_HEIGHT = 80;             // Hull height (without turret)
-TRACK_WIDTH = 25;             // Track width per side
-HULL_WIDTH = TANK_WIDTH - 2 * TRACK_WIDTH;  // 90mm
+TANK_WIDTH = 187;             // Width including tracks (139 hull + 2*24 tracks)
+TANK_HEIGHT = 55;             // Hull height (without turret) — M1A1 is very flat
+TRACK_WIDTH = 24;             // Track width per side (real 635mm / 26.4)
+HULL_WIDTH = 139;             // Between tracks — real M1A1 is wide
 
 // Turret
-TURRET_DIAMETER = 100;        // Turret ring diameter
-TURRET_HEIGHT = 50;           // Turret body height
+TURRET_DIAMETER = 82;         // Turret ring diameter (real 2159mm / 26.4)
+TURRET_HEIGHT = 30;           // Turret body height — M1A1 is very low profile
 BARREL_DIAMETER = 12;         // Gun barrel outer diameter
-BARREL_LENGTH = 120;          // Gun barrel length
+BARREL_LENGTH = 180;          // Gun barrel length (real 5280mm / 26.4 ≈ 200, fit to build vol)
 
 // Console cradle
 CONSOLE_WIDTH = 270;          // 10-inch tablet width + margins

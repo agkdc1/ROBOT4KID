@@ -1,5 +1,5 @@
-// Track/Bogey Assembly for M1A1 Tank
-// Each side: side plate, 6 road wheels, drive sprocket, idler wheel,
+// Track/Bogey Assembly for M1A1 Tank (1:26 scale)
+// Each side: side plate, 7 road wheels, drive sprocket, idler wheel,
 // track guide rails, and N20 motor mount
 // All dimensions in millimeters
 
@@ -13,15 +13,15 @@ part = "assembly"; // "left", "right", "sprocket", "assembly"
 
 // --- Track Assembly Dimensions ---
 SIDE_PLATE_LENGTH = 150;
-SIDE_PLATE_WIDTH  = 25;  // matches TRACK_WIDTH
+SIDE_PLATE_WIDTH  = 24;  // real 635mm / 26.4 scale
 SIDE_PLATE_HEIGHT = 30;
 SIDE_PLATE_WALL   = 1.6;
 
-// Road wheels
-ROAD_WHEEL_COUNT    = 6;
-ROAD_WHEEL_DIA      = 20;
+// Road wheels — M1A1 has 7 per side
+ROAD_WHEEL_COUNT    = 7;
+ROAD_WHEEL_DIA      = 18;
 ROAD_WHEEL_THICK    = 8;
-ROAD_WHEEL_SPACING  = 22;
+ROAD_WHEEL_SPACING  = 19;  // tighter spacing for 7 wheels in 150mm
 ROAD_WHEEL_AXLE_DIA = 3;
 // First road wheel center X offset from front of side plate
 ROAD_WHEEL_X_START  = 12;
@@ -64,7 +64,7 @@ BOLT_X_START        = 10;
 BOLT_Z              = SIDE_PLATE_HEIGHT - 8;
 
 // Hull spacing for assembly view
-HULL_W = 90;   // HULL_WIDTH from common.scad
+HULL_W = 139;   // Match new hull width (1:26 scale)
 
 // --- Modules ---
 

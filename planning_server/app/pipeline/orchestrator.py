@@ -11,6 +11,7 @@ from planning_server.app import config
 from planning_server.app.pipeline.llm import Provider, generate_with_tool
 from planning_server.app.pipeline.nlp import parse_nl_to_robot_spec
 from planning_server.app.pipeline.cad_gen import generate_scad_for_part
+from planning_server.app.pipeline.reference_search import search_and_analyze
 from planning_server.app.simulation_client.client import SimulationClient
 from shared.schemas.robot_spec import RobotSpec
 
@@ -135,16 +136,55 @@ async def run_pipeline(
     results = {
         "prompt": prompt,
         "project_id": project_id,
+        "reference_analysis": None,
         "robot_spec": None,
         "simulation_job_id": None,
         "simulation_feedback": None,
         "errors": [],
     }
 
-    # Step 1: NLP Parse
+    # Step 0: Reference Search (Sonnet generates queries → web search → Gemini analyzes)
+    progress.update("reference_search", 0.0, "Searching for reference specifications...")
+    reference_context = ""
+    try:
+        analysis = await search_and_analyze(prompt)
+        results["reference_analysis"] = analysis
+
+        # Save analysis
+        analysis_path = project_dir / "reference_analysis.json"
+        analysis_path.write_text(json.dumps(analysis, indent=2))
+
+        # Build context string for NLP step
+        model_name = analysis.get("model_name", "")
+        scaled = analysis.get("scaled_dimensions_mm", {})
+        ratios = analysis.get("proportional_ratios", {})
+        shape_notes = analysis.get("shape_notes", [])
+
+        reference_context = (
+            f"\n\n## Reference Proportions for {model_name}\n"
+            f"Scaled dimensions (mm): {json.dumps(scaled, indent=2)}\n"
+            f"Proportional ratios: {json.dumps(ratios, indent=2)}\n"
+            f"Shape notes:\n"
+            + "\n".join(
+                f"- {n.get('feature', '')}: {n.get('description', '')} "
+                f"({n.get('angle_degrees', '')}°)" if n.get('angle_degrees') else
+                f"- {n.get('feature', '')}: {n.get('description', '')}"
+                for n in shape_notes
+            )
+        )
+
+        progress.update("reference_search", 1.0, f"Reference analysis complete: {model_name}")
+        logger.info(f"Reference analysis complete for {model_name}")
+    except Exception as e:
+        logger.warning(f"Reference search failed (continuing without): {e}")
+        results["errors"].append(f"Reference search: {e}")
+        progress.update("reference_search", 1.0, f"Reference search skipped: {e}")
+
+    # Step 1: NLP Parse (enriched with reference data)
+    enriched_prompt = prompt + reference_context
     progress.update("nlp_parse", 0.0, "Parsing natural language description...")
     try:
-        robot_spec = await parse_nl_to_robot_spec(prompt)
+        robot_spec = await parse_nl_to_robot_spec(enriched_prompt)
         results["robot_spec"] = robot_spec.model_dump()
         progress.update("nlp_parse", 1.0, f"Parsed: {robot_spec.name} with {len(robot_spec.parts)} parts")
 

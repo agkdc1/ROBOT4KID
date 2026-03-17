@@ -1,6 +1,7 @@
 // M1A1 Abrams — Full Assembly Visualization
 // Use this file to preview the complete tank with all components
-// Includes: hull, turret, barrel, tracks, electronics bay, sensors
+// Proportions from Gemini analysis at 1:26 scale
+// Hull: 300x139x55, Turret: 150x123x30, Barrel: 180mm, 7 road wheels
 
 include <libs/common.scad>     // include (not use) to get variables
 use <libs/electronics.scad>
@@ -11,67 +12,82 @@ use <turret/turret_body.scad>
 use <turret/gun_barrel.scad>
 
 // --- Assembly Parameters ---
-// Hull turret ring center: X = 150+75 = 225, Y = 45 (HULL_WIDTH/2)
-turret_ring_cx = 150 + 75;      // X center of turret ring on hull
-turret_ring_cy = HULL_WIDTH / 2; // Y center
-turret_cx = 60;                  // turret_length / 2
-turret_cy = 47.5;               // turret_width / 2
+hull_length = 150;          // Per half
+hull_width = 139;           // HULL_WIDTH
+hull_height = 55;           // TANK_HEIGHT
+track_width = 24;           // TRACK_WIDTH
+
+// Turret dimensions (from turret_body.scad)
+turret_length = 150;
+turret_width = 123;
+turret_height = 30;
+
+// Hull turret ring center: X = 150+75 = 225, Y = hull_width/2
+turret_ring_cx = hull_length + hull_length/2;   // 225
+turret_ring_cy = hull_width / 2;                // 69.5
+
+// Turret is Y-centered (Y=0 is centerline), ring at 42% of length
+turret_ring_local_x = turret_length * 0.42;     // ~63
 
 // --- Hull (at origin) ---
 color("#5a6e3a")
 hull_assembly();
 
 // --- Tracks (both sides, 2 per side to cover full 300mm hull) ---
-// Each track assembly is 150mm. Place front + rear on each side.
-color("#4a4a3a")
-// Left side — front track
-translate([0, -TRACK_WIDTH, 0])
-    track_assembly_left();
-// Left side — rear track
-translate([150, -TRACK_WIDTH, 0])
-    track_assembly_left();
-// Right side — front track (mirrored)
-translate([0, HULL_WIDTH + TRACK_WIDTH, 0])
-    mirror([0, 1, 0]) track_assembly_left();
-// Right side — rear track (mirrored)
-translate([150, HULL_WIDTH + TRACK_WIDTH, 0])
-    mirror([0, 1, 0]) track_assembly_left();
+color("#4a4a3a") {
+    // Left side — front track
+    translate([0, -track_width, 0])
+        track_assembly_left();
+    // Left side — rear track
+    translate([hull_length, -track_width, 0])
+        track_assembly_left();
+    // Right side — front track
+    translate([0, hull_width + track_width, 0])
+        mirror([0, 1, 0]) track_assembly_left();
+    // Right side — rear track
+    translate([hull_length, hull_width + track_width, 0])
+        mirror([0, 1, 0]) track_assembly_left();
+}
 
 // --- Electronics bay (inside rear hull) ---
 color("#2a3a2a", 0.6)
-translate([150 + (150 - 138)/2, (HULL_WIDTH - 86)/2, 1.6])
+translate([hull_length + (hull_length - 138)/2, (hull_width - 133)/2, 1.6])
     assembly();
 
-// --- Turret (on top of hull, no rotation needed) ---
-// Gun trunnion is now at turret local X=15 (front end, same as cheek armor).
-// Turret X=0 (front/cheek) faces toward lower global X = front of tank.
-// Place turret so its center aligns with hull turret ring center.
+// --- Turret (on top of hull) ---
+// Turret is Y-centered: Y ranges from -turret_width/2 to +turret_width/2
+// Position: turret ring X aligns, turret centerline aligns with hull centerline
 color("#4a5e2a")
-translate([turret_ring_cx - turret_cx, turret_ring_cy - turret_cy, TANK_HEIGHT])
+translate([turret_ring_cx - turret_ring_local_x,
+           turret_ring_cy,
+           hull_height])
     turret_body();
 
 // --- Gun barrel ---
-// Trunnion at turret local [15, 47.5, 30]
-// Global = [225-60+15, 45-47.5+47.5, 80+30] = [180, 45, 110]
-// Barrel built along +Z. Rotate to point toward -X (front of tank).
-// rotate([0, -85, 0]): Z rotates toward -X, 5° elevation
+// Trunnion at turret local [15, 0, turret_height*0.6] (Y-centered turret)
+// Global X = turret_global_x + 15
+// Global Y = turret_ring_cy (centerline)
+// Global Z = hull_height + turret_height*0.6
+barrel_trunnion_x = turret_ring_cx - turret_ring_local_x + 15;
+barrel_trunnion_y = turret_ring_cy;
+barrel_trunnion_z = hull_height + turret_height * 0.6;
 color("#3a4e1a")
-translate([180, 45, 110])
-    rotate([0, -85, 0])
+translate([barrel_trunnion_x, barrel_trunnion_y, barrel_trunnion_z])
+    rotate([0, -85, 0])    // Z->-X with 5° elevation
         gun_barrel();
 
 // --- Hull camera (ESP32-CAM at front) ---
 color("DarkGreen", 0.8)
-translate([3, HULL_WIDTH/2 - 13.5, TANK_HEIGHT * 0.5 + 5])
+translate([3, hull_width/2 - 13.5, hull_height * 0.4 + 5])
     esp32cam_dummy();
 
-// --- Turret camera (inside turret front, behind window) ---
-// Turret front at global X = 225-60 = 165. Camera at turret local [10, 34, 22]
+// --- Turret camera (inside turret front) ---
+turret_global_x = turret_ring_cx - turret_ring_local_x;
 color("ForestGreen", 0.8)
-translate([165 + 10, 45 - 47.5 + 34, TANK_HEIGHT + 22])
+translate([turret_global_x + 10, turret_ring_cy - 13.5, hull_height + turret_height * 0.4 + 2])
     esp32cam_dummy();
 
 // --- VL53L1X ToF (turret front, below camera) ---
 color("Cyan", 0.8)
-translate([165 + 15, 45 - 47.5 + 38.5, TANK_HEIGHT + 12.5])
+translate([turret_global_x + 15, turret_ring_cy, hull_height + turret_height * 0.35])
     vl53l1x_dummy();

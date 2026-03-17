@@ -1,11 +1,12 @@
-// M1A1 Abrams — Gun Barrel
+// M1A1 Abrams — Gun Barrel (1:26 scale)
 // Quick-change bayonet mount design
+// Bore evacuator is a defining visual feature of the M256 gun
 
 use <../libs/common.scad>
 use <../libs/m4_hardware.scad>
 
 // --- Barrel Parameters ---
-barrel_length = 120;
+barrel_length = 180;
 barrel_od = 12;               // Outer diameter
 barrel_id = 8;                // Inner bore (for projectile)
 barrel_wall = (barrel_od - barrel_id) / 2;
@@ -16,8 +17,13 @@ bayonet_length = 8;
 bayonet_lug_width = 3;
 bayonet_lug_depth = 1.5;
 
+// Bore evacuator — cylindrical bulge ~40% from muzzle end
+bore_evac_od = 20;
+bore_evac_length = 15;
+bore_evac_pos = barrel_length * 0.6;  // 60% from breech = 40% from muzzle
+
 // Muzzle brake
-muzzle_od = 16;
+muzzle_od = 14;
 muzzle_length = 10;
 
 $fn = 64;
@@ -42,9 +48,29 @@ module bayonet_mount() {
 
 module barrel_tube() {
     difference() {
-        cylinder(h=barrel_length, d=barrel_od);
+        union() {
+            // Main barrel tube
+            cylinder(h=barrel_length, d=barrel_od);
+            // Bore evacuator bulge
+            translate([0, 0, bore_evac_pos - bore_evac_length/2])
+                bore_evacuator();
+        }
         translate([0, 0, -0.05])
             cylinder(h=barrel_length + 0.1, d=barrel_id);
+    }
+}
+
+module bore_evacuator() {
+    // Smooth cylindrical bulge with tapered transitions
+    hull() {
+        // Center full-diameter section
+        translate([0, 0, bore_evac_length * 0.2])
+            cylinder(h=bore_evac_length * 0.6, d=bore_evac_od);
+        // Front taper ring
+        translate([0, 0, bore_evac_length - 0.01])
+            cylinder(h=0.01, d=barrel_od);
+        // Rear taper ring
+        cylinder(h=0.01, d=barrel_od);
     }
 }
 
@@ -65,7 +91,7 @@ module gun_barrel() {
     // Bayonet mount at base
     bayonet_mount();
 
-    // Main barrel tube
+    // Main barrel tube (includes bore evacuator)
     translate([0, 0, bayonet_length])
         barrel_tube();
 

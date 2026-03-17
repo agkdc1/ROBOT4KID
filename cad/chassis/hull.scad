@@ -1,24 +1,30 @@
-// M1A1 Abrams — Hull Chassis
+// M1A1 Abrams — Hull Chassis (1:26 scale, Gemini-verified proportions)
 // Split into front and rear halves for Bambu A1 Mini build volume
 // Integrated: hull camera mount, slip-ring void, electronics bay mounting
+//
+// Key shape notes (Tank Encyclopedia + Gemini):
+// - Hull is VERY flat and wide (139mm x 55mm cross-section)
+// - Front has a BEAK: lower plate slopes down, upper glacis is near-vertical (82.5 deg)
+// - Upper hull sides slope inward above the deck line
+// - Full-length side skirts covering track system
 
 use <../libs/common.scad>
 use <../libs/m4_hardware.scad>
 use <../libs/m3_hardware.scad>
 use <../libs/electronics.scad>
 
-// --- Hull Parameters ---
+// --- Hull Parameters (1:26 scale from real M1A1) ---
 hull_length = 150;          // Per half (total 300mm)
-hull_width = 90;            // Between tracks
-hull_height = 80;
-wall = 1.6;                 // Structural walls
+hull_width = 139;           // Was 90 — real M1A1 is very wide between tracks
+hull_height = 55;           // Was 80 — real M1A1 is very flat
+wall = 1.6;                 // Structural walls (min 1.6mm for strength)
 
-// Glacis plate angle
-glacis_angle = 30;          // Front slope angle
+// Glacis plate — M1A1 has near-vertical upper plate with a beak
+glacis_angle = 82.5;        // Degrees from horizontal (was 30) — almost vertical
 
-// Turret ring
-turret_ring_od = 100;       // Outer diameter
-turret_ring_id = 92;        // Inner diameter (bearing surface)
+// Turret ring (real 2159mm OD / 26.4 scale)
+turret_ring_od = 82;        // Was 100
+turret_ring_id = 74;        // Was 92
 turret_ring_height = 8;
 
 // Battery compartment
@@ -34,76 +40,31 @@ motor_mount_height = 25;
 // Slip-ring void
 slip_ring_dia = 22;             // For wire pass-through to turret
 
-// Hull camera (ESP32-CAM)
+// Hull camera (ESP32-CAM: 40x27x12mm)
 hull_cam_width = 30;            // Window width
-hull_cam_height = 25;           // Window height
+hull_cam_height = 20;           // Window height (reduced — hull is flatter now)
 
 // Electronics bay mounting (4x M3 in rear hull floor)
 ebay_mount_inset = 6;
 ebay_mount_x = 138;             // Electronics bay length
-ebay_mount_y = 86;              // Electronics bay width
+ebay_mount_y = 133;             // Was 86 — scaled to new hull_width (hull_width - 2*wall ~= 136)
 
 // Part selector — set via CLI: -D 'part="front"'
 part = "assembly";  // "front" | "rear" | "assembly"
 
-// --- M1A1 Hull Profile ---
-// Lower hull: vertical sides, flat bottom
-// Upper hull: sloped sides (inward taper), flat deck with turret ring cutout
-// Front: steep glacis plate at 30°
-// Rear: vertical engine deck with exhaust grilles
-
-upper_taper = 8;           // How much the upper hull sides slope inward (mm)
-deck_height = hull_height * 0.6;  // Where the upper hull starts tapering
-side_skirt_drop = 10;      // Side skirts extend below hull bottom
+// --- M1A1 Hull Shape Parameters ---
+upper_taper = 12;          // Was 8 — more inward slope on upper armor
+deck_height = hull_height * 0.55;  // Where the upper hull starts tapering (was 0.6)
+side_skirt_drop = 15;      // Was 10 — longer side skirts covering tracks
 rear_slope = 15;           // Rear deck slope angle
 
-module hull_profile_2d() {
-    // Cross-section of the hull (in YZ plane)
-    // Lower hull: straight sides
-    // Upper hull: tapered inward
-    polygon([
-        [0, 0],                                         // bottom-left
-        [hull_width, 0],                                // bottom-right
-        [hull_width, deck_height],                      // right at deck line
-        [hull_width - upper_taper, hull_height],        // right top (tapered in)
-        [upper_taper, hull_height],                     // left top (tapered in)
-        [0, deck_height],                               // left at deck line
-    ]);
-}
+// Beak geometry — the distinctive M1A1 front
+beak_drop = 18;            // How far the beak drops below the hull bottom
+beak_length = 35;          // How far the beak extends forward from hull face
+beak_tip_height = 4;       // Thickness at the beak tip
 
-module hull_base(length) {
-    difference() {
-        union() {
-            // Main hull body with tapered upper sides
-            linear_extrude(height=length)
-                hull_profile_2d();
-
-            // Side skirts (thin plates extending below hull)
-            for (side = [0, hull_width - wall])
-                translate([side, -side_skirt_drop, 0])
-                    cube([wall, side_skirt_drop, length]);
-        }
-
-        // Hollow interior
-        translate([wall, wall, wall])
-            linear_extrude(height=length - 2*wall)
-                offset(r=-wall)
-                    hull_profile_2d();
-    }
-}
-
-module hull_base_oriented(length) {
-    // Rotate so hull extends along X (length), Y (width), Z (height)
-    // hull_base extrudes along Z, so rotate to align
-    rotate([90, 0, 90])
-        hull_base(length);
-    // After rotation: extrusion axis (Z) becomes X
-    // hull_profile_2d Y becomes Z (height), polygon X becomes Y (width)
-    // Need to fix translation — the rotation moves origin
-    // Actually let's just do it properly:
-}
-
-// Simpler approach: build the hull directly in XYZ
+// --- Hull Shape Module ---
+// Cross-section: flat bottom, vertical lower sides, tapered upper sides, flat deck
 module hull_shape(length) {
     difference() {
         // Outer hull with sloped upper armor
@@ -142,20 +103,37 @@ module hull_shape(length) {
             cube([length - 2*wall, hull_width - 2*wall, hull_height]);
     }
 
-    // Side skirts
+    // Side skirts — full-length plates covering track system
     for (y_pos = [-2, hull_width])
         translate([0, y_pos, -side_skirt_drop])
             cube([length, 2, deck_height + side_skirt_drop]);
 }
 
+// --- Beak + Glacis ---
+// M1A1 front: lower beak slopes downward, upper glacis is near-vertical
 module glacis_plate() {
-    // Steep front glacis plate (M1A1 has ~82° from horizontal = very steep)
-    // Creates a sloped wedge at the front of the hull
+    // The beak: triangular wedge sloping downward from hull front
+    // Forms the distinctive M1A1 "beak" shape
     hull() {
+        // Top edge of beak at hull front face, at about deck_height
+        translate([0, wall, 0])
+            cube([wall, hull_width - 2*wall, deck_height]);
+        // Beak tip — extends forward and drops below hull bottom
+        translate([-beak_length, hull_width * 0.15, -beak_drop])
+            cube([wall, hull_width * 0.7, beak_tip_height]);
+    }
+
+    // Upper glacis — near-vertical plate above the beak
+    // At 82.5 degrees from horizontal, the horizontal setback is tiny:
+    // hull_height_above_deck * cos(82.5) ~= (hull_height - deck_height) * 0.13
+    glacis_setback = (hull_height - deck_height) / tan(glacis_angle);
+    hull() {
+        // Bottom edge at deck_height on the hull face
         translate([0, wall, deck_height])
-            cube([wall, hull_width - 2*wall, hull_height - deck_height]);
-        translate([-hull_height * sin(glacis_angle), wall, hull_height * 0.3])
-            cube([wall, hull_width - 2*wall, wall]);
+            cube([wall, hull_width - 2*wall, 0.1]);
+        // Top edge — slightly forward of hull face due to steep angle
+        translate([-glacis_setback, upper_taper, hull_height - 0.1])
+            cube([wall, hull_width - 2*upper_taper, 0.1]);
     }
 }
 
@@ -191,11 +169,13 @@ module motor_mount() {
 
 module hull_cam_mount() {
     // ESP32-CAM cradle at front of hull (driver camera, fixed position)
-    // Recessed behind the armor window
-    translate([wall + 2, hull_width/2 - 13.5, hull_height * 0.5 + 2])
+    // Centered in hull width, positioned in upper half of hull face
+    // ESP32-CAM is 40x27x12mm — hull_width=139 gives plenty of centering room
+    translate([wall + 2, hull_width/2 - 13.5, hull_height * 0.4 + 2])
         esp32cam_mount(standoff_h=3);
 }
 
+// --- Front Hull Half ---
 module hull_front() {
     difference() {
         union() {
@@ -205,16 +185,17 @@ module hull_front() {
         }
 
         // ESP32-CAM front window (lens aperture)
-        translate([-0.1, hull_width/2 - hull_cam_width/2, hull_height * 0.5])
-            cube([wall + 5, hull_cam_width, hull_cam_height]);
+        // Positioned to match camera mount height
+        translate([-beak_length - 0.1, hull_width/2 - hull_cam_width/2, hull_height * 0.4])
+            cube([beak_length + wall + 5, hull_cam_width, hull_cam_height]);
     }
 
-    // Motor mounts (front pair)
+    // Motor mounts (front pair — one per side)
     for (side = [0, 1])
         translate([20, side * (hull_width - motor_mount_width), 0])
             motor_mount();
 
-    // Split joint — alignment keys
+    // Split joint — alignment keys (at hull_length face, mating with rear half)
     translate([hull_length, hull_width/4, hull_height/3])
         split_key();
     translate([hull_length, hull_width*3/4, hull_height/3])
@@ -227,6 +208,7 @@ module hull_front() {
         rotate([0, 90, 0]) m4_hole(depth=10);
 }
 
+// --- Electronics Bay Floor Mounts ---
 module ebay_floor_mounts() {
     // M3 threaded holes in hull floor for electronics bay mounting
     ebay_ox = (hull_length - ebay_mount_x) / 2;
@@ -242,11 +224,12 @@ module ebay_floor_mounts() {
             m3_hole(depth=wall + 0.1);
 }
 
+// --- Rear Hull Half ---
 module hull_rear() {
     difference() {
         hull_shape(hull_length);
 
-        // Split joint — alignment sockets
+        // Split joint — alignment sockets (mating with front half keys)
         translate([0, hull_width/4, hull_height/3])
             split_socket();
         translate([0, hull_width*3/4, hull_height/3])
@@ -271,6 +254,7 @@ module hull_rear() {
         turret_ring();
 }
 
+// --- Full Assembly (both halves) ---
 module hull_assembly() {
     hull_front();
     translate([hull_length, 0, 0])
