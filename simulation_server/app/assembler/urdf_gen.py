@@ -128,17 +128,25 @@ def generate_urdf(
         axis = " ".join(f"{v:.1f}" for v in joint_spec.axis)
         SubElement(joint, "axis", xyz=axis)
 
-        # Limits
+        # Limits (supports both JointLimits model and raw dict)
         if joint_spec.limits and joint_spec.type in (JointType.REVOLUTE, JointType.PRISMATIC):
-            limits = joint_spec.limits
-            SubElement(
-                joint,
-                "limit",
-                lower=str(limits.get("lower", -math.pi)),
-                upper=str(limits.get("upper", math.pi)),
-                effort=str(limits.get("effort", 10.0)),
-                velocity=str(limits.get("velocity", 1.0)),
-            )
+            lim = joint_spec.limits
+            if hasattr(lim, "lower"):
+                # Pydantic JointLimits model
+                SubElement(
+                    joint, "limit",
+                    lower=str(lim.lower), upper=str(lim.upper),
+                    effort=str(lim.effort), velocity=str(lim.velocity),
+                )
+            else:
+                # Raw dict (backwards compat)
+                SubElement(
+                    joint, "limit",
+                    lower=str(lim.get("lower", -math.pi)),
+                    upper=str(lim.get("upper", math.pi)),
+                    effort=str(lim.get("effort", 10.0)),
+                    velocity=str(lim.get("velocity", 1.0)),
+                )
 
     # Create links and fixed joints for electronic components
     for elec in robot_spec.electronics:
