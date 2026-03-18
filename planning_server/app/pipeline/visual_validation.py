@@ -430,8 +430,8 @@ async def validate_design(
 
     # Cascading model hierarchy: try each in order, fall back on 429
     GEMINI_MODEL_CASCADE = [
-        "gemini-3-pro",
-        "gemini-3-flash",
+        "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
     ]
@@ -452,7 +452,7 @@ async def validate_design(
             break
         except (ValueError, Exception) as exc:
             exc_str = str(exc).lower()
-            if "429" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str:
+            if "429" in exc_str or "404" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str or "not found" in exc_str:
                 logger.warning(f"{model} rate-limited, trying next in cascade...")
                 continue
             raise
