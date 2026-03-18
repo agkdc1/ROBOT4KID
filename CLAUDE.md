@@ -12,102 +12,145 @@ All robot models (Tank, Shinkansen, etc.) must be defined by a strictly typed JS
 - **Electronics & Wiring:** Define components (e.g., TT Motor, ESP32), power requirements (V/A), pin mappings, and physical locations.
 - **Assembly Constraints:** E.g., "NO SOLDERING" (use specific connectors/fasteners), "Printable without supports," "Screws must be M3."
 
-## 3. Two-Gate Validation Pipeline ("Fail Fast, Fail Cheap")
-When starting or resuming a project, follow this strict sequence. The pipeline uses two validation gates to catch issues early before spending API tokens on detailed refinement.
+## 3. Three-Phase Grand Audit Pipeline
 
-### Step 1: Ingest Reference Data
-- **Sonnet Action:** Analyze user intent, generate targeted web search queries to find exact dimensions, blueprints, and specifications for the target vehicle/robot.
-- **Web Search:** Execute queries, compile reference data (dimensions in mm, angles, proportional ratios, shape descriptions).
-- **Gemini Action:** Analyze compiled reference data and produce structured proportional analysis — real dimensions, scaled dimensions at target scale, key ratios (hull L:W, turret/hull length, etc.), and shape notes (glacis angle, turret profile, etc.).
-- **Sonnet Action:** Draft the initial `Extended URDF` JSON schema based on Gemini's proportional analysis.
-- **Implementation:** `planning_server/app/pipeline/reference_search.py` — `search_and_analyze()` orchestrates Sonnet query generation → web fetch → Gemini analysis.
+The pipeline uses a two-tier AI system: **Gemini Flash/Pro** for rapid 4-stage iteration, and **Gemini Ultra (`gemini-3.1-pro-preview`)** as the Chief Inspector for inception and final sign-off. This is cost-effective: our OpenSCAD/Python codebases are typically <5,000 lines, making frequent Ultra calls far cheaper than failed physical prints.
 
-### Step 2: Blockout CAD + Gate 1 (Physics & Layout)
-- **Sonnet Action:** Generate OpenSCAD code using ONLY basic primitives (bounding boxes, simple cylinders). Do NOT add chamfers, fillets, or aesthetic details yet. Focus on correct proportions, component fit, and kinematic alignment.
-- **Render & Stitch:** Render 6-way orthographic views (Top, Bottom, Front, Back, Left, Right) + isolated component views. Use Python (Pillow) to stitch into a single composite grid image — optimizes Gemini API usage (one image instead of 6+).
-- **Gate 1 (Gemini Critic):** Send stitched image + SCAD parameter blocks + URDF data + reference ratios to Gemini. Gemini MUST ONLY check:
-  1. **Overall Proportions** vs. Reference (L:W:H ratios, turret/hull ratio).
-  2. **Component Fit** (Do motors/batteries/ESP32 fit without clipping?).
-  3. **Center of Mass & Kinematic alignment** (turret centered, barrel forward, tracks symmetric).
-- **Debate Loop (max 3 rounds):** Claude fixes issues, Gemini re-audits. If no consensus after MAX_DEBATE_ROUNDS:
-  - **Escalate to User:** Present summary of recurring disagreements + options (accept, apply fixes, modify audit, custom direction, dismiss specific issues).
-  - User acts as **referee** — selects option or provides direction.
-  - This prevents infinite AI loops while keeping the user in control.
-  - **Implementation:** `planning_server/app/pipeline/debate.py` — `run_debate()` with `build_escalation_summary()`.
-- **CRITICAL: Target 10/10 on EVERY audit.** Anything below 10 means there are issues to fix. A 7/10 across 4 audit stages compounds to ~2.5/10 overall quality. The whole pipeline exists to drive quality UP through adversarial feedback, not to rubber-stamp "good enough."
-- **CRITICAL: Do NOT Override Gemini.** When Gemini flags an issue, Claude MUST NOT silently dismiss or ignore it. Instead:
+### Gemini API Configuration
+- **Ultra (Chief Inspector):** `gemini-3.1-pro-preview` — used for Phase 1 Meta-Audit and Phase 3 Grand Audit only.
+- **Flash/Pro (Stage Auditors):** Cascade on 429/404: `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash`. Try each in order; on HTTP 429/404, move to next. Log which model was used. Max 1 retry per model — never hang indefinitely.
+- **Context Caching (Vertex AI):**
+  - **Cache 1 (Permanent):** Design philosophy, component datasheets, M-series screw standards, printer constraints.
+  - **Cache 2 (Dynamic):** OpenSCAD/Python codebase + URDF, uploaded once per Grand Audit cycle.
+
+### Pipeline State Machine
+```
+[Inception] → [Ultra_Meta_Audit] → [Stage_1..4_Audits] → [Generating_Sim/3MF] → [Ultra_Grand_Audit] → [Loop_Resolution/Delta_Audit] → [Final_Report]
+```
+State is tracked in `planning_server/app/pipeline/pipeline_state.json` and exposed via `/api/v1/pipeline/state` for the React dashboard.
+
+### CRITICAL RULES (apply to ALL phases)
+- **Target 10/10 on EVERY audit.** 7/10 across 4 stages compounds to ~2.5/10 overall. The pipeline drives quality UP, not rubber-stamps "good enough."
+- **Do NOT Override Gemini.** When Gemini flags an issue:
   1. **Acknowledge** the issue explicitly.
-  2. If Claude disagrees, **provide proper context** (e.g., "the hull is split into 3 pieces, each <180mm") and re-submit with that context for Gemini to re-evaluate.
-  3. If both still disagree after providing context, **escalate to the User** with both positions.
-  4. Claude may NOT proceed by simply overriding Gemini's rejection — the whole point of this pipeline is adversarial quality assurance.
-- **Gemini API Model Hierarchy (cascading fallback on 429/404):** `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash`. Try each in order; on HTTP 429 or 404, move to the next. Log which model was used.
-- Fix ALL Gate 1 issues before proceeding to Step 3. Do not waste tokens on aesthetics until physics/layout is correct.
+  2. If Claude disagrees, **provide proper context** and re-submit for Gemini to re-evaluate.
+  3. If still disagreeing, **escalate to User** with both positions.
+  4. Claude may NOT proceed by overriding Gemini's rejection.
+- **Debate Loop** (max 3 rounds per stage): Claude fixes → Gemini re-audits. No consensus → escalate to User as referee.
 
-### Step 3: High-Fidelity Refinement + Aesthetic Refinement Layer
-- Only after Gate 1 approval, upgrade primitives to detailed geometries.
-- Apply the **four aesthetic refinement principles** universally (tank, train, any model):
+---
 
-#### 3.1 Anti-Boxy Rule: Slopes & Surface Normals
-- Real objects rarely have 90-degree vertical planes. Replace vertical boxes with tapered extrusions or lofted geometries.
-- Apply 3-15 degree draft angles on vertical surfaces unless functionally required to be 90.
-- Example: hull sides slope inward above deck line, turret has faceted nose, glacis has compound beak angle.
+### PHASE 1: Inception & Meta-Audit (Ultra Intervention 1)
 
-#### 3.2 Micro-Geometry Rule: Fillets & Chamfers
-- Sharp edges look fake and are hard to 3D print. Apply a global fillet/chamfer pass:
-  - **External edges**: 0.3-1.0mm fillet (rounded) for premium look.
-  - **Structural edges**: 45-degree chamfer (beveled) for mechanical strength.
-- In OpenSCAD: use `minkowski()` with small sphere for fillets, or `offset(r=-)` followed by `offset(delta=+)`.
+#### Step 1.1: Requirements Analysis
+- Claude analyzes user intent, searches web for reference dimensions/blueprints.
+- Claude produces a **Master Document** containing:
+  1. **Overall Direction** — project scope, target vehicle, scale, play features.
+  2. **Core Gimmick** — the primary play feature (e.g., "22mm foam ball firing with hop-up" for tank, "FPV camera view through tunnel" for train).
+  3. **URDF Structure** — kinematic tree, electronics layout, wiring architecture.
+  4. **Stage 1-4 Audit Prompts** — specific criteria for each stage, tailored to this project.
+- **Implementation:** `planning_server/app/pipeline/reference_search.py`
 
-#### 3.3 High-Density Detail (Greebling)
-- Add "visual noise" to break up large flat surfaces:
-  - **Panel lines**: 0.2mm deep, 0.3mm wide indentations on hull sides and turret.
-  - **Bolt heads**: Small cylinders (1mm dia, 0.5mm tall) near joint areas and access panels.
-  - **Access hatches**: Recessed rectangles with 0.2mm border on hull deck, turret top.
-  - **Tie-down points / grab handles**: Small loops or hooks on hull edges.
-- Vehicle-specific: exhaust grilles, headlight recesses, tow hooks, antenna mounts.
+#### Step 1.2: Ultra Meta-Audit
+- Submit Master Document to **Gemini Ultra** (`gemini-3.1-pro-preview`).
+- Ultra evaluates:
+  1. **Overall size proportions & physical coherence** — do dimensions make sense at this scale?
+  2. **Electronic circuit completeness** — voltages, current paths, wire routing feasibility.
+  3. **Project philosophy alignment** — does it follow the Universal Modular Insert Standard?
+  4. **Modularity & maintainability** — screw types correct? Insert accessibility adequate?
+- Ultra returns structured feedback → Claude updates Master Document → proceed to Phase 2.
+- **Implementation:** `planning_server/app/pipeline/grand_audit.py` — `run_meta_audit()`
 
-#### 3.4 Real-World Assembly: Shadow Gaps & Part Separation
-- Components must look assembled, not fused. Create 0.1-0.2mm visual gaps between separate URDF links.
-- Turret ring gap, hull split line, track-to-hull gap, barrel-to-trunnion gap must all be visible.
-- This makes rendered views look significantly more complex and realistic.
+---
 
-#### Physical constraints (always applied):
-- 0.2mm clearance for moving parts, 1.6mm minimum wall, 45deg max overhang.
-- Split parts that exceed 180x180x180mm build volume.
+### PHASE 2: Core Design Loop (4-Stage Gemini Flash/Pro Audits)
 
-### Step 4: Gate 2 (Printability & Aesthetics)
-- **Render & Stitch:** Render refined model (6-way assembled + individual parts) into a new composite grid image.
-- **Gate 2 (Gemini Critic):** Send refined composite + SCAD code + URDF + reference analysis. Gemini MUST ONLY check:
-  1. **Printability** (Severe overhangs? Parts fit build volume? Wall thickness adequate?).
-  2. **Mechanical Tolerances** (Joints physically viable? Screw holes correct diameter?).
-  3. **Aesthetic Fidelity** (Does it accurately represent the target? Silhouette recognizable?).
-- **Loop:** Iterate until Gemini scores >= 0.85 overall AND User gives final approval.
-- **Implementation:** `planning_server/app/pipeline/visual_validation.py` — `run_visual_validation()` renders, stitches, sends to Gemini, returns 10-point checklist.
+Claude executes 4 focused audit stages iteratively. Each stage must reach **10/10** before advancing.
 
-### Step 5: Webots Physics Simulation
-- After Gate 2 approval, run Webots physics simulation to validate dynamics.
+#### Stage 1: Reference Proportions
+- Generate blockout OpenSCAD (primitives only, no fillets/chamfers).
+- Render 6-angle views. Send to Gemini with reference ratios.
+- **CHECK:** L:W:H ratios within 15% of real vehicle. Silhouette recognizable.
+
+#### Stage 2: Physics & Layout
+- **CHECK:** Component fit (electronics fit without clipping), center of mass, kinematic alignment (turret on ring, barrel forward, tracks symmetric), ground contact (wheels touch ground).
+
+#### Stage 3: Printability & Mechanical
+- **CHECK:** Each piece <180mm, wall thickness (≥1.6mm train, ≥2.5mm tank), overhangs <45°, manifold integrity, joint tolerances (0.2mm/side), screw access paths clear, nut traps present, wire grommets at seams, modular inserts removable.
+
+#### Stage 4: Aesthetics & Fidelity
+- **CHECK (blockout):** Recognizable silhouette, assembly gaps visible, ghost volume color coding, track belt visible, vehicle-specific features present.
+- **CHECK (refined):** Anti-boxy rule (3-15° slopes), fillets/chamfers (0.3-1.0mm), panel lines (0.2mm), greebling, shadow gaps (0.1-0.2mm).
+
+#### Routing Logic (after each change)
+- **Minor Edit** (variable rename, dimension tweak ≤1mm): Claude applies fix, re-runs affected stage only. Stays in Phase 2.
+- **Major Edit** (component change, structural redesign, mechanism update) OR **User request**: Forces pipeline into Phase 3 Grand Audit.
+
+#### Aesthetic Refinement Principles (applied in Stage 4 refined pass)
+- **Anti-Boxy:** Replace vertical planes with 3-15° sloped surfaces. Draft angles on all non-functional verticals.
+- **Micro-Geometry:** 0.3-1.0mm fillet on external edges. 45° chamfer on structural edges.
+- **Greebling:** Panel lines (0.2mm deep), bolt heads (1mm dia), access hatches, grab handles, exhaust grilles.
+- **Shadow Gaps:** 0.1-0.2mm visual gaps between all separate URDF links.
+- **Physical Constraints:** 0.2mm moving-part clearance, 1.6mm min wall, 45° max overhang, split at 180mm.
+
+#### Implementation
+- `planning_server/app/pipeline/visual_validation.py` — `validate_design()` with 4-tier model cascade.
+- `planning_server/app/pipeline/debate.py` — `run_debate()` with escalation.
+
+---
+
+### PHASE 3: Grand Audit (Ultra Intervention 2)
+
+#### Step 3.1: Submission Package
+Claude submits to **Gemini Ultra**:
+- Stage 1-4 audit results (all 10/10).
+- 6-angle rendered views + exploded assembly view.
+- Webots simulation video (if available).
+- 3MF/STL export data with part dimensions.
+- Assembly manual (screw sequence, wiring diagram).
+
+#### Step 3.2: Ultra Grand Audit Criteria
+1. **CORE GIMMICK VERIFICATION (CRITICAL):** Does the primary play feature function mechanically? (e.g., Does the 22mm firing mechanism have correct hop-up clearance and tension? Can the train pull required weight without coupling failure?)
+2. **Manual Realism:** Can a human actually assemble this? Is there physical room for screwdriver access, M3 screw insertion, and wire routing without pinching?
+3. **Structural/Physical Integrity:** Are intentional holes (USB-C, camera lens) actually open? Are solid walls properly sealed? Manifold check.
+4. **Kinematics & Dynamics:** (Via Webots) Do motors function as intended? Is CoG optimal to prevent derailment/tipping?
+5. **Thermal & Power Safety:** Adequate ventilation for ESP32/step-up modules? Will battery/motor combo cause over-discharge or thermal damage?
+
+#### Step 3.3: Meta-Correction
+If Ultra finds a critical error that Stages 1-4 missed:
+- Ultra MUST evaluate: *"Why did the intermediate audits miss this?"*
+- Ultra mandates an update to the Stage 1-4 audit prompts so the gap is permanently closed.
+- The updated prompts are saved to `planning_server/app/pipeline/audit_prompts.json`.
+
+#### Step 3.4: Delta-Feedback Loop
+- Ultra issues a detailed report with **isolation commands**: *"Fix the motor mount. For the next audit, ONLY submit this report, the revised Stage 3 OpenSCAD, and the new manual."*
+- Claude repeats Phase 2/3 based on Ultra's delta-feedback until receiving `[GRAND_AUDIT: PASS]`.
+- On pass: output final summary report for user.
+
+#### Implementation
+- `planning_server/app/pipeline/grand_audit.py` — `run_grand_audit()`, `run_meta_audit()`, `apply_delta_feedback()`
+
+---
+
+### Post-Pipeline: Simulation & Rendering
+
+#### Webots Physics Simulation
+- After Grand Audit pass, run Webots physics simulation.
 - **ALWAYS use web streaming mode** (`--stream --minimize --batch`), NEVER launch the GUI.
-- **Demo Arena:** `simulation/worlds/demo_arena.wbt` — tank + train side by side with auto-drive controllers.
-- **Controllers:** `tank_demo` (figure-8 + turret sweep), `train_controller` (forward/reverse).
-- **Video Capture:** Record simulation frames, stitch into video, send to Gemini for physics audit.
-- **Streaming:** WebSocket on port 1234, consumed by React dashboard `SimulationViewer` component.
-- **Launch:** `webots --stream --minimize --batch --port 1234 simulation/worlds/demo_arena.wbt`
+- **Demo Arena:** `simulation/worlds/demo_arena.wbt`
+- **Video Capture:** Record frames, stitch into video, send to Ultra for physics audit.
+- **Streaming:** WebSocket on port 1234, consumed by React dashboard.
 
-### Step 6: Pro Rendering (Blender Cycles)
-- After Gate 2 approval, generate box-art quality renders using Blender's Cycles engine.
-- **Script:** `system/render_pro.py` — runs headless via `blender -b -P system/render_pro.py -- --stl-dir <path>`
-- **Features:** HDRI/studio lighting, PBR materials (painted metal, matte rubber, PCB green), 85mm portrait lens with f/4 DoF, OptiX/OIDN denoising, auto-camera framing.
-- **Presets:** `hero` (1920x1080), `hero_4k` (3840x2160), `transparent` (PNG with alpha), `parts_grid` (all parts).
-- **Integration:** `planning_server/app/pipeline/blender_render.py` — `render_pro_shots()` runs after Gate 2 in the orchestrator.
-- **Requires:** Blender 3.6+ installed. Set `BLENDER_BIN` env var if not in PATH.
+#### Pro Rendering (Blender Cycles)
+- Generate box-art quality renders using Blender Cycles engine.
+- **Script:** `system/render_pro.py` — headless via `blender -b -P system/render_pro.py -- --stl-dir <path>`
+- **Features:** HDRI/studio lighting, PBR materials, 85mm lens f/4 DoF, OptiX/OIDN denoising.
+- **Presets:** `hero` (1920x1080), `hero_4k` (3840x2160), `transparent` (alpha), `parts_grid`.
 
-### Step 6: Post-Mortem Protocol (CRITICAL)
-- **Rule:** Every time a design fails validation, physical printing issues are reported, or a structural flaw is found, you MUST create an entry in `POST_MORTEM.md`.
-- **Format:**
-  1. `[Issue]`: What went wrong (e.g., "Snap-fit joint broke due to layer orientation").
-  2. `[Root Cause]`: Why it happened.
-  3. `[Resolution]`: How we fixed it in the CAD script.
-  4. `[Pipeline Update]`: A new rule to add to our general design guidelines for all future models.
+#### Post-Mortem Protocol (CRITICAL)
+- Every validation failure, printing issue, or structural flaw → entry in `POST_MORTEM.md`.
+- Format: `[Issue]` → `[Root Cause]` → `[Resolution]` → `[Pipeline Update]` (new rule for future models).
+- If Ultra's Meta-Correction identified a prompt gap, record it here too.
 
 ## 4. Engineering Mandates (Zero-Trust Grounding)
 These rules apply to ALL models and ALL pipeline steps:
