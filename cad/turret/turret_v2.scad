@@ -15,7 +15,7 @@ $fn = 32;
 // --- Overall turret ---
 turret_length = 306;
 turret_width  = 181;
-turret_height = 44;
+turret_height = 52;          // +8mm over strict 1:18 for internal clearance
 wall = 2.5;
 floor_t = 2.0;
 
@@ -23,8 +23,8 @@ floor_t = 2.0;
 split_y = turret_length / 2;  // 153mm each half
 
 // --- Turret ring ---
-ring_od = 40;
-ring_clearance = 0.2;  // per side
+ring_od = 112;           // matches hull turret_ring_id (112mm bore)
+ring_clearance = 0.2;    // per side
 ring_height = 8;
 
 // --- Barrel ---
@@ -42,7 +42,7 @@ trunnion_bore = barrel_od + 0.4;  // barrel passes through
 // --- Magazine (vertical tube for 22mm balls) ---
 mag_od = 29;             // 25mm ID + 2x2mm wall
 mag_id = 25;             // fits 22mm ball with clearance
-mag_height = 90;         // holds ~3-4 balls stacked (22mm each)
+mag_height = 50;         // holds ~2 balls stacked (22mm each), fits inside turret
 mag_lid_height = 5;
 
 // --- Chamber (connects magazine bottom to barrel bore) ---
