@@ -428,36 +428,39 @@ async def validate_design(
         f"{audit_context}"
     )
 
-    # Note: Gemini vision would use the actual images, but our text API
-    # uses the descriptions + source data. For full vision support,
-    # the images should be sent via the multimodal API.
-    # Model hierarchy: gemini-2.5-pro (primary) → gemini-2.5-flash (fallback)
-    FALLBACK_MODEL = "gemini-2.5-flash"
-    try:
-        result = await generate_with_tool(
-            prompt="".join(prompt_parts),
-            system=system,
-            tool=VALIDATION_TOOL,
-            tool_name="design_validation",
-            provider=provider,
-        )
-    except (ValueError, Exception) as exc:
-        exc_str = str(exc).lower()
-        if "429" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str:
-            logger.warning(
-                f"Primary model rate-limited ({exc}). "
-                f"Retrying with fallback model: {FALLBACK_MODEL}"
-            )
+    # Cascading model hierarchy: try each in order, fall back on 429
+    GEMINI_MODEL_CASCADE = [
+        "gemini-3-pro",
+        "gemini-3-flash",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+    ]
+
+    result = None
+    for i, model in enumerate(GEMINI_MODEL_CASCADE):
+        try:
+            logger.info(f"Attempting validation with {model} ({i+1}/{len(GEMINI_MODEL_CASCADE)})")
             result = await generate_with_tool(
                 prompt="".join(prompt_parts),
                 system=system,
                 tool=VALIDATION_TOOL,
                 tool_name="design_validation",
                 provider=Provider.GEMINI,
-                model=FALLBACK_MODEL,
+                model=model,
             )
-        else:
+            logger.info(f"Validation succeeded with {model}")
+            break
+        except (ValueError, Exception) as exc:
+            exc_str = str(exc).lower()
+            if "429" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str:
+                logger.warning(f"{model} rate-limited, trying next in cascade...")
+                continue
             raise
+    if result is None:
+        raise RuntimeError(
+            f"All Gemini models rate-limited: {GEMINI_MODEL_CASCADE}. "
+            "Wait and retry later."
+        )
 
     logger.info(
         f"Validation complete: visual_quality_score={result.get('visual_quality_score', 0)}/10, "

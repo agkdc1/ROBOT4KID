@@ -39,7 +39,7 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
   2. If Claude disagrees, **provide proper context** (e.g., "the hull is split into 3 pieces, each <180mm") and re-submit with that context for Gemini to re-evaluate.
   3. If both still disagree after providing context, **escalate to the User** with both positions.
   4. Claude may NOT proceed by simply overriding Gemini's rejection — the whole point of this pipeline is adversarial quality assurance.
-- **Gemini API Model Hierarchy:** Primary: `gemini-2.5-pro`. Fallback: `gemini-2.5-flash`. When primary returns HTTP 429 (rate limit), automatically retry with fallback. Log which model was used.
+- **Gemini API Model Hierarchy (cascading fallback on 429):** `gemini-3-pro` → `gemini-3-flash` → `gemini-2.5-pro` → `gemini-2.5-flash`. Try each in order; on HTTP 429, move to the next. Log which model was used.
 - Fix ALL Gate 1 issues before proceeding to Step 3. Do not waste tokens on aesthetics until physics/layout is correct.
 
 ### Step 3: High-Fidelity Refinement + Aesthetic Refinement Layer
@@ -375,7 +375,7 @@ All connections use Dupont jumpers and screw terminals. All dimensions are in `c
 
 ## LLM Provider Configuration
 - **Claude** (primary): `ANTHROPIC_API_KEY`, models: `claude-sonnet-4-6-20250514` (fast), `claude-opus-4-6-20250514` (smart)
-- **Gemini** (secondary): `GEMINI_API_KEY`, model: `gemini-2.5-pro` (primary), `gemini-2.5-flash` (fallback on 429)
+- **Gemini** (secondary): `GEMINI_API_KEY`, cascade: `gemini-3-pro` → `gemini-3-flash` → `gemini-2.5-pro` → `gemini-2.5-flash` (fallback on 429)
 - All pipeline modules accept a `provider` parameter: `Provider.CLAUDE` or `Provider.GEMINI`
 - Provider abstraction: `planning_server/app/pipeline/llm.py` — `generate_text()` and `generate_with_tool()`
 
