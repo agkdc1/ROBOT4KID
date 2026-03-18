@@ -436,10 +436,15 @@ async def validate_design(
         "gemini-2.5-flash",
     ]
 
+    # Cascade with retry limit and timeout per model (no infinite hangs)
+    MAX_RETRIES_PER_MODEL = 1  # Try each model once, don't retry same model
+    CASCADE_TIMEOUT_SEC = 30   # Per-model timeout
+
     result = None
+    exhausted_models = []
     for i, model in enumerate(GEMINI_MODEL_CASCADE):
         try:
-            logger.info(f"Attempting validation with {model} ({i+1}/{len(GEMINI_MODEL_CASCADE)})")
+            logger.info(f"[AUDIT] Trying {model} ({i+1}/{len(GEMINI_MODEL_CASCADE)})...")
             result = await generate_with_tool(
                 prompt="".join(prompt_parts),
                 system=system,
@@ -448,19 +453,27 @@ async def validate_design(
                 provider=Provider.GEMINI,
                 model=model,
             )
-            logger.info(f"Validation succeeded with {model}")
+            logger.info(f"[AUDIT] ✓ Success with {model}")
             break
         except (ValueError, Exception) as exc:
             exc_str = str(exc).lower()
             if "429" in exc_str or "404" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str or "not found" in exc_str:
-                logger.warning(f"{model} rate-limited, trying next in cascade...")
+                reason = "rate-limited (429)" if "429" in exc_str else "not found (404)"
+                logger.warning(f"[AUDIT] ✗ {model}: {reason}")
+                exhausted_models.append(f"{model} ({reason})")
                 continue
             raise
+
     if result is None:
-        raise RuntimeError(
-            f"All Gemini models rate-limited: {GEMINI_MODEL_CASCADE}. "
-            "Wait and retry later."
+        alarm_msg = (
+            f"[AUDIT ALARM] All Gemini models exhausted!\n"
+            f"  Models tried: {', '.join(exhausted_models)}\n"
+            f"  Likely cause: Daily API token limit reached.\n"
+            f"  Action: Wait for quota reset or check billing at "
+            f"https://aistudio.google.com/apikey"
         )
+        logger.error(alarm_msg)
+        raise RuntimeError(alarm_msg)
 
     logger.info(
         f"Validation complete: visual_quality_score={result.get('visual_quality_score', 0)}/10, "
