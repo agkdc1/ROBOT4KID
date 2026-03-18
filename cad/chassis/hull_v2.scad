@@ -91,9 +91,10 @@ wago_h          = 16;
 wago_count      = 6;        // Minimum 6 connector pockets
 wago_air        = 1.2;      // 20% air space on each side (~20% of 13mm/2)
 
-// --- Wire Channels ---
-wire_ch_w       = 10;       // Channel width
-wire_ch_h       = 8;        // Channel depth
+// --- Wire Channels (sized for Wago + 28AWG bundles) ---
+wire_ch_w       = 14;       // Channel width (10→14 for wire bundle + grommet)
+wire_ch_h       = 10;       // Channel depth (8→10 for connector clearance)
+grommet_dia     = 12;       // Rounded grommet hole at seam faces
 
 // --- Bolt Joints ---
 // M4 bolts between hull pieces: 4 per seam = 8 total
@@ -176,9 +177,19 @@ module hull_front() {
         translate([-1, hull_width/2 - hull_cam_w/2, hull_height/2 - hull_cam_h/2])
             cube([wall + 2, hull_cam_w, hull_cam_h]);
 
-        // --- Wire channel (along bottom, exits to center section) ---
-        translate([front_len - 1, hull_width/2 - wire_ch_w/2, floor_t])
-            cube([2, wire_ch_w, wire_ch_h]);
+        // --- Wire grommet holes (rounded, exits to center section) ---
+        // Center grommet (main power + signal bus)
+        translate([front_len - 1, hull_width/2, floor_t + wire_ch_h/2 + 2])
+            rotate([0, 90, 0])
+                cylinder(d=grommet_dia, h=wall + 2);
+        // Left grommet (left motor wires)
+        translate([front_len - 1, hull_width * 0.25, floor_t + wire_ch_h/2 + 2])
+            rotate([0, 90, 0])
+                cylinder(d=grommet_dia, h=wall + 2);
+        // Right grommet (right motor wires)
+        translate([front_len - 1, hull_width * 0.75, floor_t + wire_ch_h/2 + 2])
+            rotate([0, 90, 0])
+                cylinder(d=grommet_dia, h=wall + 2);
 
         // --- Bolt holes at rear seam (connects to center) ---
         for (i = [0:3]) {
@@ -250,13 +261,17 @@ module hull_center() {
                    -1])
             cube([battery_l + 10, battery_w + 10, floor_t + 2]);
 
-        // --- Wire channels (front and rear exits) ---
-        // Front exit
-        translate([-1, hull_width/2 - wire_ch_w/2, floor_t])
-            cube([2, wire_ch_w, wire_ch_h]);
-        // Rear exit
-        translate([center_len - 1, hull_width/2 - wire_ch_w/2, floor_t])
-            cube([2, wire_ch_w, wire_ch_h]);
+        // --- Wire grommet holes (front and rear seam faces) ---
+        // Front face: 3 grommets matching hull_front
+        for (gy = [hull_width * 0.25, hull_width/2, hull_width * 0.75])
+            translate([-1, gy, floor_t + wire_ch_h/2 + 2])
+                rotate([0, 90, 0])
+                    cylinder(d=grommet_dia, h=wall + 2);
+        // Rear face: 3 grommets matching hull_rear
+        for (gy = [hull_width * 0.25, hull_width/2, hull_width * 0.75])
+            translate([center_len - 1, gy, floor_t + wire_ch_h/2 + 2])
+                rotate([0, 90, 0])
+                    cylinder(d=grommet_dia, h=wall + 2);
 
         // --- Bolt holes at front seam ---
         for (i = [0:3]) {
@@ -332,9 +347,11 @@ module hull_rear() {
                 cube([louver_w, louver_len, wall + 2]);
         }
 
-        // --- Wire channel exit to center section ---
-        translate([-1, hull_width/2 - wire_ch_w/2, floor_t])
-            cube([2, wire_ch_w, wire_ch_h]);
+        // --- Wire grommet holes (front face, to center section) ---
+        for (gy = [hull_width * 0.25, hull_width/2, hull_width * 0.75])
+            translate([-1, gy, floor_t + wire_ch_h/2 + 2])
+                rotate([0, 90, 0])
+                    cylinder(d=grommet_dia, h=wall + 2);
 
         // --- Bolt holes at front seam (connects to center) ---
         for (i = [0:3]) {

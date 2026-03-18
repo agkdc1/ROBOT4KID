@@ -158,6 +158,18 @@ module turret_shell_full() {
         }
     }
 
+    // Internal reinforcement ribs (prevents warping of large flat surfaces)
+    // 3 longitudinal ribs along turret length
+    for (rx = [turret_width * 0.25, turret_width * 0.5, turret_width * 0.75]) {
+        translate([rx - 1, wall, floor_t])
+            cube([2, turret_length - 2*wall, turret_height * 0.4]);
+    }
+    // 2 transverse ribs
+    for (ry = [turret_length * 0.33, turret_length * 0.66]) {
+        translate([wall, ry - 1, floor_t])
+            cube([turret_width - 2*wall, 2, turret_height * 0.4]);
+    }
+
     // Turret ring (protrudes below)
     translate([turret_width/2, turret_length/2, -ring_height])
         difference() {

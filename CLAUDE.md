@@ -34,6 +34,7 @@ When starting or resuming a project, follow this strict sequence. The pipeline u
   - User acts as **referee** — selects option or provides direction.
   - This prevents infinite AI loops while keeping the user in control.
   - **Implementation:** `planning_server/app/pipeline/debate.py` — `run_debate()` with `build_escalation_summary()`.
+- **CRITICAL: Target 10/10 on EVERY audit.** Anything below 10 means there are issues to fix. A 7/10 across 4 audit stages compounds to ~2.5/10 overall quality. The whole pipeline exists to drive quality UP through adversarial feedback, not to rubber-stamp "good enough."
 - **CRITICAL: Do NOT Override Gemini.** When Gemini flags an issue, Claude MUST NOT silently dismiss or ignore it. Instead:
   1. **Acknowledge** the issue explicitly.
   2. If Claude disagrees, **provide proper context** (e.g., "the hull is split into 3 pieces, each <180mm") and re-submit with that context for Gemini to re-evaluate.
