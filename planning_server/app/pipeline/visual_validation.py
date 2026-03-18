@@ -250,6 +250,13 @@ def build_audit_context(model_type: str, model_name: str, reference_analysis: di
             "- Camera aperture holes MUST exist in hull front (driver cam) and turret front (gunner cam + ToF).",
             "- Without camera holes the tank is BLIND — flag as critical if missing.",
             "",
+            "TRACK SYSTEM CHECK:",
+            "- Drive sprocket must have visible teeth/holes that mesh with track links.",
+            "- Track links must have center guides (raised ridge) to prevent de-tracking.",
+            "- Road wheels must have a center groove to clear the track center guides.",
+            "- Idler wheel (non-driven end) should have a sliding tensioner mount (+/-10mm).",
+            "- If track links are modular, verify snap-fit/hinge connection between links.",
+            "",
         ])
     elif model_type == "train":
         context.extend([
