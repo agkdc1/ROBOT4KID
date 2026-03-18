@@ -127,9 +127,10 @@ module box(size, center=false) {
         cube(size);
 }
 
-// Ghost volume — translucent red for electronics visualization
+// Component volume — rendered as solid geometry (visible in STL export)
+// Colors are for OpenSCAD preview only; STL is monochrome
 module ghost(size) {
-    %color("red", 0.15) cube(size);
+    color("red", 0.5) cube(size);
 }
 
 // M4 bolt hole (vertical, through full height)
