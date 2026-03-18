@@ -230,6 +230,13 @@ def build_audit_context(model_type: str, model_name: str, reference_analysis: di
         "  the CAD and highlight the collision.",
         "- Check that wire routing channels are not pinched when modules are assembled.",
         "",
+        "WIRING EXHAUSTION CHECK:",
+        "- Inspect the 3D layout for 'Wiring Exhaustion.' If the internal volume for",
+        "  Wago/lever-nut connectors and their cable bundles is insufficient or blocks",
+        "  moving parts (turret pan, firing arm), REJECT the CAD.",
+        "- Ensure at least 20% air space in electronic bays for wire slack.",
+        "- Connector pockets must be present for bulky connectors (14-20mm footprint).",
+        "",
     ]
 
     # Model-specific physics
