@@ -84,14 +84,33 @@ M2_INSERT_HOLE  = 3.2;    // Heat-set insert hole (M2)
 SCREW_BOSS_H    = SPLIT_Z - FLOOR_T; // Boss height from floor to split line
 
 // =====================================================================
-// Coupling (simplified Plarail hook/socket)
+// Coupling (M2 screw-mounted Plarail hook/socket)
 // =====================================================================
-COUPLE_HOOK_L   = 6;
-COUPLE_HOOK_W   = 4;
-COUPLE_HOOK_H   = 3;
-COUPLE_SOCKET_L = 7;
-COUPLE_SOCKET_W = 5;
-COUPLE_SOCKET_H = 4;
+COUPLE_HOOK_L   = 8;      // Hook arm length
+COUPLE_HOOK_W   = 6;      // Hook arm width
+COUPLE_HOOK_H   = 3.5;    // Hook height (Plarail standard coupler height)
+COUPLE_SOCKET_L = 9;      // Socket length
+COUPLE_SOCKET_W = 7;      // Socket width (hook + clearance)
+COUPLE_SOCKET_H = 4.5;    // Socket depth
+COUPLE_MOUNT_L  = 12;     // Mount plate length
+COUPLE_MOUNT_W  = 10;     // Mount plate width
+COUPLE_SCREW_HOLE = 2.2;  // M2 clearance hole
+COUPLE_Z        = 4.5;    // Coupler center height from rail (Plarail standard ~4-5mm)
+
+// =====================================================================
+// Micro Slide Switch (SS12D00 style, friction-fit)
+// Placed after TP4056 OUT+, before MT3608 VIN+ (off-state charging)
+// =====================================================================
+SWITCH_L        = 7;       // Switch body length
+SWITCH_W        = 3;       // Switch body width
+SWITCH_H        = 3.5;     // Switch body height
+SWITCH_KNOB_W   = 1.5;     // Knob protrusion
+SWITCH_SLOT_TOL = 0.15;    // Friction-fit tolerance
+SWITCH_GUARD_H  = 1.0;     // Dust guard lip height
+SWITCH_SOLDER_CLR = 3;     // Clearance under switch for soldering
+// Position: bottom of chassis, near rear (accessible when flipped)
+SWITCH_X        = CHRG_X + CHRG_L + 2;  // After TP4056
+SWITCH_Y        = 0;       // Centered
 
 // =====================================================================
 // Axle Positions (measured from rear of body = X=0)
@@ -501,21 +520,89 @@ module wheel_assemblies() {
 // Plarail Coupling Features
 // =====================================================================
 module coupling_hook() {
-    // Rear hook (standard Plarail male coupling)
-    translate([-COUPLE_HOOK_L, -COUPLE_HOOK_W/2, FLOOR_T]) {
-        // Hook arm
-        cube([COUPLE_HOOK_L, COUPLE_HOOK_W, COUPLE_HOOK_H]);
-        // Hook tip (downward barb)
-        translate([0, COUPLE_HOOK_W/2 - 1, -1.5])
-            cube([1.5, 2, COUPLE_HOOK_H + 1.5]);
+    // Rear hook (M2 screw-mounted Plarail male coupling)
+    // Mount plate bolts to chassis rear face via 2x M2 screws
+    translate([-COUPLE_MOUNT_L, -COUPLE_MOUNT_W/2, FLOOR_T]) {
+        difference() {
+            union() {
+                // Mount plate (screws to chassis)
+                cube([COUPLE_MOUNT_L, COUPLE_MOUNT_W, COUPLE_HOOK_H + 1]);
+                // Hook arm extending rearward
+                translate([-COUPLE_HOOK_L, (COUPLE_MOUNT_W - COUPLE_HOOK_W)/2, 0])
+                    cube([COUPLE_HOOK_L, COUPLE_HOOK_W, COUPLE_HOOK_H]);
+                // Hook barb (downward catch)
+                translate([-COUPLE_HOOK_L, COUPLE_MOUNT_W/2 - 1, -1.5])
+                    cube([2, 2, COUPLE_HOOK_H + 1.5]);
+            }
+            // 2x M2 screw holes through mount plate
+            translate([COUPLE_MOUNT_L/3, COUPLE_MOUNT_W/2, -1])
+                cylinder(d=COUPLE_SCREW_HOLE, h=COUPLE_HOOK_H + 4);
+            translate([2*COUPLE_MOUNT_L/3, COUPLE_MOUNT_W/2, -1])
+                cylinder(d=COUPLE_SCREW_HOLE, h=COUPLE_HOOK_H + 4);
+        }
+    }
+    // M2 screw bosses on chassis rear face (receive coupler screws)
+    for (dx = [COUPLE_MOUNT_L/3, 2*COUPLE_MOUNT_L/3]) {
+        translate([-dx, 0, FLOOR_T])
+            difference() {
+                cylinder(d=M2_BOSS_OD, h=COUPLE_HOOK_H + 1);
+                translate([0, 0, -0.5])
+                    cylinder(d=M2_INSERT_HOLE, h=COUPLE_HOOK_H + 2);
+            }
     }
 }
 
 module coupling_socket() {
-    // Front socket (female coupling) — slot in nose area
-    translate([BODY_LENGTH - 2, -COUPLE_SOCKET_W/2, FLOOR_T - 0.5]) {
-        cube([COUPLE_SOCKET_L, COUPLE_SOCKET_W, COUPLE_SOCKET_H]);
+    // Front socket (M2 screw-mounted female coupling)
+    // Mount plate at front, receives hook from next car
+    translate([BODY_LENGTH - 2, -COUPLE_MOUNT_W/2, FLOOR_T - 0.5]) {
+        difference() {
+            // Socket block with slot
+            cube([COUPLE_MOUNT_L, COUPLE_MOUNT_W, COUPLE_SOCKET_H]);
+            // Hook slot (negative space for male hook to enter)
+            translate([COUPLE_MOUNT_L - COUPLE_SOCKET_L - 0.5,
+                       (COUPLE_MOUNT_W - COUPLE_SOCKET_W)/2, -0.5])
+                cube([COUPLE_SOCKET_L + 1, COUPLE_SOCKET_W, COUPLE_SOCKET_H + 1]);
+            // 2x M2 screw holes
+            translate([COUPLE_MOUNT_L/3, COUPLE_MOUNT_W/2, -1])
+                cylinder(d=COUPLE_SCREW_HOLE, h=COUPLE_SOCKET_H + 3);
+            translate([2*COUPLE_MOUNT_L/3, COUPLE_MOUNT_W/2, -1])
+                cylinder(d=COUPLE_SCREW_HOLE, h=COUPLE_SOCKET_H + 3);
+        }
     }
+}
+
+module slide_switch_mount() {
+    // SS12D00 micro slide switch — friction-fit slot in chassis bottom
+    // Wiring: TP4056(OUT+) → switch → MT3608(VIN+) for off-state charging
+    sw_x = SWITCH_X;
+    sw_y = SWITCH_Y - SWITCH_L/2;
+
+    // Switch pocket (cut from chassis floor)
+    // Positive form: retainer walls around switch
+    translate([sw_x, sw_y - SWITCH_SLOT_TOL, 0]) {
+        difference() {
+            // Retainer frame
+            cube([SWITCH_W + 2*WALL, SWITCH_L + 2*SWITCH_SLOT_TOL + 2*WALL, FLOOR_T + SWITCH_H]);
+            // Switch body cavity
+            translate([WALL, WALL, -0.5])
+                cube([SWITCH_W + 2*SWITCH_SLOT_TOL, SWITCH_L + 2*SWITCH_SLOT_TOL, SWITCH_H + 1]);
+            // Knob slot (through floor for bottom access)
+            translate([WALL + SWITCH_W/2 - 1, WALL, -0.5])
+                cube([2, SWITCH_L + 2*SWITCH_SLOT_TOL, FLOOR_T + 1]);
+        }
+        // Dust guard lips (raised rim around knob slot on exterior)
+        translate([WALL + SWITCH_W/2 - 1.5, WALL - 0.5, -SWITCH_GUARD_H])
+            cube([3, SWITCH_L + 2*SWITCH_SLOT_TOL + 1, SWITCH_GUARD_H]);
+    }
+}
+
+module switch_cutout() {
+    // Cut through floor for switch knob access + soldering clearance
+    sw_x = SWITCH_X;
+    sw_y = SWITCH_Y - SWITCH_L/2;
+    translate([sw_x + WALL - 0.5, sw_y - SWITCH_SLOT_TOL + WALL - 0.5, -0.5])
+        cube([SWITCH_W + 2*SWITCH_SLOT_TOL + 1, SWITCH_L + 2*SWITCH_SLOT_TOL + 1, FLOOR_T + 1]);
 }
 
 // =====================================================================
@@ -556,6 +643,7 @@ module chassis() {
             wheel_assemblies();
             coupling_hook();
             alignment_ridge();
+            slide_switch_mount();
         }
 
         // Subtractive features
@@ -563,6 +651,7 @@ module chassis() {
         usb_access_window();
         wire_channels();
         coupling_socket();
+        switch_cutout();
     }
 }
 

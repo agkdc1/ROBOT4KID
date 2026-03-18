@@ -30,7 +30,7 @@ ring_height = 8;
 // --- Barrel ---
 barrel_od = 25;          // outer tube
 barrel_id = 23;          // 22mm ball + 1mm clearance
-barrel_length = 150;     // extends forward from turret face
+barrel_length = 260;     // Real M1A1: 4700mm / 18 = 261mm
 barrel_wall_t = (barrel_od - barrel_id) / 2;
 
 // --- Trunnion (barrel pivot) ---

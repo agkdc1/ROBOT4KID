@@ -112,6 +112,13 @@ louver_w        = 2;
 louver_spacing  = 8;
 louver_len      = 50;
 
+// --- KCD1-11 Rocker Switch (with LED indicator) ---
+// Placed on hull rear face for external access
+rocker_dia      = 20;       // Standard KCD1-11 mounting hole
+rocker_depth    = 15;       // Depth behind switch for wire bulk + heat-shrink
+rocker_x        = 20;       // Position from rear face inner wall
+rocker_y_pos    = hull_width / 2;  // Centered on rear face
+
 // --- Part Selector ---
 part = "assembly";  // "assembly" | "front" | "center" | "rear" | "hatch"
 
@@ -349,6 +356,21 @@ module hull_rear() {
                 rotate([-90, 0, 0])
                     m4_bolt_hole(wall + 2);
         }
+
+        // --- KCD1-11 Rocker Switch mounting hole (rear face) ---
+        // Round hole through rear hull face for switch body
+        translate([rear_len - wall - 1, rocker_y_pos, hull_height / 2])
+            rotate([0, 90, 0])
+                cylinder(d=rocker_dia, h=wall + 2);
+
+        // --- Switch wire pocket (internal, behind switch) ---
+        // 15mm deep cavity for pre-wired heat-shrink bulk, no sharp 90deg bends
+        translate([rear_len - wall - rocker_depth, rocker_y_pos - rocker_dia/2 - 2, floor_t + 5])
+            cube([rocker_depth, rocker_dia + 4, hull_height - floor_t - wall - 5]);
+
+        // --- Wire routing channel from switch to power hub (center section) ---
+        translate([-1, rocker_y_pos - wire_ch_w/2, floor_t])
+            cube([rocker_x + 2, wire_ch_w, wire_ch_h]);
     }
 
     // --- N20 motor mounts (2x, rear pair) ---

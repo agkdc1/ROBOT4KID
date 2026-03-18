@@ -431,13 +431,33 @@ async def validate_design(
     # Note: Gemini vision would use the actual images, but our text API
     # uses the descriptions + source data. For full vision support,
     # the images should be sent via the multimodal API.
-    result = await generate_with_tool(
-        prompt="".join(prompt_parts),
-        system=system,
-        tool=VALIDATION_TOOL,
-        tool_name="design_validation",
-        provider=provider,
-    )
+    # Model hierarchy: gemini-2.5-pro (primary) → gemini-2.5-flash (fallback)
+    FALLBACK_MODEL = "gemini-2.5-flash"
+    try:
+        result = await generate_with_tool(
+            prompt="".join(prompt_parts),
+            system=system,
+            tool=VALIDATION_TOOL,
+            tool_name="design_validation",
+            provider=provider,
+        )
+    except (ValueError, Exception) as exc:
+        exc_str = str(exc).lower()
+        if "429" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str:
+            logger.warning(
+                f"Primary model rate-limited ({exc}). "
+                f"Retrying with fallback model: {FALLBACK_MODEL}"
+            )
+            result = await generate_with_tool(
+                prompt="".join(prompt_parts),
+                system=system,
+                tool=VALIDATION_TOOL,
+                tool_name="design_validation",
+                provider=Provider.GEMINI,
+                model=FALLBACK_MODEL,
+            )
+        else:
+            raise
 
     logger.info(
         f"Validation complete: visual_quality_score={result.get('visual_quality_score', 0)}/10, "
