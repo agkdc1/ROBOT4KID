@@ -36,11 +36,16 @@ barrel_split = barrel_length / 2;  // 130mm each half, fits 180mm bed
 barrel_pin_d = 8;        // Internal alignment pin diameter
 barrel_pin_l = 10;       // Pin insertion depth per side
 
-// --- Trunnion (barrel pivot) ---
+// --- Trunnion (barrel pivot, bayonet twist-lock) ---
 trunnion_width = 40;
 trunnion_height = 30;
 trunnion_depth = 20;
 trunnion_bore = barrel_od + 0.4;  // barrel passes through
+// Bayonet twist-lock: push + 45° turn to lock/unlock
+bayonet_lug_w = 4;        // Lug width
+bayonet_lug_h = 2;        // Lug thickness (axial)
+bayonet_flange_od = barrel_od + 8;  // Flange OD on barrel
+bayonet_slot_arc = 50;    // Degrees of L-slot rotation
 
 // --- Magazine (vertical tube for 22mm balls) ---
 mag_od = 29;             // 25mm ID + 2x2mm wall
@@ -168,6 +173,7 @@ module turret_shell_full() {
 
 module trunnion_block() {
     // Sits at front-center of turret interior, barrel passes through
+    // Bayonet twist-lock: 2 L-shaped slots at 0° and 180° for push+turn locking
     translate([turret_width/2 - trunnion_width/2, wall, floor_t])
         difference() {
             cube([trunnion_width, trunnion_depth, trunnion_height]);
@@ -175,6 +181,24 @@ module trunnion_block() {
             translate([trunnion_width/2, -1, trunnion_height/2])
                 rotate([-90, 0, 0])
                     cylinder(d=trunnion_bore, h=trunnion_depth+2);
+
+            // Bayonet L-slots (2x, at 0° and 180° around bore)
+            // Each slot: axial entry channel + rotational lock channel
+            for (angle = [0, 180]) {
+                translate([trunnion_width/2, trunnion_depth/2, trunnion_height/2])
+                    rotate([-90, 0, 0])
+                        rotate([0, 0, angle]) {
+                            // Axial entry slot (barrel slides in)
+                            translate([trunnion_bore/2 - 0.5, -bayonet_lug_w/2, -1])
+                                cube([bayonet_lug_h + 2, bayonet_lug_w, trunnion_depth/2 + 1]);
+                            // Rotational lock channel (turn to engage)
+                            translate([0, 0, trunnion_depth/2 - bayonet_lug_h - 1])
+                                rotate_extrude(angle=bayonet_slot_arc)
+                                    translate([trunnion_bore/2 - 0.5, 0])
+                                        square([bayonet_lug_h + 2, bayonet_lug_w]);
+                        }
+            }
+
             // Tilt servo pocket (side mount)
             translate([-1, trunnion_depth/2 - servo_d/2, trunnion_height/2 - servo_h/2])
                 cube([servo_w + 1, servo_d, servo_h]);
@@ -200,7 +224,8 @@ module barrel_v2() {
     }
 }
 
-// Barrel breech half (Z=0 to barrel_split, includes bayonet + alignment pin socket)
+// Barrel breech half (Z=0 to barrel_split)
+// Has bayonet twist-lock lugs at breech end + alignment pin at muzzle end
 module barrel_breech() {
     difference() {
         union() {
@@ -210,17 +235,22 @@ module barrel_breech() {
                 translate([0, 0, -1])
                     cylinder(d=barrel_id, h=barrel_split + 2);
             }
-            // Bayonet ring
+            // Bayonet flange with 2 lugs (push + 45° turn to lock in trunnion)
             difference() {
-                cylinder(d=barrel_od + 4, h=5);
+                cylinder(d=bayonet_flange_od, h=bayonet_lug_h);
                 translate([0, 0, -1])
-                    cylinder(d=barrel_id, h=7);
+                    cylinder(d=barrel_id, h=bayonet_lug_h + 2);
+                // Cut away to leave only 2 lugs at 0° and 180°
+                for (angle = [45, 135, 225, 315])
+                    rotate([0, 0, angle])
+                        translate([0, -bayonet_flange_od, -1])
+                            cube([bayonet_flange_od, bayonet_flange_od * 2, bayonet_lug_h + 2]);
             }
-            // Alignment pin (male, at split end)
+            // Alignment pin (male, at split end for muzzle half)
             translate([0, 0, barrel_split])
                 cylinder(d=barrel_pin_d - 0.4, h=barrel_pin_l);
         }
-        // Bore continues through pin
+        // Bore through everything
         translate([0, 0, -1])
             cylinder(d=barrel_id, h=barrel_split + barrel_pin_l + 2);
     }
