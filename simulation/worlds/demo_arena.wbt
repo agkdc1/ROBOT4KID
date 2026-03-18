@@ -20,10 +20,26 @@ WorldInfo {
   ]
 }
 
-Viewpoint {
-  orientation 0 0 -1 0.3
-  position 0.3 -0.5 0.4
+DEF VIEWPOINT Viewpoint {
+  orientation 0.3529 0.1387 -0.9253 3.7482
+  position 1.3821 -0.2938 0.6817
   near 0.001
+  fieldOfView 1.4
+}
+
+# Movie recording supervisor — captures frames + video
+DEF SUPERVISOR Robot {
+  translation 0 0 0
+  controller "movie_supervisor"
+  supervisor TRUE
+  children [
+    Shape {
+      geometry Sphere {
+        radius 0.001
+      }
+    }
+  ]
+  name "supervisor"
 }
 
 TexturedBackground {
@@ -324,7 +340,7 @@ DEF TANK Robot {
 # Simple 2-wheel drive
 # =====================================================================
 DEF TRAIN Robot {
-  translation 0.5 0 0.015
+  translation 0.5 0.15 0.015
   rotation 0 0 1 0
   name "train"
   controller "train_controller"

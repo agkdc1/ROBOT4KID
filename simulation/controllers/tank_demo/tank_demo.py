@@ -32,8 +32,8 @@ def main():
         turret_motor.setVelocity(0)
 
     # Figure-8 demo parameters
-    base_speed = 4.0  # rad/s
-    turn_diff = 3.0   # speed difference for turning
+    base_speed = 2.0  # rad/s (slowed down — was 4.0, smashed the train)
+    turn_diff = 1.5   # speed difference for turning
     phase_steps = 150  # steps per phase (~2.4 seconds)
     turret_speed = 0.5  # rad/s
 
