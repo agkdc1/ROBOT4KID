@@ -27,11 +27,14 @@ ring_od = 112;           // matches hull turret_ring_id (112mm bore)
 ring_clearance = 0.2;    // per side
 ring_height = 8;
 
-// --- Barrel ---
+// --- Barrel (2-piece split for 180mm bed) ---
 barrel_od = 25;          // outer tube
 barrel_id = 23;          // 22mm ball + 1mm clearance
 barrel_length = 260;     // Real M1A1: 4700mm / 18 = 261mm
 barrel_wall_t = (barrel_od - barrel_id) / 2;
+barrel_split = barrel_length / 2;  // 130mm each half, fits 180mm bed
+barrel_pin_d = 8;        // Internal alignment pin diameter
+barrel_pin_l = 10;       // Pin insertion depth per side
 
 // --- Trunnion (barrel pivot) ---
 trunnion_width = 40;
@@ -183,18 +186,71 @@ module trunnion_block() {
 // ============================================================
 
 module barrel_v2() {
+    // Full barrel (for assembly view)
     difference() {
         cylinder(d=barrel_od, h=barrel_length);
         translate([0, 0, -1])
             cylinder(d=barrel_id, h=barrel_length + 2);
     }
     // Bayonet ring at breech end
-    translate([0, 0, 0])
-        difference() {
-            cylinder(d=barrel_od + 4, h=5);
-            translate([0, 0, -1])
-                cylinder(d=barrel_id, h=7);
+    difference() {
+        cylinder(d=barrel_od + 4, h=5);
+        translate([0, 0, -1])
+            cylinder(d=barrel_id, h=7);
+    }
+}
+
+// Barrel breech half (Z=0 to barrel_split, includes bayonet + alignment pin socket)
+module barrel_breech() {
+    difference() {
+        union() {
+            // Barrel tube
+            difference() {
+                cylinder(d=barrel_od, h=barrel_split);
+                translate([0, 0, -1])
+                    cylinder(d=barrel_id, h=barrel_split + 2);
+            }
+            // Bayonet ring
+            difference() {
+                cylinder(d=barrel_od + 4, h=5);
+                translate([0, 0, -1])
+                    cylinder(d=barrel_id, h=7);
+            }
+            // Alignment pin (male, at split end)
+            translate([0, 0, barrel_split])
+                cylinder(d=barrel_pin_d - 0.4, h=barrel_pin_l);
         }
+        // Bore continues through pin
+        translate([0, 0, -1])
+            cylinder(d=barrel_id, h=barrel_split + barrel_pin_l + 2);
+    }
+}
+
+// Barrel muzzle half (Z=0 to barrel_split, has alignment socket at breech end)
+module barrel_muzzle() {
+    difference() {
+        union() {
+            // Barrel tube
+            difference() {
+                cylinder(d=barrel_od, h=barrel_split);
+                translate([0, 0, -1])
+                    cylinder(d=barrel_id, h=barrel_split + 2);
+            }
+            // Muzzle brake (ring near tip)
+            translate([0, 0, barrel_split - 8])
+                difference() {
+                    cylinder(d=barrel_od + 3, h=6);
+                    translate([0, 0, -1])
+                        cylinder(d=barrel_id, h=8);
+                }
+        }
+        // Alignment socket (female, at breech end)
+        translate([0, 0, -barrel_pin_l - 0.5])
+            cylinder(d=barrel_pin_d + 0.4, h=barrel_pin_l + 0.5);
+        // Bore
+        translate([0, 0, -1])
+            cylinder(d=barrel_id, h=barrel_split + 2);
+    }
 }
 
 // ============================================================
@@ -472,11 +528,16 @@ if (part == "assembly") {
 } else if (part == "front") {
     turret_front();
 } else if (part == "rear") {
-    // Rotate for printing: flat on bed
     turret_rear();
 } else if (part == "barrel") {
-    // Print standing up for round accuracy
+    // Full barrel (for reference only, does NOT fit 180mm bed)
     barrel_v2();
+} else if (part == "barrel_breech") {
+    // Breech half (130mm, fits 180mm bed)
+    barrel_breech();
+} else if (part == "barrel_muzzle") {
+    // Muzzle half (130mm, fits 180mm bed)
+    barrel_muzzle();
 } else if (part == "magazine") {
     magazine();
 }
