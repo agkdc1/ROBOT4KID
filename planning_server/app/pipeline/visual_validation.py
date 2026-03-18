@@ -222,6 +222,14 @@ def build_audit_context(model_type: str, model_name: str, reference_analysis: di
         "- All individual print parts must fit 180x180x180mm build volume.",
         "- Score 0-10 integer. Below 7 = mandatory fixes required.",
         "",
+        "CRITICAL ASSEMBLY CHECK:",
+        "- Analyze the 3D views. Verify that every electronic component (RPi, encoder, joysticks)",
+        "  can be physically inserted into its designated mount WITHOUT being blocked by the",
+        "  cradle's printed overhangs or walls.",
+        "- If a component is trapped or impossible to place due to the printing sequence, REJECT",
+        "  the CAD and highlight the collision.",
+        "- Check that wire routing channels are not pinched when modules are assembled.",
+        "",
     ]
 
     # Model-specific physics
@@ -247,6 +255,19 @@ def build_audit_context(model_type: str, model_name: str, reference_analysis: di
             "- Internal components (motor, battery, camera) mount inside the body shell.",
             "- The body shell should be a recognizable Shinkansen/train shape.",
             "- Camera aperture hole must exist in nose for ESP32-CAM lens.",
+            "",
+        ])
+    elif model_type == "console":
+        context.extend([
+            "CONSOLE PHYSICS:",
+            "- Desktop command console — must sit stable on a flat surface.",
+            "- Display must be at correct viewing angle (tilted, using its own legs/stand).",
+            "- Joystick shafts must poke through the deck surface (visible from top view).",
+            "- Button holes must be visible as circular cutouts in the deck.",
+            "- ALL internal components must be insertable AFTER printing (no trapped parts).",
+            "- RPi, encoder, power bank must be accessible for maintenance.",
+            "- Wire routing channels must not be pinched when modules are assembled.",
+            "- External ports (USB-C charge, Ethernet, power switch) must be accessible.",
             "",
         ])
     else:

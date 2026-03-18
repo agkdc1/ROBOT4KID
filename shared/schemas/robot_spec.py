@@ -34,6 +34,7 @@ class JointType(str, Enum):
 class ModelType(str, Enum):
     TANK = "tank"
     TRAIN = "train"
+    CONSOLE = "console"
 
 
 class FastenerType(str, Enum):

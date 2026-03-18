@@ -35,7 +35,7 @@ CLAUDE_MAX_RETRIES = int(os.getenv("CLAUDE_MAX_RETRIES", "3"))
 
 # Gemini API (secondary — simpler tasks, expansion)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")  # Pro for quality audits (not flash)
 
 # GCP
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
