@@ -76,6 +76,12 @@ sw_w = 80;  sw_d = 40;  sw_h = 20;
 // Ethernet panel mount cutout
 eth_w = 22;  eth_h = 16;
 
+// ----- Joystick Clearance -----
+// Mechanism cavities must not collide with center wall at X=split_x
+// or the deck module join wall at X=deck_left_w.
+// Add 5mm clearance around each mechanism cavity.
+joy_clearance = 5;
+
 // ----- Derived Positions -----
 // Base plate is the bottom layer: holds RPi, encoder, power bank
 // Base occupies Y from 0 to console_d, X from 0 to console_w
@@ -303,6 +309,21 @@ module control_deck_left() {
             translate([deck_left_x + deck_left_w, deck_d/2, z])
                 rotate([0, 90, 0])
                     m3_bolt_hole(20);
+
+        // Arcade joystick mechanism clearance — open the right wall
+        // so the 95mm mechanism housing doesn't clip the center divider.
+        // Notch spans the mechanism Y-range + 5mm clearance on each side,
+        // from the mechanism bottom (Z) up through the wall.
+        translate([
+            deck_left_w - wall - 0.1,
+            aj_cy - aj_plate/2 - joy_clearance,
+            base_h + deck_h - aj_below - joy_clearance
+        ])
+            cube([
+                wall + 0.2,
+                aj_plate + joy_clearance*2,
+                aj_below + joy_clearance
+            ]);
     }
 }
 
@@ -355,6 +376,21 @@ module control_deck_right() {
             translate([dr_x, deck_d/2, z])
                 rotate([0, 90, 0])
                     m3_bolt_hole(20);
+
+        // Flight stick mechanism clearance — open the left wall
+        // so the 90mm mechanism housing doesn't clip the center divider.
+        // Notch spans the mechanism Y-range + 5mm clearance on each side,
+        // from the mechanism bottom (Z) up through the wall.
+        translate([
+            dr_x - 0.1,
+            fs_cy - fs_plate/2 - joy_clearance,
+            base_h + deck_h - fs_below - joy_clearance
+        ])
+            cube([
+                wall + 0.2,
+                fs_plate + joy_clearance*2,
+                fs_below + joy_clearance
+            ]);
     }
 }
 
