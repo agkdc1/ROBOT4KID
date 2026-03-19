@@ -5,13 +5,26 @@ variable "billing_account" {
 }
 
 variable "region" {
-  description = "GCP region for resources"
+  description = "GCP region for Cloud Run / Firestore"
   type        = string
-  default     = "asia-northeast1"
+  default     = "us-west1"
 }
 
 variable "bucket_region" {
   description = "GCS bucket region (us-west1 for free tier)"
   type        = string
-  default     = "us-west1"
+  default     = "US"
+}
+
+variable "domain" {
+  description = "Primary domain (set via tfvars, never committed)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "admin_email" {
+  description = "Admin email for Cloud Run invoker"
+  type        = string
+  default     = "ahnchoonghyun@gmail.com"
 }

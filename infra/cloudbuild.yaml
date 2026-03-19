@@ -1,0 +1,72 @@
+steps:
+  # Build Planning Server
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_DOCKER_REPO}/planning-server:$COMMIT_SHA',
+           '-t', '${_DOCKER_REPO}/planning-server:latest',
+           '-f', 'planning_server/Dockerfile', '.']
+
+  # Build Simulation Server
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_DOCKER_REPO}/simulation-server:$COMMIT_SHA',
+           '-t', '${_DOCKER_REPO}/simulation-server:latest',
+           '-f', 'simulation_server/Dockerfile', '.']
+
+  # Push images
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', '${_DOCKER_REPO}/planning-server']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '--all-tags', '${_DOCKER_REPO}/simulation-server']
+
+  # Deploy Planning Server to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'planning-server'
+      - '--image=${_DOCKER_REPO}/planning-server:$COMMIT_SHA'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--quiet'
+
+  # Deploy Simulation Server to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'simulation-server'
+      - '--image=${_DOCKER_REPO}/simulation-server:$COMMIT_SHA'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--quiet'
+
+  # Build Dashboard and deploy to GCS
+  - name: 'node:22-slim'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        cd dashboard
+        npm ci --silent
+        VITE_API_URL=${_PLANNING_URL} VITE_SIM_URL=${_SIMULATION_URL} npm run build
+    env:
+      - 'NODE_ENV=production'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        gsutil -m rsync -r -d dashboard/dist gs://${_DASHBOARD_BUCKET}/
+        gsutil -m setmeta -h "Cache-Control:public, max-age=3600" gs://${_DASHBOARD_BUCKET}/**
+
+substitutions:
+  _REGION: us-west1
+  _DOCKER_REPO: us-west1-docker.pkg.dev/${PROJECT_ID}/robot4kid
+  _DASHBOARD_BUCKET: ${PROJECT_ID}-dashboard
+  _PLANNING_URL: ''    # Set by trigger
+  _SIMULATION_URL: ''  # Set by trigger
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
