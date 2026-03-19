@@ -27,25 +27,31 @@ def _get_claude_client() -> AsyncAnthropic:
     return AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
 
 
-def _get_gemini_client() -> genai.Client:
+def _get_gemini_client(force_aistudio: bool = False) -> genai.Client:
     """Get Gemini client — prefers Vertex AI (GCP), falls back to AI Studio (API key).
 
     Vertex AI: higher rate limits, uses GCP billing (free credits).
-    AI Studio: 20 req/day free tier, rate limited.
+    AI Studio: has 3.x preview models that Vertex AI may not have yet.
+
+    Args:
+        force_aistudio: If True, skip Vertex AI and use AI Studio directly.
+            Needed for gemini-3.x preview models not yet on Vertex AI.
     """
     gcp_project = os.getenv("GCP_PROJECT", getattr(config, "GCP_PROJECT_ID", ""))
     gcp_location = os.getenv("GCP_LOCATION", "us-central1")
 
-    if gcp_project:
+    if gcp_project and not force_aistudio:
         # Vertex AI — uses ADC (Application Default Credentials) or service account
-        logger.info(f"[Gemini] Using Vertex AI: project={gcp_project}, location={gcp_location}")
+        # Use 'global' endpoint for higher availability (3.x preview models require it)
+        location = "global"
+        logger.info(f"[Gemini] Using Vertex AI: project={gcp_project}, location={location}")
         return genai.Client(
             vertexai=True,
             project=gcp_project,
-            location=gcp_location,
+            location=location,
         )
     elif config.GEMINI_API_KEY:
-        # AI Studio fallback — rate limited
+        # AI Studio — needed for 3.x preview models
         logger.info("[Gemini] Using AI Studio (API key)")
         return genai.Client(api_key=config.GEMINI_API_KEY)
     else:
@@ -85,6 +91,8 @@ async def generate_with_tool(
     provider: Provider = Provider.CLAUDE,
     model: str | None = None,
     max_tokens: int = 8192,
+    thinking_level: str | None = None,
+    force_aistudio: bool = False,
 ) -> dict:
     """Generate structured output using tool/function calling.
 
@@ -96,6 +104,8 @@ async def generate_with_tool(
         provider: Which LLM to use.
         model: Model override.
         max_tokens: Max output tokens.
+        thinking_level: Gemini thinking level (MINIMAL/LOW/MEDIUM/HIGH). None = model default.
+        force_aistudio: Force AI Studio for Gemini (needed for 3.x preview models).
 
     Returns:
         Parsed tool input dict.
@@ -103,7 +113,7 @@ async def generate_with_tool(
     if provider == Provider.CLAUDE:
         return await _claude_tool_call(prompt, system, tool, tool_name, model, max_tokens)
     else:
-        return await _gemini_tool_call(prompt, system, tool, tool_name, model, max_tokens)
+        return await _gemini_tool_call(prompt, system, tool, tool_name, model, max_tokens, thinking_level, force_aistudio)
 
 
 async def _claude_text(prompt: str, system: str, model: str | None, max_tokens: int) -> str:
@@ -190,11 +200,20 @@ async def _gemini_text(prompt: str, system: str, model: str | None, max_tokens: 
 
 
 async def _gemini_tool_call(
-    prompt: str, system: str, tool: dict, tool_name: str, model: str | None, max_tokens: int,
+    prompt: str, system: str, tool: dict, tool_name: str,
+    model: str | None, max_tokens: int,
+    thinking_level: str | None = None,
+    force_aistudio: bool = False,
 ) -> dict:
-    """Gemini structured output via response_schema (JSON mode)."""
+    """Gemini structured output via response_schema (JSON mode).
+
+    Args:
+        thinking_level: Optional thinking level for Gemini 3+ Deep Think mode.
+            One of "MINIMAL", "LOW", "MEDIUM", "HIGH". None = model default.
+        force_aistudio: Force AI Studio for 3.x preview models not on Vertex AI.
+    """
     import json
-    client = _get_gemini_client()
+    client = _get_gemini_client(force_aistudio=force_aistudio)
     model = model or config.GEMINI_MODEL
 
     full_prompt = (
@@ -203,15 +222,23 @@ async def _gemini_tool_call(
         f"{json.dumps(tool.get('input_schema', {}), indent=2)}"
     )
 
+    # Build config with optional Deep Think
+    gen_config_kwargs: dict = {
+        "response_mime_type": "application/json",
+        "max_output_tokens": max_tokens,
+    }
+    if thinking_level:
+        gen_config_kwargs["thinking_config"] = genai.types.ThinkingConfig(
+            thinking_level=thinking_level,
+        )
+        logger.info(f"[Gemini] Deep Think enabled: thinking_level={thinking_level}")
+
     for attempt in range(config.CLAUDE_MAX_RETRIES):
         try:
             response = client.models.generate_content(
                 model=model,
                 contents=full_prompt,
-                config=genai.types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    max_output_tokens=max_tokens,
-                ),
+                config=genai.types.GenerateContentConfig(**gen_config_kwargs),
             )
             text = response.text.strip()
             return json.loads(text)

@@ -1,0 +1,78 @@
+{
+  "stage_2": {
+    "additions": [
+      {
+        "check": "Your primary function is to perform a rigorous technical analysis using appropriate CAD tools. If you identify any 'critical' severity issues (e.g., non-manifold geometry, functional impossibility), you MUST fail the submission and halt the process. Your final report must explicitly state whether the model is manifold and watertight.",
+        "reason": "Stage 2 ('inspector_review') correctly identified critical flaws but the process allowed the model to advance. The prompt must be updated to enforce the inspector's critical findings as a hard gate, preventing flawed designs from proceeding."
+      },
+      {
+        "check": "Simulate wire routing. Sum the approximate cross-sectional area of all wires that must pass through any given channel. Verify that channel dimensions (`WIRE_CHANNEL_W`, `WIRE_CHANNEL_D`) are at least 200% of the required area to allow for loose fit and prevent pinching during assembly.",
+        "reason": "A simple check for the existence of a wire channel is insufficient. The channel's capacity was not evaluated against the actual wiring requirements, leading to an un-buildable design."
+      },
+      {
+        "check": "For every component requiring external user interaction (charging ports, power switches, data ports), verify a corresponding, accessible, and correctly-sized cutout or panel mount exists on an external-facing surface.",
+        "reason": "The requirement to charge the internal power bank was not traced to the physical need for a hole in the external shell, leading to a sealed, unchargeable device."
+      },
+      {
+        "check": "Cross-reference 'fcs' (Fire Control System) specifications with the BOM. If 'ball_speed' is > 0, there must be a motorized or spring-loaded actuator present in both the SCAD and the component list.",
+        "reason": "Stage 2 accepted a 'Firing Tank' that lacked a firing motor."
+      }
+    ]
+  },
+  "stage_4": {
+    "additions": [
+      {
+        "check": "You must review the findings of the Stage 2 technical inspection before conducting your visual assessment. You are forbidden from passing a criterion that Stage 2 has failed. For example, you cannot pass 'printability' if Stage 2 found non-manifold geometry, nor can you pass 'track_geometry' if Stage 2 found the wheels to be non-functional static reliefs. Your assessment must be contextual to the technical realities of the model.",
+        "reason": "Stage 4 ('visual_validation') contradicted the technical findings of Stage 2, giving 'pass' grades on printability and track geometry for a non-manifold, non-functional model. This indicates the stage is operating in a vacuum and needs to be grounded by the preceding technical analysis."
+      },
+      {
+        "check": "Evaluate the total thermal load from heat-generating components (CPUs, Wi-Fi modules, motor drivers, voltage regulators) against the enclosure volume and design. Mandate ventilation grilles or other thermal management solutions for any sealed enclosure containing components expected to run continuously or under high load.",
+        "reason": "The previous check for 'clearance' around a component was too simplistic. It failed to consider the thermodynamics of a sealed system, where heat will accumulate regardless of local clearance, leading to component failure."
+      },
+      {
+        "check": "Validate Torque-to-Scale: Calculate estimated model weight (Volume * 0.4g/cm3 for 20% infill). If the model exceeds 1kg and uses N20 motors, it is a kinematic failure.",
+        "reason": "Stage 4 missed that N20s are physically incapable of moving a 440mm long tank."
+      },
+      {
+        "check": "For any design involving an ESP32-CAM or motor driver in a plastic enclosure, you MUST verify the existence of specific ventilation features (slots, holes, grilles). Clearance is not ventilation.",
+        "reason": "Stage 4 checked if components 'fit' but ignored the thermodynamic reality of an enclosed active electronic system."
+      }
+    ]
+  },
+  "stage_1": {
+    "additions": [
+      {
+        "check": "Add a 'Systemic Safety Check' to your checklist. Review the project's hardware and component lists. For any project utilizing LiPo or Li-Ion batteries, you must verify that a hardware-based Battery Management System (BMS) or Low-Voltage Cutoff (LVC) circuit is explicitly included in the design's bill of materials and has allocated physical space. The absence of such a protection circuit constitutes a critical failure.",
+        "reason": "A critical battery fire hazard was missed by all stages because no stage was tasked with performing a systemic power safety analysis. This must be added to the process."
+      },
+      {
+        "check": "Verify that all planned part splits result in printable objects that fit within the target manufacturing constraints (e.g., build volume of 180x180x180mm).",
+        "reason": "Previous stages failed to cross-reference the CAD parameters (`console_w/2 = 200mm`) with the specified printer in the Assembly Manual, resulting in an unprintable design."
+      },
+      {
+        "check": "Verify the complete 3D bounding box (X, Y, and Z) of every internal component against the internal volume of its designated housing. For components mounted on one part of a split assembly (e.g., a deck), confirm their volumetric intrusion does not collide with the mating part (e.g., the base).",
+        "reason": "Previous stages only validated XY placement (floor plan) and missed catastrophic Z-axis collisions for both the joysticks and the Raspberry Pi, making the assembly physically impossible."
+      },
+      {
+        "check": "Perform a 'Bed Fit' check: Sum the width of the part plus 5mm skirt/brim. If this exceeds BUILD_X or BUILD_Y, the part fails regardless of length-splitting. For electronics, verify every component's input voltage matches the source rail.",
+        "reason": "Stage 1 missed the 203mm width vs 180mm bed and the 8.4V vs 5V MCU mismatch."
+      }
+    ]
+  },
+  "stage_3": {
+    "additions": [
+      {
+        "check": "Verify that critical interface parameters (e.g., TRACK_GAUGE, BODY_WIDTH, BODY_LENGTH) are consistent across ALL related files, including CAD source (.scad), assembly files, and specification documents (.yaml). Flag any discrepancy as a critical system-level error.",
+        "reason": "Previous stages reviewed files in isolation and failed to detect fundamental contradictions between different parts of the same project, such as the train being designed for a different track than the one provided."
+      },
+      {
+        "check": "Audit for thermal management. Identify all significant heat-producing components (e.g., processors, power banks) and verify the design includes adequate ventilation (e.g., inlet/outlet vents) to prevent overheating.",
+        "reason": "The audit process lacked a specific check for thermal viability, allowing a high-power processor to be placed in a sealed box with no airflow, which is a predictable failure mode."
+      },
+      {
+        "check": "You MUST perform a 'Global Parameter Sync' check. Compare TRACK_GAUGE, BODY_WIDTH, and BODY_LENGTH across every .scad file in the project. If even one file differs by >0.1mm, fail the audit immediately.",
+        "reason": "Stage 3 evaluated files in isolation and failed to notice that different files were designing the train for different track standards."
+      }
+    ]
+  }
+}

@@ -1,11 +1,14 @@
 """Grand Audit module — Phase 1 (Meta-Audit) and Phase 3 (Grand Audit).
 
-Uses Gemini Ultra (gemini-3.1-pro-preview) as Chief Inspector for:
+Uses Gemini Ultra (gemini-3.1-pro-preview + thinking_level=HIGH aka "Deep Think")
+as Chief Inspector for:
 1. Inception meta-audit (validates Master Document before design starts)
 2. Grand Audit (final sign-off after all 4 stages pass 10/10)
 
-The Ultra model is expensive but cost-effective: our codebases are <5000 lines,
-and a failed 3D print costs more than an API call.
+Deep Think is NOT a separate model — it is gemini-3.1-pro-preview with
+ThinkingConfig(thinking_level="HIGH"), enabling extended multi-minute reasoning.
+This is cost-effective: our codebases are <5000 lines, and a failed 3D print
+costs more than an API call.
 """
 
 import json
@@ -17,15 +20,19 @@ from planning_server.app.pipeline.llm import Provider, generate_with_tool
 
 logger = logging.getLogger(__name__)
 
-# Gemini Ultra model for Grand Audit (Chief Inspector)
+# Gemini Ultra = gemini-3.1-pro-preview + Deep Think (thinking_level=HIGH)
+# Note: 3.x preview models require AI Studio (not Vertex AI us-central1)
 ULTRA_MODEL = "gemini-3.1-pro-preview"
+ULTRA_THINKING_LEVEL = "HIGH"  # Deep Think mode for Chief Inspector
 
-# Fallback cascade if Ultra is unavailable
+# Fallback cascade: (model_id, thinking_level, force_aistudio)
+# Grand Audit requires Pro-tier reasoning — no Flash or 2.5 fallback
+# Vertex AI global endpoint has 3.x models; AI Studio as fallback
 ULTRA_CASCADE = [
-    "gemini-3.1-pro-preview",
-    "gemini-3-flash-preview",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
+    ("gemini-3.1-pro-preview", "HIGH", False),   # 3.1 Pro Deep Think via Vertex AI (global)
+    ("gemini-3-pro-preview", "HIGH", False),      # 3.0 Pro Deep Think via Vertex AI (global)
+    ("gemini-3.1-pro-preview", "HIGH", True),     # 3.1 Pro via AI Studio (if Vertex fails)
+    ("gemini-3-pro-preview", "HIGH", True),       # 3.0 Pro via AI Studio (last resort)
 ]
 
 # Max retries per model in cascade (prevents infinite hangs)
@@ -136,10 +143,17 @@ async def _call_with_cascade(
     tool: dict,
     tool_name: str,
 ) -> tuple[str, dict[str, Any]]:
-    """Try Ultra cascade, return (model_used, result)."""
-    for i, model in enumerate(ULTRA_CASCADE):
+    """Try Ultra cascade with Deep Think, return (model_used, result).
+
+    Each entry in ULTRA_CASCADE is (model_id, thinking_level, force_aistudio).
+    thinking_level="HIGH" enables Deep Think (extended multi-minute reasoning).
+    force_aistudio=True routes through AI Studio (needed for 3.x preview models).
+    """
+    for i, (model, thinking_level, force_aistudio) in enumerate(ULTRA_CASCADE):
         try:
-            logger.info(f"[GRAND_AUDIT] Trying {model} ({i+1}/{len(ULTRA_CASCADE)})...")
+            think_tag = f" [DeepThink={thinking_level}]" if thinking_level else ""
+            api_tag = " [AIStudio]" if force_aistudio else " [VertexAI]"
+            logger.info(f"[GRAND_AUDIT] Trying {model}{think_tag}{api_tag} ({i+1}/{len(ULTRA_CASCADE)})...")
             result = await generate_with_tool(
                 prompt=prompt,
                 system=system,
@@ -147,18 +161,21 @@ async def _call_with_cascade(
                 tool_name=tool_name,
                 provider=Provider.GEMINI,
                 model=model,
+                thinking_level=thinking_level,
+                force_aistudio=force_aistudio,
             )
-            logger.info(f"[GRAND_AUDIT] ✓ Success with {model}")
-            return model, result
+            logger.info(f"[GRAND_AUDIT] ✓ Success with {model}{think_tag}{api_tag}")
+            return f"{model}{think_tag}{api_tag}", result
         except (ValueError, Exception) as exc:
             exc_str = str(exc).lower()
             if "429" in exc_str or "404" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str:
-                logger.warning(f"[GRAND_AUDIT] ✗ {model}: {exc}")
+                logger.warning(f"[GRAND_AUDIT] ✗ {model}{think_tag}{api_tag}: {exc}")
                 continue
             raise
 
+    models_str = [f"{m}({t or 'default'},{('ai_studio' if a else 'vertex')})" for m, t, a in ULTRA_CASCADE]
     alarm = (
-        f"[GRAND_AUDIT ALARM] All models exhausted: {ULTRA_CASCADE}\n"
+        f"[GRAND_AUDIT ALARM] All models exhausted: {models_str}\n"
         f"Likely daily quota reached. Check https://aistudio.google.com/apikey"
     )
     logger.error(alarm)

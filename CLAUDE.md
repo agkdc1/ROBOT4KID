@@ -17,8 +17,9 @@ All robot models (Tank, Shinkansen, etc.) must be defined by a strictly typed JS
 The pipeline uses a two-tier AI system: **Gemini Flash/Pro** for rapid 4-stage iteration, and **Gemini Ultra (`gemini-3.1-pro-preview`)** as the Chief Inspector for inception and final sign-off. This is cost-effective: our OpenSCAD/Python codebases are typically <5,000 lines, making frequent Ultra calls far cheaper than failed physical prints.
 
 ### Gemini API Configuration
-- **Ultra (Chief Inspector):** `gemini-3.1-pro-preview` — used for Phase 1 Meta-Audit and Phase 3 Grand Audit only.
-- **Flash/Pro (Stage Auditors):** Cascade on 429/404: `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash`. Try each in order; on HTTP 429/404, move to next. Log which model was used. Max 1 retry per model — never hang indefinitely.
+- **Ultra (Chief Inspector):** `gemini-3.1-pro-preview` with `ThinkingConfig(thinking_level="HIGH")` (Deep Think mode) — used for Phase 1 Meta-Audit and Phase 3 Grand Audit only. Deep Think is NOT a separate model — it is the same `gemini-3.1-pro-preview` with extended multi-minute reasoning enabled via the `thinking_level` parameter.
+- **Ultra Cascade (on 429/404):** `gemini-3.1-pro-preview[HIGH]` → `gemini-3-flash-preview[HIGH]` → `gemini-2.5-pro` → `gemini-2.5-flash`. The first two use Deep Think (thinking_level=HIGH); the 2.5 models use default thinking. Max 1 retry per model — never hang indefinitely.
+- **Flash/Pro (Stage Auditors):** Cascade on 429/404: `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash`. Default thinking level (no Deep Think for cost efficiency). Log which model was used.
 - **Context Caching (Vertex AI):**
   - **Cache 1 (Permanent):** Design philosophy, component datasheets, M-series screw standards, printer constraints.
   - **Cache 2 (Dynamic):** OpenSCAD/Python codebase + URDF, uploaded once per Grand Audit cycle.
@@ -420,8 +421,9 @@ All connections use Dupont jumpers and screw terminals. All dimensions are in `c
 ## LLM Provider Configuration
 - **Claude** (primary): `ANTHROPIC_API_KEY`, models: `claude-sonnet-4-6-20250514` (fast), `claude-opus-4-6-20250514` (smart)
 - **Gemini** (secondary): `GEMINI_API_KEY`, cascade: `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash` (fallback on 429/404)
+- **Gemini Ultra** (Chief Inspector): `gemini-3.1-pro-preview` + `thinking_level="HIGH"` (Deep Think). Used only for Phase 1 Meta-Audit and Phase 3 Grand Audit. NOT a separate model — Deep Think is a parameter on the same model that enables extended reasoning.
 - All pipeline modules accept a `provider` parameter: `Provider.CLAUDE` or `Provider.GEMINI`
-- Provider abstraction: `planning_server/app/pipeline/llm.py` — `generate_text()` and `generate_with_tool()`
+- Provider abstraction: `planning_server/app/pipeline/llm.py` — `generate_text()` and `generate_with_tool()` (supports optional `thinking_level` param for Gemini Deep Think)
 
 ## Control Systems
 
