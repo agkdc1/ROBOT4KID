@@ -16,6 +16,14 @@
       {
         "check": "Cross-reference 'fcs' (Fire Control System) specifications with the BOM. If 'ball_speed' is > 0, there must be a motorized or spring-loaded actuator present in both the SCAD and the component list.",
         "reason": "Stage 2 accepted a 'Firing Tank' that lacked a firing motor."
+      },
+      {
+        "check": "Cross-reference 'fcs' (Fire Control System) specifications with the BOM and SCAD files. If projectile specs exist, the physical and electronic firing mechanisms MUST be explicitly defined in the design.",
+        "reason": "Stage 2 accepted a 'Firing Tank' that lacked any physical firing actuator or flywheels."
+      },
+      {
+        "check": "Trace component port orientation: identify which face of the PCB the ports are on (Short vs Long edge) and ensure the corresponding wall cutout is on the correct console face (Side vs Rear).",
+        "reason": "Previous stages saw a hole and a component and assumed they lined up, despite the RPi ports being 90 degrees offset from the hole."
       }
     ]
   },
@@ -36,6 +44,18 @@
       {
         "check": "For any design involving an ESP32-CAM or motor driver in a plastic enclosure, you MUST verify the existence of specific ventilation features (slots, holes, grilles). Clearance is not ventilation.",
         "reason": "Stage 4 checked if components 'fit' but ignored the thermodynamic reality of an enclosed active electronic system."
+      },
+      {
+        "check": "Validate Torque-to-Scale ratios. If the vehicle length exceeds 300mm or is of significant mass, verify that the specified drive motors are sized appropriately (e.g., larger than N20 micro motors).",
+        "reason": "Stage 4 failed to identify that N20 motors are physically incapable of driving a tank of this scale and weight."
+      },
+      {
+        "check": "For any design involving an ESP32, motor driver, or other active electronics in a plastic enclosure, you MUST verify the existence of specific ventilation features (slots, holes, grilles).",
+        "reason": "Stage 4 checked if components 'fit' physically but ignored the thermodynamic reality of an enclosed active electronic system."
+      },
+      {
+        "check": "Perform a 'Ground Clearance Calculation'. Calculate (Wheel_Diameter / 2) - Boss_Protrusion. This value must be strictly greater than the rail height defined in the track files.",
+        "reason": "Stage 4 checked if components fit inside the train but failed to check if the train could actually clear the rails it sits on."
       }
     ]
   },
@@ -56,6 +76,18 @@
       {
         "check": "Perform a 'Bed Fit' check: Sum the width of the part plus 5mm skirt/brim. If this exceeds BUILD_X or BUILD_Y, the part fails regardless of length-splitting. For electronics, verify every component's input voltage matches the source rail.",
         "reason": "Stage 1 missed the 203mm width vs 180mm bed and the 8.4V vs 5V MCU mismatch."
+      },
+      {
+        "check": "Perform a rigorous 'Bed Fit' check: Evaluate the un-split dimensions of all parts against BUILD_X and BUILD_Y. Verify that every electronic component's input voltage matches the source rail precisely in the wiring instructions.",
+        "reason": "Stage 1 missed the 203mm hull width failing the 180mm bed limit, and the 7.4V to 5V MCU overvoltage."
+      },
+      {
+        "check": "Perform a 'Z-Stack Audit': Calculate the total height of every component (including heatsinks and wires) and verify it is strictly less than the internal Z-clearance of the housing at that specific coordinate.",
+        "reason": "Previous stages missed that the RPi (47mm) was physically taller than the box (30mm) meant to hold it."
+      },
+      {
+        "check": "Verify that all part dimensions are <= 180mm in at least two axes, or <= 250mm if the developer explicitly provides a diagonal placement plan, specifically cross-referencing against the 'split_x' parameters.",
+        "reason": "Previous stages ignored the 200mm split line which exceeded the 180mm printer limit."
       }
     ]
   },
@@ -72,6 +104,14 @@
       {
         "check": "You MUST perform a 'Global Parameter Sync' check. Compare TRACK_GAUGE, BODY_WIDTH, and BODY_LENGTH across every .scad file in the project. If even one file differs by >0.1mm, fail the audit immediately.",
         "reason": "Stage 3 evaluated files in isolation and failed to notice that different files were designing the train for different track standards."
+      },
+      {
+        "check": "You MUST perform a 'Global Parameter Sync' check. Compare key mechanical constraints (e.g., TRACK_GAUGE, BODY_WIDTH, BODY_LENGTH) across every .scad file in the project. If any file differs, fail the audit.",
+        "reason": "Stage 3 evaluated files in isolation and failed to notice that different files were designing the train for different track standards and overall dimensions."
+      },
+      {
+        "check": "Perform a 'Cross-File Parameter Audit'. You must verify that values for TRACK_GAUGE, BODY_WIDTH, and BODY_LENGTH are identical across every file. Failure to maintain a single dimensional standard is an automatic FAIL.",
+        "reason": "Stage 3 failed to notice the project was split between 27mm and 38mm gauge standards."
       }
     ]
   }

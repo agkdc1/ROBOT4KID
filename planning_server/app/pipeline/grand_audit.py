@@ -315,6 +315,10 @@ async def run_grand_audit(
         "".join(prompt_parts), system, GRAND_AUDIT_TOOL, "grand_audit"
     )
 
+    # Handle case where model returns a list instead of dict
+    if isinstance(result, list):
+        result = result[0] if result else {}
+
     verdict = result.get("verdict", "FAIL")
     logger.info(
         f"[GRAND_AUDIT] {verdict} via {model_used} — "

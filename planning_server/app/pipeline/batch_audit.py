@@ -1,23 +1,22 @@
-"""Batch Grand Audit via Vertex AI Batch Prediction + GCS + Pub/Sub.
+"""Batch Grand Audit via Vertex AI / AI Studio Batch Prediction.
 
-Submits Grand Audit requests as batch jobs to Vertex AI, which:
-- Has no output truncation (results written to GCS as full JSONL)
+Submits Grand Audit requests as batch jobs, which:
+- Has no output truncation (results written as full JSONL)
 - Runs at 50% discount vs real-time inference
 - Handles retries automatically with 24hr SLA
 - Supports thinking_config (Deep Think) in request JSONL
 
-Architecture:
-    1. Build JSONL request → upload to gs://{bucket}/grand_audit/jobs/{job_id}/input.jsonl
-    2. Submit batch job via client.batches.create()
-    3. Poll via client.batches.get() OR receive Pub/Sub notification
-    4. Download results from gs://{bucket}/grand_audit/jobs/{job_id}/output/
-    5. Parse response JSONL → return structured audit result
+Two modes:
+- AI Studio (primary): Upload JSONL via files.upload(), batch via batches.create()
+  No GCS needed. Works on any machine with GEMINI_API_KEY.
+- Vertex AI (fallback): Requires GCS bucket + ADC. Better for production.
 """
 
 import asyncio
 import json
 import logging
 import os
+import tempfile
 import time
 import uuid
 from datetime import datetime, timezone
@@ -25,7 +24,12 @@ from pathlib import Path
 from typing import Any
 
 from google import genai
-from google.genai.types import CreateBatchJobConfig, HttpOptions, JobState
+from google.genai.types import (
+    CreateBatchJobConfig,
+    HttpOptions,
+    JobState,
+    UploadFileConfig,
+)
 
 from planning_server.app import config
 
@@ -33,9 +37,9 @@ logger = logging.getLogger(__name__)
 
 # ─── Configuration ───────────────────────────────────────────────────
 
+GCP_PROJECT = os.getenv("GCP_PROJECT", getattr(config, "GCP_PROJECT_ID", "")) or "nl2bot-f7e604"
 GCS_BUCKET = os.getenv("GCS_AUDIT_BUCKET", "nl2bot-f7e604-backup")
 GCS_PREFIX = "grand_audit/jobs"
-GCP_PROJECT = os.getenv("GCP_PROJECT", getattr(config, "GCP_PROJECT_ID", ""))
 
 # Batch prediction models — must be Pro tier for Grand Audit
 BATCH_MODEL = "gemini-3.1-pro-preview"
@@ -43,10 +47,10 @@ BATCH_FALLBACK = "gemini-3-pro-preview"
 
 # Poll interval and timeout
 POLL_INTERVAL_SECONDS = 30
-POLL_TIMEOUT_SECONDS = 3600  # 1 hour max (batch usually completes in minutes)
+POLL_TIMEOUT_SECONDS = 3600  # 1 hour max
 
 # Pub/Sub topic for batch completion notifications (optional)
-PUBSUB_TOPIC = os.getenv("GRAND_AUDIT_PUBSUB_TOPIC", "")  # e.g. "projects/nl2bot-f7e604/topics/grand-audit-done"
+PUBSUB_TOPIC = os.getenv("GRAND_AUDIT_PUBSUB_TOPIC", "")
 
 COMPLETED_STATES = {
     JobState.JOB_STATE_SUCCEEDED,
@@ -56,39 +60,24 @@ COMPLETED_STATES = {
 }
 
 
-# ─── GCS Helpers ─────────────────────────────────────────────────────
+# ─── Client Helpers ──────────────────────────────────────────────────
 
-def _get_gcs_client():
-    """Get Google Cloud Storage client."""
-    from google.cloud import storage
-    return storage.Client(project=GCP_PROJECT)
-
-
-def _upload_jsonl(bucket_name: str, blob_path: str, lines: list[dict]) -> str:
-    """Upload JSONL to GCS. Returns gs:// URI."""
-    client = _get_gcs_client()
-    bucket = client.bucket(bucket_name)
-    blob = bucket.blob(blob_path)
-    content = "\n".join(json.dumps(line, ensure_ascii=False) for line in lines)
-    blob.upload_from_string(content, content_type="application/jsonl")
-    uri = f"gs://{bucket_name}/{blob_path}"
-    logger.info(f"[BATCH] Uploaded {len(lines)} requests to {uri} ({len(content)} bytes)")
-    return uri
+def _get_aistudio_client() -> genai.Client:
+    """AI Studio client (API key). No GCS/ADC needed."""
+    api_key = config.GEMINI_API_KEY
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY not set — needed for batch prediction")
+    return genai.Client(api_key=api_key)
 
 
-def _download_jsonl(bucket_name: str, prefix: str) -> list[dict]:
-    """Download all JSONL files from GCS prefix. Returns parsed lines."""
-    client = _get_gcs_client()
-    bucket = client.bucket(bucket_name)
-    results = []
-    for blob in bucket.list_blobs(prefix=prefix):
-        if blob.name.endswith(".jsonl"):
-            content = blob.download_as_text()
-            for line in content.strip().split("\n"):
-                if line.strip():
-                    results.append(json.loads(line))
-            logger.info(f"[BATCH] Downloaded {blob.name} ({len(content)} bytes)")
-    return results
+def _get_vertex_batch_client() -> genai.Client:
+    """Vertex AI client for batch (v1 API, global endpoint)."""
+    return genai.Client(
+        vertexai=True,
+        project=GCP_PROJECT,
+        location="global",
+        http_options=HttpOptions(api_version="v1"),
+    )
 
 
 # ─── Request Builder ─────────────────────────────────────────────────
@@ -103,7 +92,7 @@ def build_audit_request(
     """Build a single GenerateContentRequest for batch JSONL.
 
     The request follows the Gemini API format with thinking_config
-    embedded in generation_config (not as a separate field).
+    embedded in generation_config.
     """
     full_prompt = (
         f"{system}\n\n{prompt}\n\n"
@@ -130,52 +119,93 @@ def build_audit_request(
     return {"request": request}
 
 
-# ─── Batch Job Management ───────────────────────────────────────────
-
-def _get_batch_client() -> genai.Client:
-    """Get genai client for batch operations (Vertex AI only, v1 API)."""
-    return genai.Client(
-        vertexai=True,
-        project=GCP_PROJECT,
-        location="global",
-        http_options=HttpOptions(api_version="v1"),
+def _write_jsonl(requests: list[dict]) -> str:
+    """Write requests to a temp JSONL file. Returns file path."""
+    tf = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8",
     )
+    for req in requests:
+        tf.write(json.dumps(req, ensure_ascii=False) + "\n")
+    tf.close()
+    logger.info(f"[BATCH] Wrote {len(requests)} requests to {tf.name}")
+    return tf.name
 
 
-async def submit_batch_audit(
+# ─── Batch Job Management (AI Studio) ───────────────────────────────
+
+async def submit_batch_aistudio(
     requests: list[dict],
     job_id: str | None = None,
     model: str | None = None,
 ) -> dict:
-    """Submit batch audit job to Vertex AI.
+    """Submit batch job via AI Studio (file upload, no GCS needed)."""
+    job_id = job_id or f"audit-{uuid.uuid4().hex[:12]}"
+    model = model or BATCH_MODEL
 
-    Args:
-        requests: List of GenerateContentRequest dicts (from build_audit_request).
-        job_id: Optional job ID (auto-generated if None).
-        model: Model to use (defaults to BATCH_MODEL).
+    # Write JSONL
+    jsonl_path = _write_jsonl(requests)
 
-    Returns:
-        dict with job_name, job_id, input_uri, output_uri, state.
-    """
+    try:
+        client = _get_aistudio_client()
+
+        # Upload JSONL file
+        logger.info(f"[BATCH/AIStudio] Uploading JSONL ({os.path.getsize(jsonl_path)} bytes)...")
+        uploaded = client.files.upload(
+            file=jsonl_path,
+            config=UploadFileConfig(mime_type="application/jsonl"),
+        )
+        logger.info(f"[BATCH/AIStudio] Uploaded: {uploaded.name}")
+
+        # Create batch job
+        logger.info(f"[BATCH/AIStudio] Creating batch job: model={model}")
+        job = client.batches.create(
+            model=model,
+            src=uploaded.name,
+            config=CreateBatchJobConfig(display_name=f"grand-audit-{job_id}"),
+        )
+        logger.info(f"[BATCH/AIStudio] Job created: {job.name} (state={job.state})")
+
+        return {
+            "job_name": job.name,
+            "job_id": job_id,
+            "file_name": uploaded.name,
+            "state": str(job.state),
+            "model": model,
+            "backend": "aistudio",
+        }
+    finally:
+        os.unlink(jsonl_path)
+
+
+async def submit_batch_vertex(
+    requests: list[dict],
+    job_id: str | None = None,
+    model: str | None = None,
+) -> dict:
+    """Submit batch job via Vertex AI (requires GCS bucket)."""
     job_id = job_id or f"audit-{uuid.uuid4().hex[:12]}"
     model = model or BATCH_MODEL
     input_path = f"{GCS_PREFIX}/{job_id}/input.jsonl"
     output_uri = f"gs://{GCS_BUCKET}/{GCS_PREFIX}/{job_id}/output/"
 
-    # Upload input JSONL
-    input_uri = _upload_jsonl(GCS_BUCKET, input_path, requests)
+    # Upload to GCS
+    from google.cloud import storage
+    gcs_client = storage.Client(project=GCP_PROJECT)
+    bucket = gcs_client.bucket(GCS_BUCKET)
+    blob = bucket.blob(input_path)
+    content = "\n".join(json.dumps(r, ensure_ascii=False) for r in requests)
+    blob.upload_from_string(content, content_type="application/jsonl")
+    input_uri = f"gs://{GCS_BUCKET}/{input_path}"
+    logger.info(f"[BATCH/Vertex] Uploaded to {input_uri}")
 
     # Create batch job
-    client = _get_batch_client()
-    logger.info(f"[BATCH] Creating batch job: model={model}, input={input_uri}, output={output_uri}")
-
+    client = _get_vertex_batch_client()
     job = client.batches.create(
         model=model,
         src=input_uri,
         config=CreateBatchJobConfig(dest=output_uri),
     )
-
-    logger.info(f"[BATCH] Job created: {job.name} (state={job.state})")
+    logger.info(f"[BATCH/Vertex] Job created: {job.name} (state={job.state})")
 
     return {
         "job_name": job.name,
@@ -184,20 +214,40 @@ async def submit_batch_audit(
         "output_uri": output_uri,
         "state": str(job.state),
         "model": model,
+        "backend": "vertex",
     }
 
 
+async def submit_batch(
+    requests: list[dict],
+    job_id: str | None = None,
+    model: str | None = None,
+) -> dict:
+    """Submit batch job — tries AI Studio first (no GCS), then Vertex AI."""
+    # AI Studio path — works on any machine with API key
+    if config.GEMINI_API_KEY:
+        try:
+            return await submit_batch_aistudio(requests, job_id, model)
+        except Exception as e:
+            logger.warning(f"[BATCH] AI Studio submit failed: {e}")
+
+    # Vertex AI path — needs GCS + ADC
+    if GCP_PROJECT:
+        return await submit_batch_vertex(requests, job_id, model)
+
+    raise RuntimeError("No batch backend available (need GEMINI_API_KEY or GCP_PROJECT)")
+
+
+# ─── Polling ─────────────────────────────────────────────────────────
+
 async def poll_batch_job(
     job_name: str,
+    backend: str = "aistudio",
     timeout: int = POLL_TIMEOUT_SECONDS,
     interval: int = POLL_INTERVAL_SECONDS,
 ) -> dict:
-    """Poll batch job until completion.
-
-    Returns:
-        dict with state, output_uri, error (if any).
-    """
-    client = _get_batch_client()
+    """Poll batch job until completion."""
+    client = _get_aistudio_client() if backend == "aistudio" else _get_vertex_batch_client()
     start = time.time()
 
     while True:
@@ -231,74 +281,88 @@ async def poll_batch_job(
         await asyncio.sleep(interval)
 
 
-async def fetch_batch_results(
-    job_id: str,
-) -> list[dict]:
-    """Download and parse batch output JSONL from GCS.
+# ─── Result Fetching ─────────────────────────────────────────────────
 
-    Returns list of parsed response dicts.
+async def fetch_batch_results(
+    job_name: str,
+    backend: str = "aistudio",
+) -> list[dict]:
+    """Download and parse batch results.
+
+    For AI Studio: results are embedded in the job object.
+    For Vertex AI: results are in GCS output JSONL.
     """
-    output_prefix = f"{GCS_PREFIX}/{job_id}/output/"
-    raw_results = _download_jsonl(GCS_BUCKET, output_prefix)
+    client = _get_aistudio_client() if backend == "aistudio" else _get_vertex_batch_client()
+    job = client.batches.get(name=job_name)
 
     parsed = []
-    for entry in raw_results:
-        # Batch output format: {"response": {...}, "status": "..."} per line
-        response = entry.get("response", {})
-        candidates = response.get("candidates", [])
-        if candidates:
-            content = candidates[0].get("content", {})
-            parts = content.get("parts", [])
-            for part in parts:
-                text = part.get("text", "")
-                if text:
-                    try:
-                        parsed.append(json.loads(text))
-                    except json.JSONDecodeError:
-                        logger.warning(f"[BATCH] Non-JSON response: {text[:200]}")
-                        parsed.append({"_raw_text": text})
-        elif "status" in entry:
-            # Error entry
-            parsed.append({"_error": entry["status"]})
 
-    logger.info(f"[BATCH] Parsed {len(parsed)} results from {len(raw_results)} raw entries")
+    # AI Studio: results may be in job.dest or need to download output file
+    if hasattr(job, "dest") and job.dest:
+        dest = job.dest
+        # dest could be a file name or inline results
+        if hasattr(dest, "file_name") and dest.file_name:
+            # Download the output file
+            try:
+                content = client.files.download(name=dest.file_name)
+                for line in content.strip().split("\n"):
+                    if line.strip():
+                        entry = json.loads(line)
+                        _parse_batch_entry(entry, parsed)
+                logger.info(f"[BATCH] Downloaded results from file: {dest.file_name}")
+            except Exception as e:
+                logger.warning(f"[BATCH] Failed to download result file: {e}")
+
+    # Try to get results from job response directly
+    if not parsed and hasattr(job, "responses"):
+        for resp in job.responses:
+            _parse_batch_entry(resp, parsed)
+
+    # Vertex AI: download from GCS
+    if not parsed and backend == "vertex":
+        try:
+            from google.cloud import storage
+            gcs = storage.Client(project=GCP_PROJECT)
+            bucket = gcs.bucket(GCS_BUCKET)
+            # Find output files
+            prefix = job_name.split("/")[-1] if "/" in job_name else job_name
+            for blob in bucket.list_blobs(prefix=f"{GCS_PREFIX}/"):
+                if "output" in blob.name and blob.name.endswith(".jsonl"):
+                    content = blob.download_as_text()
+                    for line in content.strip().split("\n"):
+                        if line.strip():
+                            entry = json.loads(line)
+                            _parse_batch_entry(entry, parsed)
+        except Exception as e:
+            logger.warning(f"[BATCH] GCS download failed: {e}")
+
+    logger.info(f"[BATCH] Parsed {len(parsed)} results")
     return parsed
 
 
-# ─── Pub/Sub Notification (Optional) ────────────────────────────────
+def _parse_batch_entry(entry: dict, parsed: list[dict]) -> None:
+    """Parse a single batch output entry into structured result."""
+    response = entry.get("response", entry)
+    candidates = response.get("candidates", [])
+    if candidates:
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+        for part in parts:
+            text = part.get("text", "")
+            if text:
+                try:
+                    parsed.append(json.loads(text))
+                except json.JSONDecodeError:
+                    logger.warning(f"[BATCH] Non-JSON response: {text[:200]}")
+                    parsed.append({"_raw_text": text})
+    elif "status" in entry or "error" in entry:
+        parsed.append({"_error": entry.get("status", entry.get("error"))})
 
-async def setup_pubsub_notification(topic: str | None = None) -> str | None:
-    """Create Pub/Sub topic for batch completion notifications if it doesn't exist.
 
-    Returns topic name or None if Pub/Sub not configured.
-    """
-    topic = topic or PUBSUB_TOPIC
-    if not topic:
-        return None
-
-    try:
-        from google.cloud import pubsub_v1
-        publisher = pubsub_v1.PublisherClient()
-
-        try:
-            publisher.get_topic(topic=topic)
-            logger.info(f"[PUBSUB] Topic exists: {topic}")
-        except Exception:
-            # Extract project from topic name: projects/{project}/topics/{name}
-            publisher.create_topic(name=topic)
-            logger.info(f"[PUBSUB] Created topic: {topic}")
-
-        return topic
-    except ImportError:
-        logger.warning("[PUBSUB] google-cloud-pubsub not installed, skipping")
-        return None
-    except Exception as e:
-        logger.warning(f"[PUBSUB] Failed to setup topic: {e}")
-        return None
-
+# ─── Pub/Sub Notification ───────────────────────────────────────────
 
 async def publish_completion(job_id: str, result: dict, topic: str | None = None) -> None:
-    """Publish batch job completion event to Pub/Sub."""
+    """Publish batch job completion event to Pub/Sub (optional)."""
     topic = topic or PUBSUB_TOPIC
     if not topic:
         return
@@ -306,19 +370,17 @@ async def publish_completion(job_id: str, result: dict, topic: str | None = None
     try:
         from google.cloud import pubsub_v1
         publisher = pubsub_v1.PublisherClient()
-
         message = json.dumps({
             "event": "grand_audit_complete",
             "job_id": job_id,
             "state": result.get("state"),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }).encode("utf-8")
-
         future = publisher.publish(topic, message)
         msg_id = future.result(timeout=10)
-        logger.info(f"[PUBSUB] Published completion event: {msg_id}")
+        logger.info(f"[PUBSUB] Published: {msg_id}")
     except Exception as e:
-        logger.warning(f"[PUBSUB] Failed to publish: {e}")
+        logger.warning(f"[PUBSUB] Failed: {e}")
 
 
 # ─── High-Level API ──────────────────────────────────────────────────
@@ -334,17 +396,8 @@ async def run_batch_grand_audit(
 ) -> tuple[str, dict[str, Any]]:
     """Run Grand Audit via batch prediction. No output truncation.
 
-    This is the batch equivalent of _call_with_cascade() — submits to GCS,
-    waits for completion, downloads full untruncated results.
-
-    Args:
-        prompt: Full audit prompt.
-        system: System prompt.
-        tool_schema: JSON schema for structured output.
-        model: Model ID (defaults to gemini-3.1-pro-preview).
-        thinking_level: Deep Think level.
-        max_output_tokens: Max output (batch supports much higher limits).
-        job_id: Optional job ID.
+    Tries AI Studio first (file upload, no GCS), then Vertex AI (GCS).
+    Falls back to secondary model on failure.
 
     Returns:
         (model_used, parsed_result) tuple.
@@ -360,15 +413,16 @@ async def run_batch_grand_audit(
         max_output_tokens=max_output_tokens,
     )
 
-    # Submit batch
-    job_info = await submit_batch_audit([request], job_id=job_id, model=model)
+    # Submit
+    job_info = await submit_batch([request], job_id=job_id, model=model)
     job_name = job_info["job_name"]
     batch_job_id = job_info["job_id"]
+    backend = job_info["backend"]
 
-    # Poll until done
-    poll_result = await poll_batch_job(job_name)
+    # Poll
+    poll_result = await poll_batch_job(job_name, backend=backend)
 
-    # Notify via Pub/Sub
+    # Notify
     await publish_completion(batch_job_id, poll_result)
 
     if poll_result.get("error"):
@@ -386,12 +440,12 @@ async def run_batch_grand_audit(
             )
         raise RuntimeError(f"Batch job failed: {poll_result}")
 
-    # Download results
-    results = await fetch_batch_results(batch_job_id)
+    # Fetch results
+    results = await fetch_batch_results(job_name, backend=backend)
     if not results:
         raise RuntimeError(f"No results from batch job {batch_job_id}")
 
-    model_tag = f"{model} [batch][DeepThink={thinking_level}]"
-    logger.info(f"[BATCH] Grand Audit complete via {model_tag} in {poll_result.get('elapsed_seconds', '?')}s")
+    model_tag = f"{model} [batch][DeepThink={thinking_level}][{backend}]"
+    logger.info(f"[BATCH] Complete via {model_tag} in {poll_result.get('elapsed_seconds', '?')}s")
 
     return model_tag, results[0]
