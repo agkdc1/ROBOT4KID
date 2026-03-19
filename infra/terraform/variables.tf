@@ -1,7 +1,6 @@
-variable "billing_account" {
-  description = "GCP billing account ID"
+variable "project_id" {
+  description = "GCP project ID (must already exist with billing enabled)"
   type        = string
-  default     = "01379E-748455-3FDDAA"
 }
 
 variable "region" {
@@ -11,7 +10,7 @@ variable "region" {
 }
 
 variable "bucket_region" {
-  description = "GCS bucket region (us-west1 for free tier)"
+  description = "GCS bucket region (US for multi-region free tier)"
   type        = string
   default     = "US"
 }
@@ -24,7 +23,13 @@ variable "domain" {
 }
 
 variable "admin_email" {
-  description = "Admin email for Cloud Run invoker"
+  description = "Admin email for notifications"
   type        = string
-  default     = "ahnchoonghyun@gmail.com"
+  default     = ""
+}
+
+variable "deploy_cloud_run" {
+  description = "Set to true after Docker images are pushed to Artifact Registry"
+  type        = bool
+  default     = false
 }

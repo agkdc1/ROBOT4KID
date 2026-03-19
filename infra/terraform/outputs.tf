@@ -1,11 +1,11 @@
 output "project_id" {
   description = "GCP project ID"
-  value       = google_project.nl2bot.project_id
+  value       = local.project_id
 }
 
 output "project_number" {
   description = "GCP project number"
-  value       = google_project.nl2bot.number
+  value       = data.google_project.current.number
 }
 
 # --- Buckets ---
@@ -32,12 +32,12 @@ output "dashboard_url" {
 # --- Cloud Run ---
 output "planning_server_url" {
   description = "Planning Server Cloud Run URL"
-  value       = google_cloud_run_v2_service.planning.uri
+  value       = var.deploy_cloud_run ? google_cloud_run_v2_service.planning[0].uri : "(not deployed yet)"
 }
 
 output "simulation_server_url" {
   description = "Simulation Server Cloud Run URL"
-  value       = google_cloud_run_v2_service.simulation.uri
+  value       = var.deploy_cloud_run ? google_cloud_run_v2_service.simulation[0].uri : "(not deployed yet)"
 }
 
 # --- Docker ---
@@ -62,8 +62,4 @@ output "audit_done_topic" {
 # --- Service Accounts ---
 output "cloud_run_sa" {
   value = google_service_account.cloud_run.email
-}
-
-output "spot_vm_sa" {
-  value = google_service_account.spot_vm.email
 }

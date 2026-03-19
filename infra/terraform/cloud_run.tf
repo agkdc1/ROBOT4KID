@@ -1,4 +1,5 @@
 # --- Cloud Run Services ---
+# Set deploy_cloud_run=true after pushing Docker images to Artifact Registry
 
 locals {
   docker_repo = "${local.region}-docker.pkg.dev/${local.project_id}/robot4kid"
@@ -6,9 +7,10 @@ locals {
 
 # Planning Server
 resource "google_cloud_run_v2_service" "planning" {
+  count    = var.deploy_cloud_run ? 1 : 0
   name     = "planning-server"
   location = local.region
-  project  = google_project.nl2bot.project_id
+  project  = local.project_id
 
   template {
     service_account = google_service_account.cloud_run.email
@@ -86,7 +88,7 @@ resource "google_cloud_run_v2_service" "planning" {
       }
       env {
         name  = "SIMULATION_SERVER_URL"
-        value = "https://simulation-server-${google_project.nl2bot.number}.${local.region}.run.app"
+        value = "https://simulation-server-${data.google_project.current.number}.${local.region}.run.app"
       }
       env {
         name  = "HEAVY_JOBS_TOPIC"
@@ -123,9 +125,10 @@ resource "google_cloud_run_v2_service" "planning" {
 
 # Simulation Server (light mode — no OpenSCAD, dispatches heavy to Spot VM)
 resource "google_cloud_run_v2_service" "simulation" {
+  count    = var.deploy_cloud_run ? 1 : 0
   name     = "simulation-server"
   location = local.region
-  project  = google_project.nl2bot.project_id
+  project  = local.project_id
 
   template {
     service_account = google_service_account.cloud_run.email
@@ -186,19 +189,21 @@ resource "google_cloud_run_v2_service" "simulation" {
   ]
 }
 
-# Allow unauthenticated access (auth handled at app level with JWT)
+# Public access — Cloudflare Access handles authentication at the edge
 resource "google_cloud_run_v2_service_iam_member" "planning_public" {
-  name     = google_cloud_run_v2_service.planning.name
+  count    = var.deploy_cloud_run ? 1 : 0
+  name     = google_cloud_run_v2_service.planning[0].name
   location = local.region
-  project  = google_project.nl2bot.project_id
+  project  = local.project_id
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "simulation_public" {
-  name     = google_cloud_run_v2_service.simulation.name
+  count    = var.deploy_cloud_run ? 1 : 0
+  name     = google_cloud_run_v2_service.simulation[0].name
   location = local.region
-  project  = google_project.nl2bot.project_id
+  project  = local.project_id
   role     = "roles/run.invoker"
   member   = "allUsers"
 }

@@ -6,11 +6,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import bcrypt
 from jose import JWTError, jwt
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from planning_server.app import config
-from planning_server.app.database import get_db, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -47,8 +44,10 @@ def create_refresh_token(data: dict) -> str:
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-) -> User:
+) -> dict:
+    """Validate JWT and return user dict from database backend."""
+    from shared.db_backend import get_db_backend
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",
@@ -63,21 +62,21 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.username == username))
-    user = result.scalar_one_or_none()
+    db = get_db_backend()
+    user = await db.get_user_by_username(username)
 
     if user is None:
         raise credentials_exception
-    if user.status != "approved":
+    if user.get("status") != "approved":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Account status: {user.status}. Contact admin for approval.",
+            detail=f"Account status: {user.get('status')}. Contact admin for approval.",
         )
     return user
 
 
-async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != "admin":
+async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",

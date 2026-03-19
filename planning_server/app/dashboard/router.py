@@ -241,25 +241,24 @@ async def simulation_jobs():
 @router.get("/projects")
 async def list_projects():
     """List projects from the planning server database."""
-    from planning_server.app.database import async_session, Project
-    from sqlalchemy import select
+    from shared.db_backend import get_db_backend
 
     projects = []
     try:
-        async with async_session() as db:
-            result = await db.execute(select(Project).order_by(Project.created_at.desc()))
-            for proj in result.scalars().all():
-                projects.append({
-                    "id": str(proj.id),
-                    "name": proj.name,
-                    "description": proj.description or "",
-                    "model_type": getattr(proj, "model_type", "tank"),
-                    "status": "active",
-                    "created_at": proj.created_at.isoformat() if proj.created_at else "",
-                    "updated_at": proj.updated_at.isoformat() if proj.updated_at else "",
-                    "parts_count": 0,
-                    "last_simulation": None,
-                })
+        db = get_db_backend()
+        all_projects = await db.list_all_projects(limit=100)
+        for proj in all_projects:
+            projects.append({
+                "id": str(proj["id"]),
+                "name": proj.get("name", ""),
+                "description": proj.get("description", ""),
+                "model_type": proj.get("model_type", "tank"),
+                "status": proj.get("status", "active"),
+                "created_at": proj.get("created_at", ""),
+                "updated_at": proj.get("updated_at", ""),
+                "parts_count": 0,
+                "last_simulation": None,
+            })
     except Exception:
         pass
     return projects

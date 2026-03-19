@@ -204,83 +204,58 @@ Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn
 - **Phase 9 (Multi-Model Ecosystem)**: COMPLETE — Modular architecture supporting multiple robot types (tank, train). Shinkansen N700 Plarail-compatible train with ESP32-CAM. RPi4 console with 7" display + PS2 joystick. Universal command schema. Unified Flutter app with model-type routing. YAML-driven hardware config.
 - **Phase 10 (Cloudflare Access)**: SUPERSEDED by Phase 12 (Cloud Run + Cloudflare DNS CNAME).
 - **Phase 11 (Management Dashboard)**: COMPLETE — React 19 + Vite + Tailwind v4 dashboard with military command-center aesthetic. Infrastructure monitor (CPU/RAM/GPU/disk, server health, Windows services), task manager (simulation jobs, system logs), project viewer (model registry grid). TanStack Query for real-time polling. Backend API endpoints in Planning Server (`/api/v1/dashboard/*`).
-- **Phase 12 (Cloud Migration)**: IN PROGRESS — Terraform written, Dockerfiles updated, abstractions created. Needs: deploy + test on Linux.
+- **Phase 12 (Cloud Migration)**: COMPLETE — Fully cloud-native on GCP + Cloudflare. Cloud Run services (planning + simulation), Cloud Run Jobs (heavy worker), Firestore, GCS, Pub/Sub, Vertex AI Batch Prediction. Cloudflare Access (Google login) protects all subdomains. No Pi or VM in production infra.
 
-## Phase 12: Cloud Migration — RESUME HERE
+## Phase 12: Cloud Migration — COMPLETE
 
-**Status: Infrastructure written, not yet deployed. Resume on Linux.**
+**Status: DEPLOYED and tested. All services live.**
 
-### What's Done (committed to git)
-1. **Terraform** (`infra/terraform/`): Cloud Run, Firestore, Pub/Sub, GCS, Artifact Registry, Spot VM template, IAM, Secret Manager — all defined
-2. **Dockerfiles** (`planning_server/Dockerfile`, `simulation_server/Dockerfile`): Python 3.13, ready for Cloud Build
-3. **Storage abstraction** (`shared/cloud_storage.py`): `LocalStorage` / `GCSStorage` with identical interface
-4. **Firestore DB** (`shared/firestore_db.py`): Drop-in replacement for SQLAlchemy ORM
-5. **Batch audit** (`planning_server/app/pipeline/batch_audit.py`): Vertex AI Batch Prediction via GCS/AI Studio
-6. **Spot VM job runner** (`infra/spot-vm/job_runner.py`): Stateful, preemption-safe, GCS checkpoints
-7. **Migration script** (`infra/scripts/migrate_to_cloud.py`): SQLite → Firestore + files → GCS
-8. **CI/CD** (`infra/cloudbuild.yaml`): Build + deploy pipeline
+### What Was Deployed
+1. **Terraform** (`infra/terraform/`): Cloud Run services + jobs, Firestore, Pub/Sub, GCS, Artifact Registry, IAM, Secret Manager
+2. **Docker images** (Cloud Build → Artifact Registry): `planning-server`, `simulation-server`, `heavy-worker`
+3. **Database abstraction** (`shared/db_backend.py`): `SQLAlchemyDB` (local) / `CloudFirestoreDB` (cloud) — same interface
+4. **Storage abstraction** (`shared/cloud_storage.py`): `LocalStorage` / `GCSStorage` — same interface
+5. **Batch prediction** (`planning_server/app/pipeline/batch_audit.py`): Vertex AI Batch Prediction, tested with Deep Think
+6. **Cloud Run Job** (`infra/heavy-worker/`): Replaces Spot VM — OpenSCAD rendering via Pub/Sub trigger
+7. **Data migrated**: SQLite → Firestore, project files → GCS
+8. **Cloudflare Access**: Google login gate on all subdomains, owner-only policy
+9. **DNS**: Cloudflare-proxied CNAMEs → Cloud Run (plan, sim, app subdomains)
 
-### What's NOT Done (do these on Linux)
-1. **`terraform apply`** — Run from Linux with `gcloud auth application-default login`
-2. **Refactor database.py** — Replace SQLAlchemy with Firestore in:
-   - `planning_server/app/database.py` (central ORM)
-   - `planning_server/app/auth/router.py` (user queries)
-   - `planning_server/app/auth/admin_router.py` (admin approval)
-   - `planning_server/app/projects/router.py` (project CRUD)
-   - `planning_server/app/pipeline/router.py` (pipeline status)
-   - `planning_server/app/dashboard/router.py` (project list)
-   - `planning_server/app/main.py` (lifespan admin creation)
-   Strategy: check `ENVIRONMENT` env var → if "cloud" use `shared/firestore_db.py`, else keep SQLAlchemy
-3. **Refactor file paths** — Replace `PROJECTS_DIR` / `JOBS_DIR` local paths with `shared/cloud_storage.py`
-4. **Build + push Docker images** — `docker build` then push to Artifact Registry
-5. **Run migration** — `python infra/scripts/migrate_to_cloud.py` (SQLite → Firestore, files → GCS)
-6. **Deploy Cloud Run** — `gcloud run deploy` or `terraform apply`
-7. **Deploy dashboard** — `npm run build && gsutil rsync dashboard/dist gs://bucket/`
-8. **DNS** — Add Cloudflare CNAME records pointing to Cloud Run URLs
-9. **Test batch prediction** — `GRAND_AUDIT_USE_BATCH=true` with Vertex AI GCS path (Python 3.13 fixes the ADC/storage SDK hang)
-10. **Test Spot VM** — Publish a test job to Pub/Sub, verify VM spins up and processes it
-
-### Deploy Commands (run on Linux)
+### Deploy Commands (fresh setup)
 ```bash
 # 1. Auth
 gcloud auth login
 gcloud auth application-default login
-gcloud config set project nl2bot-f7e604
 
-# 2. Terraform
+# 2. Terraform (pass project_id, never hardcode)
 cd infra/terraform
-terraform init
-terraform plan
-terraform apply
+echo 'project_id = "YOUR-PROJECT-ID"' > terraform.tfvars
+terraform init && terraform apply
 
-# 3. Build & push Docker images
-REPO=$(terraform output -raw docker_repo)
-docker build -t $REPO/planning-server:latest -f planning_server/Dockerfile .
-docker build -t $REPO/simulation-server:latest -f simulation_server/Dockerfile .
-docker push $REPO/planning-server:latest
-docker push $REPO/simulation-server:latest
+# 3. Build Docker images via Cloud Build (amd64, free 120 min/day)
+gcloud builds submit --project $PROJECT --config infra/cloudbuild-planning.yaml .
+gcloud builds submit --project $PROJECT --config infra/cloudbuild-simulation.yaml .
+gcloud builds submit --project $PROJECT --config infra/cloudbuild-heavy-worker.yaml .
+gcloud builds submit --project $PROJECT --config infra/cloudbuild-dashboard.yaml .
 
-# 4. Deploy Cloud Run
-gcloud run deploy planning-server --image $REPO/planning-server:latest --region us-west1
-gcloud run deploy simulation-server --image $REPO/simulation-server:latest --region us-west1
+# 4. Deploy Cloud Run (via Terraform)
+terraform apply -var="deploy_cloud_run=true"
 
-# 5. Migrate data
-pip install google-cloud-firestore google-cloud-storage
-python infra/scripts/migrate_to_cloud.py --dry-run  # check first
-python infra/scripts/migrate_to_cloud.py             # execute
+# 5. Populate secrets
+echo -n "YOUR_KEY" | gcloud secrets versions add SECRET_NAME --project $PROJECT --data-file=-
 
-# 6. Deploy dashboard
-cd dashboard && npm ci && npm run build
-gsutil -m rsync -r -d dist gs://$(terraform output -raw dashboard_bucket)/
+# 6. Migrate data (if coming from local SQLite)
+GCP_PROJECT=$PROJECT GCS_ARTIFACTS_BUCKET=$PROJECT-artifacts \
+  python infra/scripts/migrate_to_cloud.py
 
-# 7. DNS (Cloudflare dashboard or API)
-# CNAME plan.<domain> → $(terraform output -raw planning_server_url)
-# CNAME sim.<domain>  → $(terraform output -raw simulation_server_url)
-# CNAME app.<domain>  → storage.googleapis.com  (dashboard bucket)
+# 7. DNS (Cloudflare API or dashboard)
+# CNAME plan.<domain> → planning-server-xxx.run.app (proxied)
+# CNAME sim.<domain>  → simulation-server-xxx.run.app (proxied)
+# CNAME app.<domain>  → planning-server-xxx.run.app (proxied)
 
-# 8. Test Grand Audit (batch prediction)
-ENVIRONMENT=cloud GCS_ARTIFACTS_BUCKET=$(terraform output -raw artifacts_bucket) \
-  python run_grand_audit.py --project all
+# 8. Cloudflare Access (API or dashboard)
+# Create Access Application for plan/sim/app subdomains
+# Add policy: allow owner email only, Google login
 ```
 
 ### Cost Estimate (~$1-2/month)
@@ -288,47 +263,58 @@ ENVIRONMENT=cloud GCS_ARTIFACTS_BUCKET=$(terraform output -raw artifacts_bucket)
 |----------|------|
 | Cloud Run Planning (scale to 0) | $0.00-0.50 |
 | Cloud Run Simulation (scale to 0) | $0.00-0.30 |
+| Cloud Run Job heavy-worker (on-demand) | $0.00-0.50 |
 | Firestore (free tier) | $0.00 |
 | GCS artifacts (~1 GB) | $0.02 |
-| GCS dashboard (~50 MB) | $0.00 |
 | Pub/Sub (free 10 GB/mo) | $0.00 |
-| Spot VM e2-standard-2 (~2 hr/day) | $0.42 |
-| Artifact Registry (~2 GB) | $0.20 |
+| Artifact Registry (~3 GB) | $0.30 |
 | Cloud Build (free 120 min/day) | $0.00 |
+| Cloudflare (free tier) | $0.00 |
 | **Total** | **~$1-2/mo** |
 
 ## Next Steps
-1. **Set up Linux environment** (GCE VM, WSL2, or local Linux)
-2. Resume from Phase 12 deploy commands above
-3. Run Grand Audit with batch prediction on all 3 projects (tank P15, train P16, console P17)
-4. Fix audit failures found in previous runs (see `planning_server/data/projects/*/grand_audit_result.json`)
+1. Run Grand Audit on train (P16) and console (P17) projects
+2. Fix 5 critical audit failures on tank (P15) — see `planning_server/data/projects/15/grand_audit_result.json`
+3. Set up Eventarc trigger for automatic Cloud Run Job execution on Pub/Sub message
 
 ## Architecture
 
-### Cloud Architecture (Phase 12 — target)
+### Cloud Architecture (Phase 12 — deployed)
 ```
-              Cloudflare DNS (free)
-              /        |         \
-       Cloud Run    Cloud Run    GCS Static
-       (Planning)  (Sim-Light)   (Dashboard)
-            \         |
-             Pub/Sub Topics
-             /              \
-    Spot VM (heavy)    Batch Prediction
-    [OpenSCAD/Webots]  [Grand Audit]
-            \              /
-           GCS Artifacts Bucket
-                  |
-              Firestore (DB)
+       Browser
+          │
+    Cloudflare Access (Google login, owner-only)
+          │
+    Cloudflare DNS (proxied CNAMEs)
+       /     |      \
+  plan.*  sim.*   app.*
+      \     |      /
+       Cloud Run (3 services, scale-to-zero)
+       ├─ planning-server  (FastAPI, Firestore, LLM pipeline)
+       ├─ simulation-server (FastAPI, STL analysis, URDF)
+       └─ heavy-worker [Job] (OpenSCAD, triggered by Pub/Sub)
+              │
+         Pub/Sub Topics
+         (heavy-jobs, job-results, grand-audit-done)
+              │
+    ┌─────────┴─────────┐
+    │                    │
+  GCS Artifacts      Firestore
+  (projects/jobs)    (users/projects)
+    │
+  Vertex AI Batch Prediction
+  (Grand Audit, Deep Think)
 ```
 
-- **Cloud Run** (2 services, scale-to-zero): Planning Server + Simulation Server (light mode)
-- **Firestore Native** (free tier): replaces SQLite — `shared/firestore_db.py`
-- **GCS**: artifacts bucket (projects/jobs/renders), dashboard bucket (public static site)
-- **Pub/Sub**: `heavy-jobs` (Cloud Run → Spot VM), `job-results` (Spot VM → Cloud Run), `grand-audit-done`
-- **Spot VM** (e2-standard-2, ~$0.007/hr): OpenSCAD, Webots, Blender — stateful job runner with GCS checkpoints, preemption-safe (`infra/spot-vm/job_runner.py`)
+- **Cloud Run** (2 services + 1 job, all scale-to-zero): Planning + Simulation + Heavy Worker
+- **Firestore Native** (free tier): replaces SQLite — `shared/db_backend.py`
+- **GCS**: artifacts bucket (projects/jobs/renders), dashboard bucket (static site)
+- **Pub/Sub**: `heavy-jobs` (Cloud Run → Job), `job-results` (Job → Cloud Run), `grand-audit-done`
+- **Cloud Run Job** (4 vCPU, 16 GB RAM): OpenSCAD + Blender CPU rendering, triggered by Pub/Sub
 - **Batch Prediction**: Grand Audit via Vertex AI Batch — no output truncation (`planning_server/app/pipeline/batch_audit.py`)
+- **Cloudflare Access**: Google login gate on all subdomains, owner-only policy (free tier)
 - **Storage abstraction**: `shared/cloud_storage.py` — `LocalStorage` (dev) / `GCSStorage` (cloud), same interface
+- **Database abstraction**: `shared/db_backend.py` — `SQLAlchemyDB` (dev) / `CloudFirestoreDB` (cloud), same interface
 
 ### Core Architecture (unchanged)
 - **Multi-model ecosystem**: Tank (differential drive, dual camera, FCS) + Train (simple speed, single camera) + Console (universal command station). Extensible via `ModelType` enum.
@@ -356,12 +342,12 @@ ENVIRONMENT=cloud GCS_ARTIFACTS_BUCKET=$(terraform output -raw artifacts_bucket)
 - **Artifact Registry**: `us-west1-docker.pkg.dev/nl2bot-f7e604/robot4kid` (Docker images)
 - **CI/CD**: `infra/cloudbuild.yaml` — auto-builds on push to main (120 free min/day)
 
-## DNS (Cloudflare free tier)
-- No more Cloudflare Tunnel or Access — direct CNAME to Cloud Run URLs
-- Cloud Run handles TLS termination natively
-- `plan.<domain>` → Cloud Run planning-server URL
-- `sim.<domain>` → Cloud Run simulation-server URL
-- `app.<domain>` → GCS dashboard bucket (or Cloud CDN)
+## DNS & Auth (Cloudflare free tier)
+- Cloudflare Access (Google login) protects all subdomains — owner-only policy
+- Cloudflare-proxied CNAMEs direct to Cloud Run (no tunnel needed)
+- `plan.<domain>` → Cloud Run planning-server (proxied)
+- `sim.<domain>` → Cloud Run simulation-server (proxied)
+- `app.<domain>` → Cloud Run planning-server (serves dashboard + API)
 
 ## Running the Servers
 
@@ -413,7 +399,8 @@ cd dashboard && npm run dev   # http://localhost:3000
 ## File Organization
 - Generated files: `planning_server/data/projects/{project_id}/` (local) or `gs://bucket/projects/{project_id}/` (cloud)
 - Simulation jobs: `simulation_server/jobs/{job_id}/` (local) or `gs://bucket/jobs/{job_id}/` (cloud)
-- Spot VM job state: `gs://bucket/job_states/{job_id}.json` (cloud only)
+- Cloud Run Job state: `gs://bucket/job_states/{job_id}.json` (cloud only)
+- Heavy worker Dockerfile: `infra/heavy-worker/Dockerfile`
 - CAD source files in `cad/` with hardware libraries in `cad/libs/`
 - Train CAD in `cad/train/` (locomotive, motor mount, battery bay, camera mount)
 - Webots worlds and controllers in `simulation/`

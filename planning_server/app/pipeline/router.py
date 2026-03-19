@@ -4,10 +4,8 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from planning_server.app import config
-from planning_server.app.database import get_db, User
 from planning_server.app.auth.dependencies import get_current_user
 from planning_server.app.pipeline.orchestrator import run_pipeline, PipelineProgress
 
@@ -29,13 +27,13 @@ class PipelineStatusResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
-async def _run_pipeline_task(prompt: str, project_id: int, pipeline_key: str):
+async def _run_pipeline_task(prompt: str, project_id: str, pipeline_key: str):
     """Background task for pipeline execution."""
     progress = PipelineProgress()
     _pipelines[pipeline_key]["progress"] = progress
 
     try:
-        results = await run_pipeline(prompt, project_id, progress)
+        results = await run_pipeline(prompt, int(project_id), progress)
         _pipelines[pipeline_key]["status"] = "completed"
         _pipelines[pipeline_key]["results"] = results
     except Exception as e:
@@ -45,12 +43,12 @@ async def _run_pipeline_task(prompt: str, project_id: int, pipeline_key: str):
 
 @router.post("/projects/{project_id}/pipeline/run")
 async def start_pipeline(
-    project_id: int,
+    project_id: str,
     request: PipelineRunRequest,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
-    pipeline_key = f"{project_id}_{current_user.id}"
+    pipeline_key = f"{project_id}_{current_user['id']}"
     _pipelines[pipeline_key] = {
         "status": "running",
         "project_id": project_id,
@@ -64,10 +62,10 @@ async def start_pipeline(
 
 @router.get("/projects/{project_id}/pipeline/status", response_model=PipelineStatusResponse)
 async def get_pipeline_status(
-    project_id: int,
-    current_user: User = Depends(get_current_user),
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
-    pipeline_key = f"{project_id}_{current_user.id}"
+    pipeline_key = f"{project_id}_{current_user['id']}"
     pipeline = _pipelines.get(pipeline_key)
 
     if not pipeline:
@@ -87,10 +85,10 @@ async def get_pipeline_status(
 
 @router.get("/projects/{project_id}/pipeline/results")
 async def get_pipeline_results(
-    project_id: int,
-    current_user: User = Depends(get_current_user),
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
-    pipeline_key = f"{project_id}_{current_user.id}"
+    pipeline_key = f"{project_id}_{current_user['id']}"
     pipeline = _pipelines.get(pipeline_key)
 
     if not pipeline:
@@ -104,8 +102,8 @@ async def get_pipeline_results(
 
 @router.get("/projects/{project_id}/pipeline/saved")
 async def get_saved_results(
-    project_id: int,
-    current_user: User = Depends(get_current_user),
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
     """Load previously saved pipeline results from disk."""
     project_dir = config.PROJECTS_DIR / str(project_id)

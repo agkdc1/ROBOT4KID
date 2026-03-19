@@ -1,0 +1,5 @@
+google-cloud-pubsub>=2.21
+google-cloud-storage>=2.14
+pyyaml>=6.0
+trimesh>=4.0
+numpy>=1.26

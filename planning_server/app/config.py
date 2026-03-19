@@ -37,8 +37,12 @@ CLAUDE_MAX_RETRIES = int(os.getenv("CLAUDE_MAX_RETRIES", "3"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")  # Pro for quality audits (not flash)
 
+# Environment
+ENVIRONMENT = os.getenv("ENVIRONMENT", "local")  # "local" or "cloud"
+
 # GCP
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT", os.getenv("GCP_PROJECT_ID", ""))
+GCS_ARTIFACTS_BUCKET = os.getenv("GCS_ARTIFACTS_BUCKET", "")
 
 # Simulation Server
 SIMULATION_SERVER_URL = os.getenv("SIMULATION_SERVER_URL", "http://localhost:8100")

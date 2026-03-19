@@ -421,5 +421,49 @@ def main():
     logger.info("=== Heavy Job Runner Shutdown ===")
 
 
+def main_single():
+    """Cloud Run Job mode: process one job from Pub/Sub then exit."""
+    logger.info("=== Heavy Job Runner (single-shot mode) ===")
+    WORK_DIR.mkdir(parents=True, exist_ok=True)
+
+    subscriber = pubsub_v1.SubscriberClient()
+    publisher = pubsub_v1.PublisherClient()
+    gcs_client = storage.Client(project=GCP_PROJECT)
+
+    job = pull_job(subscriber, SUBSCRIPTION)
+    if job is None:
+        logger.info("No jobs in queue, exiting")
+        return
+
+    job_id = job.get("job_id", "unknown")
+    ack_id = job.pop("_ack_id", None)
+    logger.info(f"Processing job: {job_id}")
+
+    state = {
+        "job_id": job_id,
+        "type": job.get("type", "openscad"),
+        "params": job.get("params", {}),
+        "input_prefix": job.get("input_prefix", f"jobs/{job_id}/input/"),
+        "status": QUEUED,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    save_state(gcs_client, job_id, state)
+
+    final_state = process_job(gcs_client, publisher, state)
+
+    if ack_id and final_state.get("status") in TERMINAL_STATES:
+        ack_job(subscriber, SUBSCRIPTION, ack_id)
+
+    logger.info(f"Job {job_id} finished: {final_state.get('status')}")
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--single", action="store_true", help="Process one job then exit (Cloud Run Job mode)")
+    args = parser.parse_args()
+
+    if args.single:
+        main_single()
+    else:
+        main()

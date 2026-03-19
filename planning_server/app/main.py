@@ -17,7 +17,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 
 from planning_server.app import config
-from planning_server.app.database import init_db, async_session, User
 from planning_server.app.auth.dependencies import hash_password
 from planning_server.app.auth.router import router as auth_router
 from planning_server.app.auth.admin_router import router as admin_router
@@ -31,22 +30,20 @@ from planning_server.app.dashboard.router import router as dashboard_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown logic."""
-    await init_db()
+    from shared.db_backend import init_db_backend, get_db_backend
+
+    await init_db_backend()
 
     # Create default admin user if not exists
-    from sqlalchemy import select
-
-    async with async_session() as db:
-        result = await db.execute(select(User).where(User.username == config.ADMIN_USERNAME))
-        if not result.scalar_one_or_none():
-            admin = User(
-                username=config.ADMIN_USERNAME,
-                hashed_password=hash_password(config.ADMIN_PASSWORD),
-                role="admin",
-                status="approved",
-            )
-            db.add(admin)
-            await db.commit()
+    db = get_db_backend()
+    existing = await db.get_user_by_username(config.ADMIN_USERNAME)
+    if not existing:
+        await db.create_user(
+            username=config.ADMIN_USERNAME,
+            hashed_password=hash_password(config.ADMIN_PASSWORD),
+            role="admin",
+            status="approved",
+        )
 
     yield
 

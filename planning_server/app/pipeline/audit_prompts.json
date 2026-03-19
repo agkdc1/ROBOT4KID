@@ -56,6 +56,10 @@
       {
         "check": "Perform a 'Ground Clearance Calculation'. Calculate (Wheel_Diameter / 2) - Boss_Protrusion. This value must be strictly greater than the rail height defined in the track files.",
         "reason": "Stage 4 checked if components fit inside the train but failed to check if the train could actually clear the rails it sits on."
+      },
+      {
+        "check": "Perform physics reality checks on actuators. Ensure slow mechanisms like servos are not used for high-velocity projectile launching, and verify component capabilities match target metrics.",
+        "reason": "Stage 4 accepted a servo kicker for a 15m/s 3000 RPM projectile."
       }
     ]
   },
@@ -88,6 +92,10 @@
       {
         "check": "Verify that all part dimensions are <= 180mm in at least two axes, or <= 250mm if the developer explicitly provides a diagonal placement plan, specifically cross-referencing against the 'split_x' parameters.",
         "reason": "Previous stages ignored the 200mm split line which exceeded the 180mm printer limit."
+      },
+      {
+        "check": "Add mandatory 2D bounding box calculations for diagonal placement: max(width*cos(45) + length*sin(45)) must be <= BUILD_X. Explicitly verify the longest dimension of EVERY generated part without trusting code comments.",
+        "reason": "Stage 1 relied on a flawed code comment rather than evaluating the math, missing massive print volume violations on multiple files."
       }
     ]
   },
@@ -112,6 +120,10 @@
       {
         "check": "Perform a 'Cross-File Parameter Audit'. You must verify that values for TRACK_GAUGE, BODY_WIDTH, and BODY_LENGTH are identical across every file. Failure to maintain a single dimensional standard is an automatic FAIL.",
         "reason": "Stage 3 failed to notice the project was split between 27mm and 38mm gauge standards."
+      },
+      {
+        "check": "Perform cross-part Boolean intersection checks. Verify that mating tabs exist in solid space, and inward protrusions have corresponding cutouts. Check that directional sensors are oriented correctly toward their apertures.",
+        "reason": "Stage 3 failed to notice bolt holes cutting through empty air, clashing brackets, and a blindly oriented sensor."
       }
     ]
   }

@@ -1,0 +1,16 @@
+.git
+.venv
+__pycache__
+*.pyc
+node_modules
+dashboard/node_modules
+frontend/
+embedded/
+simulation/
+cad/
+tests/
+*.sqlite3
+*.db
+.env
+*.tfstate*
+.terraform/
