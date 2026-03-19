@@ -1,18 +1,22 @@
 """Grand Audit module — Phase 1 (Meta-Audit) and Phase 3 (Grand Audit).
 
-Uses Gemini Ultra (gemini-3.1-pro-preview + thinking_level=HIGH aka "Deep Think")
-as Chief Inspector for:
-1. Inception meta-audit (validates Master Document before design starts)
-2. Grand Audit (final sign-off after all 4 stages pass 10/10)
+ALL audit calls use Vertex AI Batch Prediction as the primary path:
+- No output truncation (results written to GCS as full JSONL)
+- 50% cost discount vs real-time inference
+- Automatic retries with 24hr SLA
+- Deep Think (thinking_level=HIGH) supported in batch JSONL
 
-Deep Think is NOT a separate model — it is gemini-3.1-pro-preview with
-ThinkingConfig(thinking_level="HIGH"), enabling extended multi-minute reasoning.
-This is cost-effective: our codebases are <5000 lines, and a failed 3D print
-costs more than an API call.
+Falls back to real-time cascade only if batch is unavailable (no GCS bucket,
+no GCP project, or batch submission fails).
+
+Architecture:
+    Batch (primary):  prompt → GCS JSONL → batch job → poll → GCS output → parse
+    Realtime (fallback): prompt → generate_with_tool() → parse
 """
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -20,26 +24,28 @@ from planning_server.app.pipeline.llm import Provider, generate_with_tool
 
 logger = logging.getLogger(__name__)
 
-# Gemini Ultra = gemini-3.1-pro-preview + Deep Think (thinking_level=HIGH)
-# Note: 3.x preview models require AI Studio (not Vertex AI us-central1)
-ULTRA_MODEL = "gemini-3.1-pro-preview"
-ULTRA_THINKING_LEVEL = "HIGH"  # Deep Think mode for Chief Inspector
+# ─── Model Configuration ────────────────────────────────────────────
 
-# Fallback cascade: (model_id, thinking_level, force_aistudio)
-# Grand Audit requires Pro-tier reasoning — no Flash or 2.5 fallback
-# Vertex AI global endpoint has 3.x models; AI Studio as fallback
-ULTRA_CASCADE = [
-    ("gemini-3.1-pro-preview", "HIGH", False),   # 3.1 Pro Deep Think via Vertex AI (global)
-    ("gemini-3-pro-preview", "HIGH", False),      # 3.0 Pro Deep Think via Vertex AI (global)
-    ("gemini-3.1-pro-preview", "HIGH", True),     # 3.1 Pro via AI Studio (if Vertex fails)
-    ("gemini-3-pro-preview", "HIGH", True),       # 3.0 Pro via AI Studio (last resort)
+ULTRA_MODEL = "gemini-3.1-pro-preview"
+ULTRA_THINKING_LEVEL = "HIGH"
+
+# Batch models (Pro only for Grand Audit)
+BATCH_MODEL = "gemini-3.1-pro-preview"
+BATCH_FALLBACK = "gemini-3-pro-preview"
+
+# Realtime fallback cascade: (model_id, thinking_level, force_aistudio)
+REALTIME_CASCADE = [
+    ("gemini-3.1-pro-preview", "HIGH", False),
+    ("gemini-3-pro-preview", "HIGH", False),
+    ("gemini-3.1-pro-preview", "HIGH", True),
+    ("gemini-3-pro-preview", "HIGH", True),
 ]
 
-# Max retries per model in cascade (prevents infinite hangs)
-MAX_RETRIES_PER_MODEL = 1
+# Use batch by default if GCP is configured
+USE_BATCH = os.getenv("GRAND_AUDIT_USE_BATCH", "true").lower() in ("true", "1", "yes")
 
 
-# ─── Tool Schemas ─────────────────────────────────────────────────────
+# ─── Tool Schemas ───────────────────────────────────────────────────
 
 META_AUDIT_TOOL = {
     "name": "meta_audit",
@@ -135,25 +141,59 @@ GRAND_AUDIT_TOOL = {
 }
 
 
-# ─── Cascade Helper ───────────────────────────────────────────────────
+# ─── Unified Audit Caller ───────────────────────────────────────────
 
-async def _call_with_cascade(
+async def _call_audit(
     prompt: str,
     system: str,
     tool: dict,
     tool_name: str,
 ) -> tuple[str, dict[str, Any]]:
-    """Try Ultra cascade with Deep Think, return (model_used, result).
+    """Route audit call: batch (primary) → realtime (fallback).
 
-    Each entry in ULTRA_CASCADE is (model_id, thinking_level, force_aistudio).
-    thinking_level="HIGH" enables Deep Think (extended multi-minute reasoning).
-    force_aistudio=True routes through AI Studio (needed for 3.x preview models).
+    Batch path: no truncation, 50% cheaper, GCS-backed.
+    Realtime path: immediate response, used when batch unavailable.
     """
-    for i, (model, thinking_level, force_aistudio) in enumerate(ULTRA_CASCADE):
+    if USE_BATCH:
+        try:
+            return await _call_via_batch(prompt, system, tool)
+        except Exception as e:
+            logger.warning(f"[AUDIT] Batch failed ({e}), falling back to realtime cascade")
+
+    return await _call_via_realtime(prompt, system, tool, tool_name)
+
+
+async def _call_via_batch(
+    prompt: str,
+    system: str,
+    tool: dict,
+) -> tuple[str, dict[str, Any]]:
+    """Submit audit via Vertex AI Batch Prediction. No output truncation."""
+    from planning_server.app.pipeline.batch_audit import run_batch_grand_audit
+
+    model_used, result = await run_batch_grand_audit(
+        prompt=prompt,
+        system=system,
+        tool_schema=tool.get("input_schema", {}),
+        model=BATCH_MODEL,
+        thinking_level=ULTRA_THINKING_LEVEL,
+        max_output_tokens=65536,
+    )
+    return model_used, result
+
+
+async def _call_via_realtime(
+    prompt: str,
+    system: str,
+    tool: dict,
+    tool_name: str,
+) -> tuple[str, dict[str, Any]]:
+    """Fallback: try realtime cascade with Deep Think."""
+    for i, (model, thinking_level, force_aistudio) in enumerate(REALTIME_CASCADE):
         try:
             think_tag = f" [DeepThink={thinking_level}]" if thinking_level else ""
             api_tag = " [AIStudio]" if force_aistudio else " [VertexAI]"
-            logger.info(f"[GRAND_AUDIT] Trying {model}{think_tag}{api_tag} ({i+1}/{len(ULTRA_CASCADE)})...")
+            logger.info(f"[AUDIT/RT] Trying {model}{think_tag}{api_tag} ({i+1}/{len(REALTIME_CASCADE)})...")
             result = await generate_with_tool(
                 prompt=prompt,
                 system=system,
@@ -164,25 +204,25 @@ async def _call_with_cascade(
                 thinking_level=thinking_level,
                 force_aistudio=force_aistudio,
             )
-            logger.info(f"[GRAND_AUDIT] ✓ Success with {model}{think_tag}{api_tag}")
+            logger.info(f"[AUDIT/RT] ✓ Success with {model}{think_tag}{api_tag}")
             return f"{model}{think_tag}{api_tag}", result
         except (ValueError, Exception) as exc:
             exc_str = str(exc).lower()
             if "429" in exc_str or "404" in exc_str or "rate" in exc_str or "resource_exhausted" in exc_str:
-                logger.warning(f"[GRAND_AUDIT] ✗ {model}{think_tag}{api_tag}: {exc}")
+                logger.warning(f"[AUDIT/RT] ✗ {model}{think_tag}{api_tag}: {exc}")
                 continue
             raise
 
-    models_str = [f"{m}({t or 'default'},{('ai_studio' if a else 'vertex')})" for m, t, a in ULTRA_CASCADE]
+    models_str = [f"{m}({t or 'default'},{('ai_studio' if a else 'vertex')})" for m, t, a in REALTIME_CASCADE]
     alarm = (
-        f"[GRAND_AUDIT ALARM] All models exhausted: {models_str}\n"
+        f"[AUDIT ALARM] All models exhausted: {models_str}\n"
         f"Likely daily quota reached. Check https://aistudio.google.com/apikey"
     )
     logger.error(alarm)
     raise RuntimeError(alarm)
 
 
-# ─── Phase 1: Meta-Audit ─────────────────────────────────────────────
+# ─── Phase 1: Meta-Audit ───────────────────────────────────────────
 
 async def run_meta_audit(
     master_document: str,
@@ -190,7 +230,7 @@ async def run_meta_audit(
 ) -> dict[str, Any]:
     """Phase 1: Submit Master Document to Ultra for meta-audit.
 
-    Returns structured approval/revision with issues.
+    Uses batch prediction (no truncation) with realtime fallback.
     """
     system = (
         "You are the Chief Inspector (Gemini Ultra) performing a Phase 1 Meta-Audit. "
@@ -211,7 +251,7 @@ async def run_meta_audit(
         "If any criterion fails, set approval='REVISE' and list specific issues with fixes."
     )
 
-    model_used, result = await _call_with_cascade(prompt, system, META_AUDIT_TOOL, "meta_audit")
+    model_used, result = await _call_audit(prompt, system, META_AUDIT_TOOL, "meta_audit")
     logger.info(
         f"[META_AUDIT] {result.get('approval', '?')} via {model_used} — "
         f"proportions={result.get('proportions_ok')}, circuit={result.get('circuit_ok')}, "
@@ -221,7 +261,7 @@ async def run_meta_audit(
     return result
 
 
-# ─── Phase 3: Grand Audit ────────────────────────────────────────────
+# ─── Phase 3: Grand Audit ──────────────────────────────────────────
 
 async def run_grand_audit(
     stage_results: dict[str, Any],
@@ -232,6 +272,7 @@ async def run_grand_audit(
 ) -> dict[str, Any]:
     """Phase 3: Submit all stage results + code to Ultra for Grand Audit.
 
+    Uses batch prediction (no truncation) with realtime fallback.
     Returns verdict (PASS/FAIL), issues, prompt updates, and delta feedback.
     """
     system = (
@@ -248,19 +289,17 @@ async def run_grand_audit(
         f"Issue delta-feedback with specific files to fix and resubmit scope."
     )
 
-    # Build prompt with all stage results and code
+    # Build prompt with all stage results and full SCAD source
+    # Batch mode has no token limit concerns — send everything
     prompt_parts = [f"## Grand Audit: {model_name}\n\n"]
 
     prompt_parts.append("### Stage Results (all 10/10)\n")
     for stage_name, stage_data in stage_results.items():
         prompt_parts.append(f"**{stage_name}:** {json.dumps(stage_data, indent=1)}\n")
 
-    prompt_parts.append("\n### OpenSCAD Source (key parameters)\n")
+    prompt_parts.append("\n### OpenSCAD Source Code (FULL — for thorough audit)\n")
     for filename, source in scad_sources.items():
-        lines = source.split("\n")[:80]
-        params = [l for l in lines if "=" in l and not l.strip().startswith("//")]
-        if params:
-            prompt_parts.append(f"**{filename}:**\n```\n{'chr(10)'.join(params[:30])}\n```\n")
+        prompt_parts.append(f"**{filename}:**\n```scad\n{source}\n```\n\n")
 
     if assembly_manual:
         prompt_parts.append(f"\n### Assembly Manual\n{assembly_manual}\n")
@@ -272,7 +311,7 @@ async def run_grand_audit(
         "If you find something Stages 1-4 should have caught, add a prompt_update entry."
     )
 
-    model_used, result = await _call_with_cascade(
+    model_used, result = await _call_audit(
         "".join(prompt_parts), system, GRAND_AUDIT_TOOL, "grand_audit"
     )
 
@@ -317,7 +356,7 @@ async def _apply_prompt_updates(updates: list[dict]) -> None:
     logger.info(f"[META_CORRECTION] Saved {len(updates)} prompt updates to {prompts_path}")
 
 
-# ─── Pipeline State ──────────────────────────────────────────────────
+# ─── Pipeline State ────────────────────────────────────────────────
 
 PIPELINE_STATES = [
     "inception",

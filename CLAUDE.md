@@ -18,7 +18,8 @@ The pipeline uses a two-tier AI system: **Gemini Flash/Pro** for rapid 4-stage i
 
 ### Gemini API Configuration
 - **Ultra (Chief Inspector):** `gemini-3.1-pro-preview` with `ThinkingConfig(thinking_level="HIGH")` (Deep Think mode) — used for Phase 1 Meta-Audit and Phase 3 Grand Audit only. Deep Think is NOT a separate model — it is the same `gemini-3.1-pro-preview` with extended multi-minute reasoning enabled via the `thinking_level` parameter.
-- **Ultra Cascade (on 429/404):** `gemini-3.1-pro-preview[HIGH]` → `gemini-3-flash-preview[HIGH]` → `gemini-2.5-pro` → `gemini-2.5-flash`. The first two use Deep Think (thinking_level=HIGH); the 2.5 models use default thinking. Max 1 retry per model — never hang indefinitely.
+- **Batch Prediction (Primary):** ALL audit calls use Vertex AI Batch Prediction by default (`GRAND_AUDIT_USE_BATCH=true`). Benefits: no output truncation (full JSONL on GCS), 50% cost discount, automatic retries. Input/output via `gs://nl2bot-f7e604-backup/grand_audit/jobs/{job_id}/`. Pub/Sub notification on completion (optional).
+- **Realtime Cascade (Fallback):** `gemini-3.1-pro-preview[HIGH]` → `gemini-3-pro-preview[HIGH]` via Vertex AI global, then AI Studio. Used only when batch is unavailable.
 - **Flash/Pro (Stage Auditors):** Cascade on 429/404: `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash`. Default thinking level (no Deep Think for cost efficiency). Log which model was used.
 - **Context Caching (Vertex AI):**
   - **Cache 1 (Permanent):** Design philosophy, component datasheets, M-series screw standards, printer constraints.
@@ -422,8 +423,10 @@ All connections use Dupont jumpers and screw terminals. All dimensions are in `c
 - **Claude** (primary): `ANTHROPIC_API_KEY`, models: `claude-sonnet-4-6-20250514` (fast), `claude-opus-4-6-20250514` (smart)
 - **Gemini** (secondary): `GEMINI_API_KEY`, cascade: `gemini-3.1-pro-preview` → `gemini-3-flash-preview` → `gemini-2.5-pro` → `gemini-2.5-flash` (fallback on 429/404)
 - **Gemini Ultra** (Chief Inspector): `gemini-3.1-pro-preview` + `thinking_level="HIGH"` (Deep Think). Used only for Phase 1 Meta-Audit and Phase 3 Grand Audit. NOT a separate model — Deep Think is a parameter on the same model that enables extended reasoning.
+- **Batch Prediction**: All audit calls route through Vertex AI Batch Prediction (`batch_audit.py`) for zero-truncation output. Input/output stored in GCS (`gs://nl2bot-f7e604-backup/grand_audit/jobs/`). Falls back to realtime if batch unavailable. Set `GRAND_AUDIT_USE_BATCH=false` to disable.
 - All pipeline modules accept a `provider` parameter: `Provider.CLAUDE` or `Provider.GEMINI`
 - Provider abstraction: `planning_server/app/pipeline/llm.py` — `generate_text()` and `generate_with_tool()` (supports optional `thinking_level` param for Gemini Deep Think)
+- Batch abstraction: `planning_server/app/pipeline/batch_audit.py` — `run_batch_grand_audit()`, GCS upload/download, Pub/Sub notifications
 
 ## Control Systems
 
