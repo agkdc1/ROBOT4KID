@@ -200,98 +200,192 @@ Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn
 - **Phase 5 (Flutter Control App)**: COMPLETE — project selection screen, MJPEG camera with PIP toggle, USB gamepad support (2 sticks + 4 buttons), FCS crosshair overlay with barrel angle control, trajectory equation, shot recording for RL training, CI/CD deploy scripts
 - **Phase 6 (FCS / Ballistics)**: PARTIAL — trajectory equation with 5 tunable coefficients (gravity, drag, hop-up, motion, bias), server-side gradient descent training endpoint, shot data upload from tablet. Needs: real camera ball tracking, PyTorch RL upgrade, edge AI deployment.
 - **Phase 7 (Webots Simulation)**: COMPLETE — Webots world template, tank/supervisor controllers, PROTO converter, WebSocket telemetry bridge, API endpoints, pipeline integration (auto-runs after URDF assembly). Needs: end-to-end testing, Docker compose, live Three.js viewer mode.
-- **Phase 7.5 (Service Deployment)**: COMPLETE — NSSM Windows services, API key auth for simulation server, dotenv loading, .env.example, PowerShell service management script, iterative refinement loop (simulation feedback → LLM redesign), daily backup scheduled task (03:00, ARCHIVE cold storage after 30 days).
+- **Phase 7.5 (Service Deployment)**: SUPERSEDED by Phase 12 (Cloud Migration). Old: NSSM Windows services, Cloudflare Tunnel.
 - **Phase 9 (Multi-Model Ecosystem)**: COMPLETE — Modular architecture supporting multiple robot types (tank, train). Shinkansen N700 Plarail-compatible train with ESP32-CAM. RPi4 console with 7" display + PS2 joystick. Universal command schema. Unified Flutter app with model-type routing. YAML-driven hardware config.
-- **Phase 10 (Cloudflare Access)**: PARTIAL — Access setup script (`system/setup_cloudflare_access.sh`) using Cloudflare API, email OTP policy, tunnel config with originRequest. Needs: run script with real API token, add IdP (GitHub/Google), integration testing.
+- **Phase 10 (Cloudflare Access)**: SUPERSEDED by Phase 12 (Cloud Run + Cloudflare DNS CNAME).
 - **Phase 11 (Management Dashboard)**: COMPLETE — React 19 + Vite + Tailwind v4 dashboard with military command-center aesthetic. Infrastructure monitor (CPU/RAM/GPU/disk, server health, Windows services), task manager (simulation jobs, system logs), project viewer (model registry grid). TanStack Query for real-time polling. Backend API endpoints in Planning Server (`/api/v1/dashboard/*`).
+- **Phase 12 (Cloud Migration)**: IN PROGRESS — Terraform written, Dockerfiles updated, abstractions created. Needs: deploy + test on Linux.
+
+## Phase 12: Cloud Migration — RESUME HERE
+
+**Status: Infrastructure written, not yet deployed. Resume on Linux.**
+
+### What's Done (committed to git)
+1. **Terraform** (`infra/terraform/`): Cloud Run, Firestore, Pub/Sub, GCS, Artifact Registry, Spot VM template, IAM, Secret Manager — all defined
+2. **Dockerfiles** (`planning_server/Dockerfile`, `simulation_server/Dockerfile`): Python 3.13, ready for Cloud Build
+3. **Storage abstraction** (`shared/cloud_storage.py`): `LocalStorage` / `GCSStorage` with identical interface
+4. **Firestore DB** (`shared/firestore_db.py`): Drop-in replacement for SQLAlchemy ORM
+5. **Batch audit** (`planning_server/app/pipeline/batch_audit.py`): Vertex AI Batch Prediction via GCS/AI Studio
+6. **Spot VM job runner** (`infra/spot-vm/job_runner.py`): Stateful, preemption-safe, GCS checkpoints
+7. **Migration script** (`infra/scripts/migrate_to_cloud.py`): SQLite → Firestore + files → GCS
+8. **CI/CD** (`infra/cloudbuild.yaml`): Build + deploy pipeline
+
+### What's NOT Done (do these on Linux)
+1. **`terraform apply`** — Run from Linux with `gcloud auth application-default login`
+2. **Refactor database.py** — Replace SQLAlchemy with Firestore in:
+   - `planning_server/app/database.py` (central ORM)
+   - `planning_server/app/auth/router.py` (user queries)
+   - `planning_server/app/auth/admin_router.py` (admin approval)
+   - `planning_server/app/projects/router.py` (project CRUD)
+   - `planning_server/app/pipeline/router.py` (pipeline status)
+   - `planning_server/app/dashboard/router.py` (project list)
+   - `planning_server/app/main.py` (lifespan admin creation)
+   Strategy: check `ENVIRONMENT` env var → if "cloud" use `shared/firestore_db.py`, else keep SQLAlchemy
+3. **Refactor file paths** — Replace `PROJECTS_DIR` / `JOBS_DIR` local paths with `shared/cloud_storage.py`
+4. **Build + push Docker images** — `docker build` then push to Artifact Registry
+5. **Run migration** — `python infra/scripts/migrate_to_cloud.py` (SQLite → Firestore, files → GCS)
+6. **Deploy Cloud Run** — `gcloud run deploy` or `terraform apply`
+7. **Deploy dashboard** — `npm run build && gsutil rsync dashboard/dist gs://bucket/`
+8. **DNS** — Add Cloudflare CNAME records pointing to Cloud Run URLs
+9. **Test batch prediction** — `GRAND_AUDIT_USE_BATCH=true` with Vertex AI GCS path (Python 3.13 fixes the ADC/storage SDK hang)
+10. **Test Spot VM** — Publish a test job to Pub/Sub, verify VM spins up and processes it
+
+### Deploy Commands (run on Linux)
+```bash
+# 1. Auth
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project nl2bot-f7e604
+
+# 2. Terraform
+cd infra/terraform
+terraform init
+terraform plan
+terraform apply
+
+# 3. Build & push Docker images
+REPO=$(terraform output -raw docker_repo)
+docker build -t $REPO/planning-server:latest -f planning_server/Dockerfile .
+docker build -t $REPO/simulation-server:latest -f simulation_server/Dockerfile .
+docker push $REPO/planning-server:latest
+docker push $REPO/simulation-server:latest
+
+# 4. Deploy Cloud Run
+gcloud run deploy planning-server --image $REPO/planning-server:latest --region us-west1
+gcloud run deploy simulation-server --image $REPO/simulation-server:latest --region us-west1
+
+# 5. Migrate data
+pip install google-cloud-firestore google-cloud-storage
+python infra/scripts/migrate_to_cloud.py --dry-run  # check first
+python infra/scripts/migrate_to_cloud.py             # execute
+
+# 6. Deploy dashboard
+cd dashboard && npm ci && npm run build
+gsutil -m rsync -r -d dist gs://$(terraform output -raw dashboard_bucket)/
+
+# 7. DNS (Cloudflare dashboard or API)
+# CNAME plan.<domain> → $(terraform output -raw planning_server_url)
+# CNAME sim.<domain>  → $(terraform output -raw simulation_server_url)
+# CNAME app.<domain>  → storage.googleapis.com  (dashboard bucket)
+
+# 8. Test Grand Audit (batch prediction)
+ENVIRONMENT=cloud GCS_ARTIFACTS_BUCKET=$(terraform output -raw artifacts_bucket) \
+  python run_grand_audit.py --project all
+```
+
+### Cost Estimate (~$1-2/month)
+| Resource | Cost |
+|----------|------|
+| Cloud Run Planning (scale to 0) | $0.00-0.50 |
+| Cloud Run Simulation (scale to 0) | $0.00-0.30 |
+| Firestore (free tier) | $0.00 |
+| GCS artifacts (~1 GB) | $0.02 |
+| GCS dashboard (~50 MB) | $0.00 |
+| Pub/Sub (free 10 GB/mo) | $0.00 |
+| Spot VM e2-standard-2 (~2 hr/day) | $0.42 |
+| Artifact Registry (~2 GB) | $0.20 |
+| Cloud Build (free 120 min/day) | $0.00 |
+| **Total** | **~$1-2/mo** |
 
 ## Next Steps
-1. Configure `.env` (copy from `.env.example` or fetch from GCP: `./system/fetch_secrets.sh`)
-2. Install services: `.\system\services.ps1 install` (requires admin)
-3. Start services: `.\system\services.ps1 start`
-4. Install Webots (R2023b+) and set `WEBOTS_HOME` env var
-5. Run LLM evaluation: `python -m tests.test_llm_pipeline --provider claude --step all`
-6. Test full pipeline: NL prompt → RobotSpec → SCAD → STL → URDF → Webots PROTO → simulation → refinement
+1. **Set up Linux environment** (GCE VM, WSL2, or local Linux)
+2. Resume from Phase 12 deploy commands above
+3. Run Grand Audit with batch prediction on all 3 projects (tank P15, train P16, console P17)
+4. Fix audit failures found in previous runs (see `planning_server/data/projects/*/grand_audit_result.json`)
 
 ## Architecture
-- **Two-server architecture**: Planning Server (port 8000) + Simulation Server (port 8100)
-- **Multi-model ecosystem**: Tank (differential drive, dual camera, FCS) + Train (simple speed, single camera). Extensible via `ModelType` enum.
+
+### Cloud Architecture (Phase 12 — target)
+```
+              Cloudflare DNS (free)
+              /        |         \
+       Cloud Run    Cloud Run    GCS Static
+       (Planning)  (Sim-Light)   (Dashboard)
+            \         |
+             Pub/Sub Topics
+             /              \
+    Spot VM (heavy)    Batch Prediction
+    [OpenSCAD/Webots]  [Grand Audit]
+            \              /
+           GCS Artifacts Bucket
+                  |
+              Firestore (DB)
+```
+
+- **Cloud Run** (2 services, scale-to-zero): Planning Server + Simulation Server (light mode)
+- **Firestore Native** (free tier): replaces SQLite — `shared/firestore_db.py`
+- **GCS**: artifacts bucket (projects/jobs/renders), dashboard bucket (public static site)
+- **Pub/Sub**: `heavy-jobs` (Cloud Run → Spot VM), `job-results` (Spot VM → Cloud Run), `grand-audit-done`
+- **Spot VM** (e2-standard-2, ~$0.007/hr): OpenSCAD, Webots, Blender — stateful job runner with GCS checkpoints, preemption-safe (`infra/spot-vm/job_runner.py`)
+- **Batch Prediction**: Grand Audit via Vertex AI Batch — no output truncation (`planning_server/app/pipeline/batch_audit.py`)
+- **Storage abstraction**: `shared/cloud_storage.py` — `LocalStorage` (dev) / `GCSStorage` (cloud), same interface
+
+### Core Architecture (unchanged)
+- **Multi-model ecosystem**: Tank (differential drive, dual camera, FCS) + Train (simple speed, single camera) + Console (universal command station). Extensible via `ModelType` enum.
 - **Shared schemas**: All data contracts live in `shared/schemas/` as Pydantic models. `UniversalCommand` supports both drive modes.
 - **Hardware config as YAML**: All dimensions, speeds, pin mappings in `config/hardware_specs.yaml` — single source of truth. Python loader: `shared/hardware_config.py`.
 - **The Simulation Server is standalone**: It knows nothing about LLMs, users, or conversations. It accepts a `SimulationRequest` JSON and returns `SimulationFeedback`.
 - **Dual LLM**: Claude Sonnet (primary — 3D modeling, planning, structured generation) + Gemini (secondary — simpler tasks, expansion). Provider abstraction in `planning_server/app/pipeline/llm.py`.
-- **Webots Integration**: Physics simulation via Webots. Controllers communicate over TCP (binary protocol port 10200, JSON supervisor port 10201). WebSocket bridge streams telemetry at 30Hz.
-- **Service Deployment**: NSSM Windows services, Cloudflare Tunnel for external HTTPS access, VS Code tunnel for remote dev, API key auth for inter-service communication.
 - **Two-Gate Validation Pipeline**: Gate 1 (blockout) validates physics/layout with primitives only. Gate 2 (refined) validates printability/aesthetics. Both gates use 6-angle composite images stitched via Pillow, sent to Gemini vision API for structured 10-point checklist. Pipeline modules: `reference_search.py` (Step 1), `visual_validation.py` (Steps 2+4). "Fail fast, fail cheap" — fix proportions before spending tokens on detail.
 - **Iterative Refinement**: Simulation feedback is sent back to the LLM to fix design issues (max 2 rounds by default). Controlled by `MAX_REFINEMENT_ITERATIONS` env var.
-- **Management Dashboard**: React 19 SPA (`dashboard/`) on port 3000. Proxies to Planning Server (8000) and Simulation Server (8100). Uses TanStack Query for real-time polling (5s intervals). Dashboard API in `planning_server/app/dashboard/router.py`.
+- **Management Dashboard**: React 19 SPA (`dashboard/`) served from GCS. Uses TanStack Query for real-time polling. Dashboard API in `planning_server/app/dashboard/router.py`.
+
+### Local Development (still supported)
+- Set `ENVIRONMENT=local` (default) — uses SQLite + local filesystem
+- Planning: `uvicorn planning_server.app.main:app --port 8000 --reload`
+- Simulation: `uvicorn simulation_server.app.main:app --port 8100 --reload`
+- Dashboard: `cd dashboard && npm run dev` (Vite proxy to localhost)
 
 ## GCP Infrastructure
 - **Project**: `nl2bot-f7e604` (account: ahnchoonghyun@gmail.com)
-- **Backup Bucket**: `nl2bot-f7e604-backup` (us-west1, free tier)
-- **Secrets**: `anthropic-api-key`, `gemini-api-key`, `jwt-secret-key`, `sim-api-key`, `nl2bot-admin-password`, `nl2bot-domains` in Secret Manager
-- **Terraform**: `infra/terraform/` — manages project, APIs, bucket, secrets
-- **Backup/Restore**: `system/backup.sh`, `system/restore.sh`, `system/fetch_secrets.sh`
-- **Daily Backup**: `system/daily_backup.ps1` — Windows Scheduled Task, runs at 03:00 daily, moves backups older than 30 days to GCS ARCHIVE storage class
+- **Region**: `us-west1` (Cloud Run, Firestore, Spot VM)
+- **Terraform**: `infra/terraform/` — manages ALL cloud resources (see `*.tf` files)
+- **Buckets**: `nl2bot-f7e604-backup` (backups), `nl2bot-f7e604-artifacts` (projects/jobs/renders), `nl2bot-f7e604-dashboard` (static site)
+- **Secrets**: `anthropic-api-key`, `gemini-api-key`, `jwt-secret-key`, `sim-api-key`, `admin-password` in Secret Manager
+- **Service Accounts**: `cloud-run-sa` (Secret Manager + Firestore + GCS + Pub/Sub + Vertex AI), `spot-vm-sa` (GCS + Pub/Sub + Compute self-delete)
+- **Artifact Registry**: `us-west1-docker.pkg.dev/nl2bot-f7e604/robot4kid` (Docker images)
+- **CI/CD**: `infra/cloudbuild.yaml` — auto-builds on push to main (120 free min/day)
 
-## Cloudflare Access
-- **Setup script**: `system/setup_cloudflare_access.sh` — creates Access apps + email-allow policies via Cloudflare API
-- **Tunnel config**: `~/.cloudflared/config.yml` — routes custom domains to localhost (domains stored in GCP SM `nl2bot-domains`)
-- **Tunnel service**: `NL2Bot-Tunnel` (NSSM Windows service, auto-start)
-- **Auth flow**: User visits custom domain -> Cloudflare Access login (email OTP) -> tunnel -> localhost
-- **Dashboard**: Manage apps/policies at `https://one.dash.cloudflare.com/<account-id>/access/apps`
-
-### Cloudflare Access Setup
-```bash
-# Set credentials
-export CF_API_TOKEN="your-token"    # Create at https://dash.cloudflare.com/profile/api-tokens
-export CF_ACCOUNT_ID="your-id"      # Dashboard sidebar -> Account ID
-
-# Dry run first
-./system/setup_cloudflare_access.sh --dry-run
-
-# Create Access apps + policies
-./system/setup_cloudflare_access.sh --allowed-emails your@email.com
-
-# Store account ID in GCP Secret Manager
-./system/setup_cloudflare_access.sh --store-secret
-
-# Remove Access apps
-./system/setup_cloudflare_access.sh --delete
-```
+## DNS (Cloudflare free tier)
+- No more Cloudflare Tunnel or Access — direct CNAME to Cloud Run URLs
+- Cloud Run handles TLS termination natively
+- `plan.<domain>` → Cloud Run planning-server URL
+- `sim.<domain>` → Cloud Run simulation-server URL
+- `app.<domain>` → GCS dashboard bucket (or Cloud CDN)
 
 ## Running the Servers
 
-### As Windows Services (recommended)
-```powershell
-# Install and start all services (Planning, Simulation, Cloudflare Tunnel, Daily Backup)
-.\system\services.ps1 install
-.\system\services.ps1 start
+### Cloud (production)
+See **Phase 12: Cloud Migration** section above for full deploy commands.
 
-# Check status (includes backup task)
-.\system\services.ps1 status
-
-# View logs
-.\system\services.ps1 logs
-
-# Daily backup management (standalone)
-.\system\daily_backup.ps1 -Status              # Check backup task status
-.\system\daily_backup.ps1                       # Run backup now
-.\system\daily_backup.ps1 -Tag v2.0            # Backup with custom tag
-```
-
-### Manual (development)
+### Local (development)
 ```bash
+# Set environment
+export ENVIRONMENT=local  # uses SQLite + local filesystem (default)
+
 # Fetch secrets from GCP (creates .env automatically)
 ./system/fetch_secrets.sh
+# Or: copy .env.example to .env and fill in keys
 
-# Or manually: copy .env.example to .env and fill in keys
+# Create venv (Python 3.13 required — NOT 3.14)
+python3.13 -m venv .venv && source .venv/bin/activate
+pip install -r planning_server/requirements.txt
 
 # Planning server
-cd planning_server && .venv/bin/python -m uvicorn app.main:app --port 8000 --reload
+cd planning_server && python -m uvicorn app.main:app --port 8000 --reload
 
 # Simulation server (separate terminal)
-cd simulation_server && .venv/bin/python -m uvicorn app.main:app --port 8100 --reload
+cd simulation_server && python -m uvicorn app.main:app --port 8100 --reload
 
 # Management dashboard (separate terminal)
 cd dashboard && npm run dev   # http://localhost:3000
@@ -317,8 +411,9 @@ cd dashboard && npm run dev   # http://localhost:3000
 - All schemas are in `shared/schemas/`. JSON Schema exports in `shared/json_schemas/`.
 
 ## File Organization
-- Generated files go to `planning_server/data/projects/{project_id}/`
-- Simulation jobs go to `simulation_server/jobs/{job_id}/`
+- Generated files: `planning_server/data/projects/{project_id}/` (local) or `gs://bucket/projects/{project_id}/` (cloud)
+- Simulation jobs: `simulation_server/jobs/{job_id}/` (local) or `gs://bucket/jobs/{job_id}/` (cloud)
+- Spot VM job state: `gs://bucket/job_states/{job_id}.json` (cloud only)
 - CAD source files in `cad/` with hardware libraries in `cad/libs/`
 - Train CAD in `cad/train/` (locomotive, motor mount, battery bay, camera mount)
 - Webots worlds and controllers in `simulation/`
@@ -481,7 +576,8 @@ All connections use Dupont jumpers and screw terminals. All dimensions are in `c
 - **NEVER expose real domain URLs** in any committed file. Domains are stored in GCP Secret Manager (`nl2bot-domains`) and loaded at runtime. Use generic placeholders like `plan.<your-domain>` in docs.
 - Secrets stored in GCP Secret Manager — never commit API keys to git
 - `.env`, `*.tfstate`, `*.tfvars`, credentials files are all gitignored
-- Use `gcloud.cmd` (not `gcloud`) on Windows for shell commands
+- **Python 3.13 required** (NOT 3.14) — `google-cloud-storage` SDK breaks on 3.14
+- **Vertex AI location**: use `"global"` for Gemini 3.x preview models (404 on `us-central1`)
 - OpenSCAD needs Xvfb for headless rendering: `xvfb-run openscad -o out.stl in.scad`
 - Planning UI is HTMX + Jinja2 + Alpine.js (no separate frontend build step)
 - Claude API uses tool_use (function calling) with forced tool choice for structured output
