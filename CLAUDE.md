@@ -216,10 +216,13 @@ Acknowledge these instructions. Initialize the `POST_MORTEM.md` file if it doesn
 3. **Database abstraction** (`shared/db_backend.py`): `SQLAlchemyDB` (local) / `CloudFirestoreDB` (cloud) — same interface
 4. **Storage abstraction** (`shared/cloud_storage.py`): `LocalStorage` / `GCSStorage` — same interface
 5. **Batch prediction** (`planning_server/app/pipeline/batch_audit.py`): Vertex AI Batch Prediction, tested with Deep Think
-6. **Cloud Run Job** (`infra/heavy-worker/`): Replaces Spot VM — OpenSCAD rendering via Pub/Sub trigger
-7. **Data migrated**: SQLite → Firestore, project files → GCS
-8. **Cloudflare Access**: Google login gate on all subdomains, owner-only policy
-9. **DNS**: Cloudflare-proxied CNAMEs → Cloud Run (plan, sim, app subdomains)
+6. **Cloud Run Job** (`infra/heavy-worker/`): Replaces Spot VM — OpenSCAD rendering, auto-triggered by Pub/Sub
+7. **Pub/Sub auto-trigger**: `heavy-jobs` push subscription → `/api/v1/jobs/trigger` → Cloud Run Job execution
+8. **Data migrated**: SQLite → Firestore, project files → GCS
+9. **Cloudflare Access**: Google login gate on all subdomains, owner-only policy, `same_site=none` for SPA
+10. **Cloudflare Worker** (`robot4kid-proxy`): Host header rewrite for Cloud Run + shared secret origin gate
+11. **React dashboard**: Multi-stage Docker build, served from planning-server at `/`, API at `/api/v1/*`
+12. **DNS**: Cloudflare-proxied CNAMEs → Cloud Run via Worker (plan, sim, app subdomains)
 
 ### Deploy Commands (fresh setup)
 ```bash
@@ -236,26 +239,38 @@ terraform init && terraform apply
 gcloud builds submit --project $PROJECT --config infra/cloudbuild-planning.yaml .
 gcloud builds submit --project $PROJECT --config infra/cloudbuild-simulation.yaml .
 gcloud builds submit --project $PROJECT --config infra/cloudbuild-heavy-worker.yaml .
-gcloud builds submit --project $PROJECT --config infra/cloudbuild-dashboard.yaml .
 
 # 4. Deploy Cloud Run (via Terraform)
 terraform apply -var="deploy_cloud_run=true"
 
-# 5. Populate secrets
+# 5. Populate secrets (API keys + Worker shared secret)
 echo -n "YOUR_KEY" | gcloud secrets versions add SECRET_NAME --project $PROJECT --data-file=-
+openssl rand -hex 32 | gcloud secrets create cf-worker-secret --project $PROJECT --data-file=-
 
 # 6. Migrate data (if coming from local SQLite)
 GCP_PROJECT=$PROJECT GCS_ARTIFACTS_BUCKET=$PROJECT-artifacts \
   python infra/scripts/migrate_to_cloud.py
 
-# 7. DNS (Cloudflare API or dashboard)
-# CNAME plan.<domain> → planning-server-xxx.run.app (proxied)
-# CNAME sim.<domain>  → simulation-server-xxx.run.app (proxied)
-# CNAME app.<domain>  → planning-server-xxx.run.app (proxied)
+# 7. Cloudflare Worker (Host header rewrite + origin secret gate)
+# Create Worker script with ROUTES mapping subdomains → Cloud Run URLs
+# Add X-Worker-Secret header with the cf-worker-secret value
+# Bind Worker routes: plan.<domain>/*, sim.<domain>/*, app.<domain>/*
 
-# 8. Cloudflare Access (API or dashboard)
+# 8. DNS (Cloudflare API — proxied CNAMEs through Worker)
+# CNAME plan.<domain> → planning-server-xxx.run.app (proxied=true)
+# CNAME sim.<domain>  → simulation-server-xxx.run.app (proxied=true)
+# CNAME app.<domain>  → planning-server-xxx.run.app (proxied=true)
+
+# 9. Cloudflare Access (Google login gate)
 # Create Access Application for plan/sim/app subdomains
-# Add policy: allow owner email only, Google login
+# Set same_site_cookie_attribute: "none" (required for SPA asset loading)
+# Add policy: allow owner email only
+
+# 10. Pub/Sub push subscription (auto-trigger Cloud Run Jobs)
+gcloud pubsub subscriptions create heavy-jobs-push --project $PROJECT \
+  --topic=heavy-jobs \
+  --push-endpoint="https://PLANNING_SERVER_URL/api/v1/jobs/trigger" \
+  --push-auth-service-account=cloud-run-sa@$PROJECT.iam.gserviceaccount.com
 ```
 
 ### Cost Estimate (~$1-2/month)
@@ -275,7 +290,6 @@ GCP_PROJECT=$PROJECT GCS_ARTIFACTS_BUCKET=$PROJECT-artifacts \
 ## Next Steps
 1. Run Grand Audit on train (P16) and console (P17) projects
 2. Fix 5 critical audit failures on tank (P15) — see `planning_server/data/projects/15/grand_audit_result.json`
-3. Set up Eventarc trigger for automatic Cloud Run Job execution on Pub/Sub message
 
 ## Architecture
 

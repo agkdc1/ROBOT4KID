@@ -45,9 +45,11 @@ The system supports **multiple robot models** through a modular architecture —
        Cloud Run (scale-to-zero)
        ├─ planning-server  (API + React dashboard)
        ├─ simulation-server (STL analysis, URDF)
-       └─ heavy-worker [Job] (OpenSCAD rendering)
+       └─ heavy-worker [Job] (OpenSCAD rendering, auto-triggered)
               │
-         Pub/Sub + Vertex AI Batch Prediction
+         Pub/Sub (push subscription auto-triggers jobs)
+              │
+         Vertex AI Batch Prediction (Grand Audit)
               │
     ┌─────────┴─────────┐
     │                    │
@@ -214,6 +216,7 @@ The NL2Bot pipeline transforms a natural language prompt into a physically simul
 | `GET` | `/api/v1/dashboard/jobs` | Simulation job list |
 | `GET` | `/api/v1/dashboard/projects` | Project list |
 | `GET` | `/api/v1/dashboard/logs` | System log entries |
+| `POST` | `/api/v1/jobs/trigger` | Pub/Sub push → execute heavy-worker Cloud Run Job |
 | `GET` | `/api/v1/health` | Health check |
 
 ### Simulation Server (port 8100)

@@ -180,3 +180,22 @@ React dashboard mounted at `/dashboard/` required `basename` in BrowserRouter, a
 - In FastAPI, `app.mount("/", ...)` MUST be the last route added — it catches everything.
 - Define all API routers and explicit routes before any catch-all SPA mount.
 - When migrating from multi-page to SPA, move the old UI to a prefix rather than removing it.
+
+## Entry 009 — Pub/Sub Push Blocked by Worker Gate + Missing IAM (2026-03-20)
+
+### [Issue]
+Pub/Sub push subscription to `/api/v1/jobs/trigger` failed silently. No Cloud Run Job executions were created despite messages being published.
+
+### [Root Cause]
+Two issues stacked:
+1. **Worker secret gate blocked Pub/Sub**: The `WorkerGateMiddleware` rejected all requests without `X-Worker-Secret` header. Pub/Sub push doesn't include custom headers — it uses OIDC token auth instead.
+2. **Missing IAM permission**: After exempting `/api/v1/jobs/trigger` from the gate, the Cloud Run service account lacked `run.jobs.run` permission to execute Cloud Run Jobs. Returned 500 with "Permission 'run.jobs.run' denied."
+
+### [Resolution]
+1. Added `/api/v1/jobs/trigger` to `_GATE_EXEMPT` set in `WorkerGateMiddleware` — Pub/Sub push authenticates via OIDC, not Worker secret.
+2. Granted `roles/run.developer` to `cloud-run-sa` service account — includes `run.jobs.run`.
+
+### [Pipeline Update]
+- When adding origin-gate middleware, always exempt endpoints that receive Pub/Sub push, Cloud Scheduler, or other GCP service callbacks.
+- Cloud Run Jobs execution requires `roles/run.developer` (or `roles/run.admin`) on the calling service account — `roles/run.invoker` is not sufficient.
+- Test auto-triggers end-to-end after deploying: publish a message and verify a new execution appears in `gcloud run jobs executions list`.
