@@ -24,6 +24,7 @@ from planning_server.app.pipeline.router import router as pipeline_router
 from planning_server.app.fcs.router import router as fcs_router
 from planning_server.app.web_ui import router as web_router
 from planning_server.app.dashboard.router import router as dashboard_router
+from planning_server.app.jobs.router import router as jobs_router
 
 
 @asynccontextmanager
@@ -69,9 +70,11 @@ from starlette.responses import JSONResponse
 
 _WORKER_SECRET = os.getenv("CF_WORKER_SECRET", "")
 
+_GATE_EXEMPT = {"/api/v1/health", "/api/v1/jobs/trigger"}
+
 class WorkerGateMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        if _WORKER_SECRET and request.url.path != "/api/v1/health":
+        if _WORKER_SECRET and request.url.path not in _GATE_EXEMPT:
             if request.headers.get("X-Worker-Secret") != _WORKER_SECRET:
                 return JSONResponse({"detail": "Forbidden"}, status_code=403)
         return await call_next(request)
@@ -91,6 +94,7 @@ app.include_router(projects_router, prefix="/api/v1")
 app.include_router(pipeline_router, prefix="/api/v1")
 app.include_router(fcs_router)
 app.include_router(dashboard_router, prefix="/api/v1")
+app.include_router(jobs_router, prefix="/api/v1")
 
 # HTMX Web UI (legacy, at /legacy/)
 app.include_router(web_router, prefix="/legacy")

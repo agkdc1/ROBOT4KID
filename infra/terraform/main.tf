@@ -60,6 +60,7 @@ resource "google_project_iam_member" "cloud_run_roles" {
     "roles/pubsub.publisher",        # Publish job results
     "roles/pubsub.subscriber",       # Pull heavy jobs (Cloud Run Job)
     "roles/aiplatform.user",         # Vertex AI batch prediction
+    "roles/run.developer",           # Execute Cloud Run Jobs
   ])
   project = local.project_id
   role    = each.value
