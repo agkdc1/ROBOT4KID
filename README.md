@@ -25,21 +25,40 @@ The system supports **multiple robot models** through a modular architecture —
 - **ESP32 firmware** -- PlatformIO triple-target (hull_node, turret_node, train_node), binary command protocol, solderless wiring
 - **YAML-driven config** -- All hardware dimensions, speeds, and tunable parameters in a single `config/hardware_specs.yaml`
 - **Management dashboard** -- React 19 command-center UI with real-time GPU/CPU/RAM monitoring, simulation task manager, and model registry
-- **GCP infrastructure** -- Terraform-managed secrets, backups, and project configuration
+- **Cloud-native infrastructure** -- Cloud Run (scale-to-zero), Firestore, GCS, Pub/Sub, Vertex AI Batch Prediction, Cloudflare Access (Google login), ~$1-2/month
 
 ---
 
 ## Architecture
 
+### Cloud (production)
+
 ```
-                         +--------------------------+
-                         |      Web UI (HTMX)       |
-                         |   Flutter Control App     |
-                         +------------+-------------+
-                                      |
-                    +-----------------+-----------------+
-                    |                                   |
-         +----------v-----------+          +------------v-----------+
+       Browser
+          │
+    Cloudflare Access (Google login, owner-only)
+          │
+    Cloudflare DNS (proxied) + Worker (Host rewrite)
+       /     |      \
+  plan.*  sim.*   app.*
+      \     |      /
+       Cloud Run (scale-to-zero)
+       ├─ planning-server  (API + React dashboard)
+       ├─ simulation-server (STL analysis, URDF)
+       └─ heavy-worker [Job] (OpenSCAD rendering)
+              │
+         Pub/Sub + Vertex AI Batch Prediction
+              │
+    ┌─────────┴─────────┐
+    │                    │
+  GCS Artifacts      Firestore
+  (projects/jobs)    (users/projects)
+```
+
+### Local (development)
+
+```
+         +----------+-----------+          +------------+-----------+
          |   Planning Server    |          |   Simulation Server    |
          |     (port 8000)      |   HTTP   |      (port 8100)      |
          |                      +--------->|                        |
@@ -47,15 +66,16 @@ The system supports **multiple robot models** through a modular architecture —
          |  - Project CRUD      |          |  - STL Analyzer        |
          |  - LLM Pipeline      |          |  - URDF Assembler      |
          |  - FCS Training      |          |  - Printability Check  |
-         |  - HTMX Web UI       |          |  - Three.js Viewer     |
+         |  - React Dashboard   |          |  - Three.js Viewer     |
          +-----+-------+-------+          |  - Webots Manager      |
-               |       |                  +------------+------------+
-               v       v                               |
-        +------+--+ +--+-------+              +--------v--------+
-        | Claude  | | Gemini   |              |     Webots      |
-        | Sonnet/ | | Flash    |              | Physics Engine  |
-        | Opus    | |          |              | (TCP/WebSocket) |
-        +---------+ +----------+              +-----------------+
+               |       |                  +-------------------------+
+               v       v
+        +------+--+ +--+-------+
+        | Claude  | | Gemini   |
+        | Sonnet/ | | Ultra    |
+        | Opus    | | (Deep    |
+        |         | |  Think)  |
+        +---------+ +----------+
 ```
 
 **Pipeline flow:**
@@ -257,7 +277,7 @@ Secrets can be fetched from GCP Secret Manager:
 
 | Layer | Technology |
 |---|---|
-| Backend | Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy (async SQLite) |
+| Backend | Python 3.13, FastAPI, Pydantic v2, SQLAlchemy (local) / Firestore (cloud) |
 | LLM | Claude API (Sonnet / Opus) + Gemini API (Flash) |
 | CAD | OpenSCAD, trimesh |
 | Simulation | Webots R2023b+, URDF, PROTO |
@@ -268,7 +288,7 @@ Secrets can be fetched from GCP Secret Manager:
 | Train Console | Python, pygame, RPi4, MCP3008 ADC, PS2 joystick |
 | Firmware | C++ (Arduino), PlatformIO, ESP32 DevKitC V4 + ESP32-CAM |
 | Config | YAML (`config/hardware_specs.yaml`) — single source of truth |
-| Infrastructure | GCP, Terraform, Secret Manager, Cloud Storage |
+| Infrastructure | GCP Cloud Run + Firestore + GCS + Pub/Sub + Vertex AI, Terraform, Cloudflare Access |
 | Auth | JWT (planning), API key (simulation) |
 
 ---
@@ -293,9 +313,11 @@ ROBOT4KID/
 │   │   ├── viewer/          # Three.js STL viewer
 │   │   └── simulator/       # Webots manager, bridge, PROTO converter
 │   └── jobs/                # Simulation job outputs
-├── shared/                  # Shared Pydantic schemas
+├── shared/                  # Shared schemas + cloud abstractions
 │   ├── schemas/             # RobotSpec, SimulationRequest, etc.
-│   └── json_schemas/        # Exported JSON Schema files
+│   ├── json_schemas/        # Exported JSON Schema files
+│   ├── db_backend.py        # Database abstraction (SQLAlchemy / Firestore)
+│   └── cloud_storage.py     # Storage abstraction (local filesystem / GCS)
 ├── cad/                     # OpenSCAD source files
 │   ├── chassis/             # Hull, tracks, electronics bay
 │   ├── turret/              # Turret body, gun barrel
@@ -313,7 +335,11 @@ ROBOT4KID/
 ├── console/                 # RPi4 train console (Python + pygame)
 ├── config/                  # Hardware specs (YAML, single source of truth)
 ├── infra/                   # Infrastructure
-│   └── terraform/           # GCP Terraform configs
+│   ├── terraform/           # GCP Terraform (Cloud Run, Firestore, Pub/Sub, GCS, IAM)
+│   ├── heavy-worker/        # Cloud Run Job Dockerfile (OpenSCAD + Blender)
+│   ├── spot-vm/             # Job runner (used by Cloud Run Job)
+│   ├── scripts/             # Migration scripts (SQLite → Firestore)
+│   └── cloudbuild-*.yaml    # Cloud Build configs for all images
 ├── system/                  # System scripts
 │   ├── backup.sh            # Backup to GCS (manual)
 │   ├── daily_backup.ps1     # Daily backup service (Scheduled Task)

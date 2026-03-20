@@ -123,3 +123,60 @@ Multiple Webots instances created when taskkill fails to terminate properly.
 - For Gemini video audit, record via Webots GUI movie export OR supervisor controller screenshot API.
 - Never launch Webots with `&` in bash without proper PID tracking.
 - Consider Webots supervisor's `wb_supervisor_movie_start_recording()` for headless video capture.
+
+## Entry 006 — Cloud Run Custom Domain via Cloudflare (2026-03-20)
+
+### [Issue]
+Cloud Run returns 404 when accessed through Cloudflare-proxied custom domains (plan.*, sim.*, app.*). Cloudflare sends the custom hostname in the Host header, but Cloud Run only accepts its own `.run.app` hostname.
+
+### [Root Cause]
+1. Cloud Run rejects requests with unknown Host headers at the Google frontend (before reaching the app).
+2. Cloudflare Origin Rules (Host header rewrite) requires Pro plan — not available on free tier.
+3. Cloud Run domain mappings require DNS-only mode for cert provisioning, which disables Cloudflare Access.
+
+### [Resolution]
+Used a **Cloudflare Worker** (free 100k req/day) to rewrite the Host header before forwarding to Cloud Run. Worker also adds a shared secret header (`X-Worker-Secret`) for origin verification. Planning server middleware rejects requests without the secret (except `/api/v1/health`).
+
+### [Pipeline Update]
+- When using Cloudflare free tier + Cloud Run, always use a Worker for Host header rewrite.
+- Origin Rules and Transform Rules cannot modify the Host header on Cloudflare free tier.
+- Add a shared secret between Worker and Cloud Run to prevent direct access bypassing Cloudflare Access.
+- Store Worker secret in GCP Secret Manager, inject via Cloud Run env var.
+
+## Entry 007 — Cloudflare Access Blocks SPA Assets (2026-03-20)
+
+### [Issue]
+React dashboard SPA served via Cloudflare Access showed blank page. HTML loaded but JS/CSS assets returned 302 (redirect to Access login).
+
+### [Root Cause]
+1. Cloudflare Access's `same_site_cookie_attribute` was unset (defaulting to `Lax`).
+2. With `Lax`, the `CF_Authorization` cookie wasn't sent on subresource requests (script/stylesheet loads) in some browser contexts.
+3. Without the cookie, Access treated asset requests as unauthenticated and redirected to login.
+
+### [Resolution]
+Set `same_site_cookie_attribute: "none"` on the Cloudflare Access Application via API. This ensures the Access cookie is sent on all same-origin requests including JS/CSS asset loads.
+
+### [Pipeline Update]
+- When serving SPAs behind Cloudflare Access, always set `same_site_cookie_attribute: "none"`.
+- Default `Lax` breaks asset loading for single-page applications.
+- Test asset loading (not just HTML) when verifying Access-protected SPAs.
+
+## Entry 008 — SPA Routing at Root Path (2026-03-20)
+
+### [Issue]
+React dashboard mounted at `/dashboard/` required `basename` in BrowserRouter, and assets needed Vite `base: "/dashboard/"` config. Mounting at `/` conflicted with existing HTMX web UI router.
+
+### [Root Cause]
+1. FastAPI `app.mount("/", StaticFiles(...))` captures ALL routes, including `/api/*`, if defined before API route handlers.
+2. The HTMX `web_router` had a `/` route that took precedence over the SPA mount.
+
+### [Resolution]
+1. Moved HTMX web UI to `/legacy/` prefix.
+2. Defined health check and all API routers BEFORE the SPA mount.
+3. SPA mount at `/` with `html=True` is the LAST route — catches only unmatched paths.
+4. Vite `base: "/"` and BrowserRouter with no basename — simplest config.
+
+### [Pipeline Update]
+- In FastAPI, `app.mount("/", ...)` MUST be the last route added — it catches everything.
+- Define all API routers and explicit routes before any catch-all SPA mount.
+- When migrating from multi-page to SPA, move the old UI to a prefix rather than removing it.

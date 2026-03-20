@@ -14,7 +14,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
 
 from planning_server.app import config
 from planning_server.app.auth.dependencies import hash_password
@@ -63,6 +62,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Gate: in cloud mode, reject requests not coming through Cloudflare Worker
+import os
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+
+_WORKER_SECRET = os.getenv("CF_WORKER_SECRET", "")
+
+class WorkerGateMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if _WORKER_SECRET and request.url.path != "/api/v1/health":
+            if request.headers.get("X-Worker-Secret") != _WORKER_SECRET:
+                return JSONResponse({"detail": "Forbidden"}, status_code=403)
+        return await call_next(request)
+
+if os.getenv("ENVIRONMENT") == "cloud" and _WORKER_SECRET:
+    app.add_middleware(WorkerGateMiddleware)
+
+# Health check — defined early, before any mounts
+@app.get("/api/v1/health")
+async def health_check():
+    return {"status": "ok", "service": "planning_server", "version": "0.1.0"}
+
 # API routes
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
@@ -71,18 +92,19 @@ app.include_router(pipeline_router, prefix="/api/v1")
 app.include_router(fcs_router)
 app.include_router(dashboard_router, prefix="/api/v1")
 
-# Web UI
-app.include_router(web_router)
+# HTMX Web UI (legacy, at /legacy/)
+app.include_router(web_router, prefix="/legacy")
 
-# Static files
+# Static files (HTMX web UI assets)
 static_dir = Path(__file__).parent.parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-
-@app.get("/api/v1/health")
-async def health_check():
-    return {"status": "ok", "service": "planning_server", "version": "0.1.0"}
+# React dashboard SPA — MUST be last (catches all unmatched routes)
+# html=True serves index.html for SPA client-side routing
+dashboard_dir = Path(__file__).parent.parent / "dashboard_dist"
+if dashboard_dir.exists():
+    app.mount("/", StaticFiles(directory=str(dashboard_dir), html=True), name="dashboard")
 
 
 if __name__ == "__main__":
