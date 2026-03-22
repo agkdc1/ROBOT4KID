@@ -1,16 +1,17 @@
 // M1A1 Abrams — Hull Chassis v2 (1:18 scale)
 // BLOCKOUT — simple primitives only (Step 2)
-// Split into 3 lengthwise pieces, each printed diagonally on Bambu A1 Mini
+// Split: 3 lengthwise x 2 widthwise = 6 pieces, each fits 180x180mm bed
 //
 // Real M1A1 hull: 7917 x 3658 x 1092 mm
 // At 1/18:        440  x 203  x 61   mm
 //
-// Split: front (147mm) | center (146mm) | rear (147mm)
-// Width 203mm fits 180x180 bed diagonally (diagonal capacity ~254mm)
+// Lengthwise: front (147mm) | center (146mm) | rear (147mm)
+// Widthwise:  left (101.5mm) | right (101.5mm)
+// Each piece: max 147 x 101.5 x 61mm — fits 180x180 bed flat
 //
-// Part selector: set via CLI with -D 'part="front"'
+// Part selector: set via CLI with -D 'part="front_left"'
 
-$fn = 32;
+$fn = 64;
 
 // =====================================================================
 // PARAMETERS
@@ -23,10 +24,13 @@ hull_height     = 61;
 wall            = 2.5;      // Child-safe wall thickness
 floor_t         = 2.0;      // Floor thickness
 
-// --- Split Boundaries ---
+// --- Lengthwise Split Boundaries ---
 front_len       = 147;
 center_len      = 146;
 rear_len        = 147;
+
+// --- Widthwise Split (each half fits 180mm bed) ---
+half_width      = hull_width / 2;  // 101.5mm each
 
 // --- Glacis Plate ---
 glacis_angle    = 82.5;     // Near-vertical upper glacis (degrees from horizontal)
@@ -102,6 +106,18 @@ m4_hole_dia     = 4.4;      // M4 through-hole with clearance
 bolt_inset      = 12;       // Distance from edge to bolt center
 bolt_tab_w      = 16;       // Width of bolt tab
 bolt_tab_h      = 12;       // Height of bolt tab (vertical)
+bolt_tab_d      = 12;       // Depth of bolt tab along X-axis (into piece)
+bolt_tab_wall   = 2.5;      // Wall around bolt hole in tab
+
+// --- Widthwise Split Bolt Joints ---
+// M4 bolts along centerline split: 2 per section = 6 total
+width_bolt_inset = 20;      // Distance from section end to bolt center
+
+// --- Motor Bracket Cutouts ---
+// N20 bracket protrudes 27mm inward from track assembly side plate
+motor_cutout_w  = 20;       // Width of cutout pocket (bracket width + clearance)
+motor_cutout_d  = 30;       // Depth inward from hull wall
+motor_cutout_h  = 20;       // Height of cutout pocket
 
 // --- Track Attachment ---
 track_bolt_spacing = 40;    // M4 bolt spacing along sides
@@ -121,7 +137,9 @@ rocker_x        = 20;       // Position from rear face inner wall
 rocker_y_pos    = hull_width / 2;  // Centered on rear face
 
 // --- Part Selector ---
-part = "assembly";  // "assembly" | "front" | "center" | "rear" | "hatch"
+// "assembly" | "front_left" | "front_right" | "center_left" | "center_right"
+// "rear_left" | "rear_right" | "hatch" | "front" | "center" | "rear"
+part = "assembly";
 
 // =====================================================================
 // HELPER MODULES
@@ -144,6 +162,39 @@ module ghost(size) {
 // M4 bolt hole (vertical, through full height)
 module m4_bolt_hole(depth=20) {
     cylinder(d=m4_hole_dia, h=depth, center=true);
+}
+
+// Solid bolt tab — provides material around bolt holes at seam faces
+// Placed at split lines so bolts go through solid plastic, not hollow void
+module bolt_tab(height=bolt_tab_h, depth=bolt_tab_d) {
+    difference() {
+        // Solid block
+        translate([-depth/2, -bolt_tab_w/2, -height/2])
+            cube([depth, bolt_tab_w, height]);
+        // M4 through-hole along X axis
+        rotate([0, 90, 0])
+            cylinder(d=m4_hole_dia, h=depth + 2, center=true);
+    }
+}
+
+// Widthwise split bolt tab — along Y centerline
+module width_split_bolt_tab(height=bolt_tab_h, depth=bolt_tab_d) {
+    difference() {
+        translate([-bolt_tab_w/2, -depth/2, -height/2])
+            cube([bolt_tab_w, depth, height]);
+        rotate([-90, 0, 0])
+            cylinder(d=m4_hole_dia, h=depth + 2, center=true);
+    }
+}
+
+// Widthwise split clipping — use intersection to get left or right half
+module clip_left(length, height) {
+    translate([-50, -50, -50])
+        cube([length + 100, half_width + 50, height + 100]);
+}
+module clip_right(length, height) {
+    translate([-50, half_width, -50])
+        cube([length + 100, half_width + 50, height + 100]);
 }
 
 // =====================================================================
@@ -213,6 +264,36 @@ module hull_front() {
                 rotate([-90, 0, 0])
                     m4_bolt_hole(wall + 2);
         }
+
+        // --- Motor bracket cutouts (Issue #3: track N20 brackets protrude inward) ---
+        // Left wall cutout
+        translate([10, -1, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+        // Right wall cutout
+        translate([10, hull_width - motor_cutout_d, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+
+        // --- Widthwise split bolt holes (along Y centerline) ---
+        for (bx = [front_len * 0.33, front_len * 0.66]) {
+            translate([bx, half_width, hull_height / 2])
+                rotate([-90, 0, 0])
+                    m4_bolt_hole(30);
+        }
+    }
+
+    // --- Bolt tabs at rear seam (solid material around bolt holes) ---
+    for (i = [0:3]) {
+        by = bolt_inset + i * ((hull_width - 2*bolt_inset) / 3);
+        bz = hull_height / 2;
+        translate([front_len, by, bz])
+            rotate([0, 0, 0])
+                bolt_tab();
+    }
+
+    // --- Widthwise split bolt tabs (along Y centerline) ---
+    for (bx = [front_len * 0.33, front_len * 0.66]) {
+        translate([bx, half_width, hull_height / 2])
+            width_split_bolt_tab();
     }
 
     // --- N20 motor mounts (2x, one per side) ---
@@ -302,6 +383,13 @@ module hull_center() {
                     m4_bolt_hole(wall + 2);
         }
 
+        // --- Widthwise split bolt holes (along Y centerline) ---
+        for (bx = [center_len * 0.33, center_len * 0.66]) {
+            translate([bx, half_width, hull_height / 2])
+                rotate([-90, 0, 0])
+                    m4_bolt_hole(30);
+        }
+
         // --- Wago connector pockets (recessed bays with 20% air space) ---
         // Row of 3 along left interior wall
         for (i = [0:2]) {
@@ -317,6 +405,40 @@ module hull_center() {
                        floor_t + 5])
                 cube([wago_l + 2*wago_air, wall + 2, wago_h + 2*wago_air]);
         }
+
+        // --- Motor bracket cutouts (Issue #3: N20 brackets protrude 27mm from track) ---
+        // Left wall cutout (front motor position relative to center section)
+        translate([-1, -1, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+        // Left wall cutout (rear motor position)
+        translate([center_len - motor_cutout_w, -1, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+        // Right wall cutout (front motor position)
+        translate([-1, hull_width - motor_cutout_d, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+        // Right wall cutout (rear motor position)
+        translate([center_len - motor_cutout_w, hull_width - motor_cutout_d, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+    }
+
+    // --- Bolt tabs at front seam ---
+    for (i = [0:3]) {
+        by = bolt_inset + i * ((hull_width - 2*bolt_inset) / 3);
+        translate([0, by, hull_height / 2])
+            bolt_tab();
+    }
+
+    // --- Bolt tabs at rear seam ---
+    for (i = [0:3]) {
+        by = bolt_inset + i * ((hull_width - 2*bolt_inset) / 3);
+        translate([center_len, by, hull_height / 2])
+            bolt_tab();
+    }
+
+    // --- Widthwise split bolt tabs (along Y centerline) ---
+    for (bx = [center_len * 0.33, center_len * 0.66]) {
+        translate([bx, half_width, hull_height / 2])
+            width_split_bolt_tab();
     }
 
     // --- Internal wire channels (raised guides along floor edges) ---
@@ -374,6 +496,21 @@ module hull_rear() {
                     m4_bolt_hole(wall + 2);
         }
 
+        // --- Motor bracket cutouts (Issue #3: track N20 brackets protrude inward) ---
+        // Left wall cutout
+        translate([rear_len - 60, -1, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+        // Right wall cutout
+        translate([rear_len - 60, hull_width - motor_cutout_d, hull_height/2 - motor_cutout_h/2])
+            cube([motor_cutout_w + 1, motor_cutout_d + 1, motor_cutout_h]);
+
+        // --- Widthwise split bolt holes (along Y centerline) ---
+        for (bx = [rear_len * 0.33, rear_len * 0.66]) {
+            translate([bx, half_width, hull_height / 2])
+                rotate([-90, 0, 0])
+                    m4_bolt_hole(30);
+        }
+
         // --- KCD1-11 Rocker Switch mounting hole (rear face) ---
         // Round hole through rear hull face for switch body
         translate([rear_len - wall - 1, rocker_y_pos, hull_height / 2])
@@ -388,6 +525,19 @@ module hull_rear() {
         // --- Wire routing channel from switch to power hub (center section) ---
         translate([-1, rocker_y_pos - wire_ch_w/2, floor_t])
             cube([rocker_x + 2, wire_ch_w, wire_ch_h]);
+    }
+
+    // --- Bolt tabs at front seam (connects to center) ---
+    for (i = [0:3]) {
+        by = bolt_inset + i * ((hull_width - 2*bolt_inset) / 3);
+        translate([0, by, hull_height / 2])
+            bolt_tab();
+    }
+
+    // --- Widthwise split bolt tabs (along Y centerline) ---
+    for (bx = [rear_len * 0.33, rear_len * 0.66]) {
+        translate([bx, half_width, hull_height / 2])
+            width_split_bolt_tab();
     }
 
     // --- N20 motor mounts (2x, rear pair) ---
@@ -614,9 +764,21 @@ if (part == "assembly") {
     hull_center();
 } else if (part == "rear") {
     hull_rear();
+} else if (part == "front_left") {
+    intersection() { hull_front(); clip_left(front_len, hull_height + beak_drop); }
+} else if (part == "front_right") {
+    intersection() { hull_front(); clip_right(front_len, hull_height + beak_drop); }
+} else if (part == "center_left") {
+    intersection() { hull_center(); clip_left(center_len, hull_height + turret_ring_h); }
+} else if (part == "center_right") {
+    intersection() { hull_center(); clip_right(center_len, hull_height + turret_ring_h); }
+} else if (part == "rear_left") {
+    intersection() { hull_rear(); clip_left(rear_len, hull_height); }
+} else if (part == "rear_right") {
+    intersection() { hull_rear(); clip_right(rear_len, hull_height); }
 } else if (part == "hatch") {
     battery_hatch();
 } else {
-    echo("ERROR: Unknown part selector. Use: assembly | front | center | rear | hatch");
+    echo("ERROR: Unknown part. Use: assembly | front | center | rear | front_left | front_right | center_left | center_right | rear_left | rear_right | hatch");
     hull_assembly();
 }

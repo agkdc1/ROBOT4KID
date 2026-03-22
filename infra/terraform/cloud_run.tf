@@ -110,6 +110,15 @@ resource "google_cloud_run_v2_service" "planning" {
         name  = "GCS_AUDIT_BUCKET"
         value = google_storage_bucket.artifacts.name
       }
+      env {
+        name = "SIM_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = "sim-api-key"
+            version = "latest"
+          }
+        }
+      }
     }
 
     # Cold start timeout

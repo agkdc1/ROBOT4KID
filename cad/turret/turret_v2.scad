@@ -6,7 +6,7 @@
 // 1/18 scale:  306  x 181  x 44mm
 // Split: front 153mm + rear 153mm, joined with M3 bolts
 
-$fn = 32;
+$fn = 64;
 
 // ============================================================
 // PARAMETERS
@@ -14,7 +14,7 @@ $fn = 32;
 
 // --- Overall turret ---
 turret_length = 306;
-turret_width  = 181;
+turret_width  = 180;         // Clamped to 180mm bed limit (was 181)
 turret_height = 52;          // +8mm over strict 1:18 for internal clearance
 wall = 2.5;
 floor_t = 2.0;
@@ -374,10 +374,12 @@ module turret_electronics() {
         translate([turret_width/2 - cam_w/2, wall + 2, floor_t])
             cube([cam_w, cam_d, cam_h]);
 
-    // ToF sensor — front center, below camera
+    // ToF sensor — front center, below camera, rotated 90deg to face forward (Y-axis)
     color("cyan", 0.4)
-        translate([turret_width/2 - tof_w/2, wall + 2, floor_t])
-            cube([tof_w, tof_d, tof_h]);
+        translate([turret_width/2 - tof_w/2, wall + 2, floor_t + 2])
+            rotate([90, 0, 0])
+                translate([0, 0, -tof_d])
+                    cube([tof_w, tof_h, tof_d]);
 
     // PCA9685 servo driver — center, flat on floor
     color("blue", 0.4)

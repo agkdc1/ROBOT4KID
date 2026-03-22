@@ -20,9 +20,9 @@ WALL            = 1.60;   // Minimum wall thickness (4 perimeters on 0.4 nozzle)
 CLEARANCE       = 1.50;   // Breathing room around each component
 
 // =====================================================================
-// Plarail Track Standard (38 mm gauge)
+// Plarail Track Standard (27 mm gauge per hardware_specs.yaml)
 // =====================================================================
-TRACK_GAUGE     = 38;     // Rail center-to-center
+TRACK_GAUGE     = 27;     // Rail center-to-center (Plarail standard)
 WHEEL_DIA       = 10;     // Outer diameter of Plarail wheel
 WHEEL_WIDTH     = 3;      // Wheel thickness
 AXLE_DIA        = 2.0;    // Shaft diameter
@@ -108,16 +108,16 @@ SWITCH_KNOB_W   = 1.5;     // Knob protrusion
 SWITCH_SLOT_TOL = 0.15;    // Friction-fit tolerance
 SWITCH_GUARD_H  = 1.0;     // Dust guard lip height
 SWITCH_SOLDER_CLR = 3;     // Clearance under switch for soldering
-// Position: bottom of chassis, near rear (accessible when flipped)
-SWITCH_X        = CHRG_X + CHRG_L + 2;  // After TP4056
-SWITCH_Y        = 0;       // Centered
+// Position: left side wall, rear zone (accessible from exterior)
+SWITCH_X        = CHRG_X + CHRG_L/2 - SWITCH_L/2;  // Centered on TP4056 span
+SWITCH_Y        = -BODY_WIDTH/2 + WALL;  // Against left wall, outside battery zone
 
 // =====================================================================
 // Axle Positions (measured from rear of body = X=0)
 // =====================================================================
-AXLE_REAR_X     = 12;
+AXLE_REAR_X     = MOTOR_X + MOTOR_LEN;  // =28, aligned with motor shaft exit
 AXLE_FRONT_X    = BODY_RECT_LEN - 12;
-// Motor drives rear axle — motor sits just in front of rear axle
+// Motor drives rear axle — worm gear on shaft meshes with gear on axle
 
 // =====================================================================
 // Layout Positions  (X = 0 at rear, increases toward nose)
@@ -145,10 +145,10 @@ CHRG_X          = 3;                         // TP4056 same X span, Y-offset rig
 BATT_X          = MOTOR_X + MOTOR_LEN + 2;  // X=30, battery ends X=78
 BOOST_X         = BATT_X + 6;               // MT3608 above battery (X=36..72)
 
-// FRONT ZONE  (X 80..120)
-// Camera rear edge at X=80 (2mm gap after battery), front edge at X=120
-// Front 10mm extends into the nose zone — intentional for FPV lens alignment
-CAM_X           = BATT_X + BATT_L + 2 + CAM_L; // = 30+48+2+40 = 120
+// FRONT ZONE  (X 68..108)
+// Camera must stay within rectangular section (BODY_RECT_LEN=110)
+// where interior width (33mm) can fit the 27mm-wide ESP32-CAM
+CAM_X           = BODY_RECT_LEN - 2;  // =108, front edge 2mm from rect/nose junction
 
 // =====================================================================
 // Helper: Rounded Rectangle (2D)
@@ -324,6 +324,16 @@ module boost_mount() {
     // Sits on top of battery: FLOOR_T + BATT_H + air gap
     base_z = FLOOR_T + BATT_H + 1.5;
     standoff_h = 1.5;  // Small standoff to clear solder joints
+    pillar_w = 2.0;
+    pillar_h = base_z - FLOOR_T;  // Height from floor to mount base
+
+    // Vertical support pillars from chassis floor to mount base
+    for (dx = [0, mount_l - pillar_w]) {
+        for (dy = [0, mount_w - pillar_w]) {
+            translate([BOOST_X + dx, -mount_w/2 + dy, FLOOR_T])
+                cube([pillar_w, pillar_w, pillar_h]);
+        }
+    }
 
     translate([BOOST_X, -mount_w/2, base_z]) {
         // Two standoff rails
@@ -423,9 +433,9 @@ module motor_driver_mount() {
 }
 
 // =====================================================================
-// TP4056 Charging Module Mount (Y-offset to right wall, USB-C facing out)
+// TP4056 Charging Module Mount (Y-offset to right wall, USB-C facing rear)
 // TP4056 is 26x17x4mm — thin enough to fit beside the motor on the
-// right side.  USB-C port faces the right side wall for external access.
+// right side.  USB-C port on short edge faces rear wall for access.
 // =====================================================================
 module charger_mount() {
     mount_l = CHRG_L + CLEARANCE;
@@ -454,19 +464,19 @@ module charger_mount() {
 }
 
 // =====================================================================
-// USB-C Access Window (cut through chassis side wall)
+// USB-C Access Window (cut through chassis rear wall)
 // =====================================================================
 module usb_access_window() {
-    // Hole in the right side wall aligned with TP4056 USB-C port
-    // USB-C port is on the TP4056's long edge facing the right wall
-    port_center_x = CHRG_X + (CHRG_L + CLEARANCE) / 2;
+    // TP4056 USB-C port is on the short edge (17mm side) facing the rear wall
+    chrg_y = BODY_WIDTH/2 - WALL - (CHRG_W + CLEARANCE) - 0.5;
+    port_center_y = chrg_y + (CHRG_W + CLEARANCE) / 2;
     port_z = FLOOR_T + 0.5;
 
-    // Right wall cutout
-    translate([port_center_x - USB_PORT_W/2 - 1,
-               BODY_WIDTH/2 - WALL - 0.5,
+    // Rear wall cutout (X=0 face)
+    translate([-0.5,
+               port_center_y - USB_PORT_W/2 - 1,
                port_z])
-        cube([USB_PORT_W + 2, WALL + 1, USB_PORT_H + 2]);
+        cube([WALL + 1, USB_PORT_W + 2, USB_PORT_H + 2]);
 }
 
 // =====================================================================
@@ -573,36 +583,30 @@ module coupling_socket() {
 }
 
 module slide_switch_mount() {
-    // SS12D00 micro slide switch — friction-fit slot in chassis bottom
+    // SS12D00 micro slide switch — friction-fit in left side wall
     // Wiring: TP4056(OUT+) → switch → MT3608(VIN+) for off-state charging
     sw_x = SWITCH_X;
-    sw_y = SWITCH_Y - SWITCH_L/2;
+    sw_z = FLOOR_T + 1;
 
-    // Switch pocket (cut from chassis floor)
-    // Positive form: retainer walls around switch
-    translate([sw_x, sw_y - SWITCH_SLOT_TOL, 0]) {
+    // Switch pocket on interior of left wall, knob accessible from exterior
+    translate([sw_x, -BODY_WIDTH/2 - 0.5, sw_z]) {
         difference() {
-            // Retainer frame
-            cube([SWITCH_W + 2*WALL, SWITCH_L + 2*SWITCH_SLOT_TOL + 2*WALL, FLOOR_T + SWITCH_H]);
+            // Retainer frame on interior side
+            translate([0, WALL + 0.5, 0])
+                cube([SWITCH_L + 2*SWITCH_SLOT_TOL + 2*WALL, SWITCH_W + 2*WALL, SWITCH_H + 2*WALL]);
             // Switch body cavity
-            translate([WALL, WALL, -0.5])
-                cube([SWITCH_W + 2*SWITCH_SLOT_TOL, SWITCH_L + 2*SWITCH_SLOT_TOL, SWITCH_H + 1]);
-            // Knob slot (through floor for bottom access)
-            translate([WALL + SWITCH_W/2 - 1, WALL, -0.5])
-                cube([2, SWITCH_L + 2*SWITCH_SLOT_TOL, FLOOR_T + 1]);
+            translate([WALL, WALL + 0.5, WALL])
+                cube([SWITCH_L + 2*SWITCH_SLOT_TOL, SWITCH_W + 2*SWITCH_SLOT_TOL, SWITCH_H + 0.5]);
         }
-        // Dust guard lips (raised rim around knob slot on exterior)
-        translate([WALL + SWITCH_W/2 - 1.5, WALL - 0.5, -SWITCH_GUARD_H])
-            cube([3, SWITCH_L + 2*SWITCH_SLOT_TOL + 1, SWITCH_GUARD_H]);
     }
 }
 
 module switch_cutout() {
-    // Cut through floor for switch knob access + soldering clearance
+    // Cut through left side wall for switch knob access
     sw_x = SWITCH_X;
-    sw_y = SWITCH_Y - SWITCH_L/2;
-    translate([sw_x + WALL - 0.5, sw_y - SWITCH_SLOT_TOL + WALL - 0.5, -0.5])
-        cube([SWITCH_W + 2*SWITCH_SLOT_TOL + 1, SWITCH_L + 2*SWITCH_SLOT_TOL + 1, FLOOR_T + 1]);
+    sw_z = FLOOR_T + 1 + WALL;
+    translate([sw_x + WALL - 0.5, -BODY_WIDTH/2 - 0.5, sw_z])
+        cube([SWITCH_L + 2*SWITCH_SLOT_TOL + 1, WALL + 1, SWITCH_H + 1]);
 }
 
 // =====================================================================

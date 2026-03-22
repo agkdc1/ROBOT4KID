@@ -157,9 +157,9 @@ disp_x = (CONSOLE_W - DISP_W) / 2;
 disp_y = SPLIT_Y + 5;
 disp_z = CONSOLE_H;
 
-// RPi4: behind/below display, vertically mounted against rear wall
-rpi_x = (CONSOLE_W - RPI_L) / 2;
-rpi_y = CONSOLE_D - WALL - RPI_W - 2;
+// RPi4: behind/below display, rotated 90deg so USB/Ethernet face rear wall
+rpi_x = (CONSOLE_W - RPI_W) / 2;
+rpi_y = CONSOLE_D - WALL - RPI_L - 2;
 rpi_z = CONSOLE_BASE_H + 5;  // Standoff base height
 
 // =====================================================================
@@ -248,18 +248,19 @@ module rpi4_mount() {
     standoff_h = 5;
 
     translate([rpi_x, rpi_y, rpi_z]) {
-        // 4x M2.5 standoffs at 58x49mm pattern
-        off_x = (RPI_L - RPI_MOUNT_X) / 2;
-        off_y = (RPI_W - RPI_MOUNT_Y) / 2;
-        for (dx = [0, RPI_MOUNT_X])
-            for (dy = [0, RPI_MOUNT_Y])
+        // RPi4 rotated 90deg: 56mm along X, 85mm along Y
+        // M2.5 standoffs at 49x58mm pattern (swapped from 58x49)
+        off_x = (RPI_W - RPI_MOUNT_Y) / 2;
+        off_y = (RPI_L - RPI_MOUNT_X) / 2;
+        for (dx = [0, RPI_MOUNT_Y])
+            for (dy = [0, RPI_MOUNT_X])
                 translate([off_x + dx, off_y + dy, 0])
                     m25_standoff_local(height=standoff_h);
 
         // Support platform connecting standoffs
-        cube([RPI_L, 3, standoff_h]);
-        translate([0, RPI_W - 3, 0])
-            cube([RPI_L, 3, standoff_h]);
+        cube([RPI_W, 3, standoff_h]);
+        translate([0, RPI_L - 3, 0])
+            cube([RPI_W, 3, standoff_h]);
     }
 }
 
@@ -268,14 +269,13 @@ module rpi4_mount() {
 // Cutout in rear wall for Ethernet + 2x USB-A ports
 // =====================================================================
 module rpi4_rear_cutout() {
-    // RPi4 USB/Ethernet ports are on the long edge at +X direction
-    // Port block: ~45mm wide x 17mm tall, on the back face
+    // RPi4 rotated 90deg: USB/Ethernet ports now face +Y (rear wall)
+    // Ports span ~45mm along the 56mm short edge (now along X)
     port_w = 50;
     port_h = RPI_H + RPI_HEATSINK + 5;  // Generous clearance
-    port_x = rpi_x + RPI_L - 5;         // Ports near one end
     port_z = rpi_z;
 
-    translate([rpi_x + 15, CONSOLE_D - WALL - 0.1, port_z])
+    translate([rpi_x + (RPI_W - port_w) / 2, CONSOLE_D - WALL - 0.1, port_z])
         cube([port_w, WALL + 0.2, port_h]);
 }
 
@@ -284,21 +284,20 @@ module rpi4_rear_cutout() {
 // Vent slots above RPi4 heatsink for airflow
 // =====================================================================
 module rpi4_ventilation() {
-    vent_count = 8;
+    vent_count = 6;
     vent_w = 3;
-    vent_len = 40;
     vent_spacing = 7;
-    start_x = rpi_x + (RPI_L - vent_count * vent_spacing) / 2;
-    vent_z = rpi_z + 5 + RPI_H + RPI_HEATSINK + RPI_AIRFLOW;
+    // RPi4 rotated: 56mm along X, 85mm along Y
+    start_x = rpi_x + (RPI_W - vent_count * vent_spacing) / 2;
 
-    // Top surface vents (if covered by top panel)
+    // Top surface vents
     for (i = [0 : vent_count - 1])
         translate([start_x + i * vent_spacing, rpi_y + 5, CONSOLE_H - WALL - 0.1])
-            cube([vent_w, RPI_W - 10, WALL + 0.2]);
+            cube([vent_w, RPI_L - 10, WALL + 0.2]);
 
     // Rear wall vents for cross-flow
-    for (i = [0 : 5])
-        translate([rpi_x + 10 + i * 10, CONSOLE_D - WALL - 0.1, rpi_z + 5])
+    for (i = [0 : vent_count - 1])
+        translate([start_x + i * vent_spacing, CONSOLE_D - WALL - 0.1, rpi_z + 5])
             cube([vent_w, WALL + 0.2, RPI_H + 5]);
 }
 
@@ -365,21 +364,34 @@ module throttle_slot() {
         frame_w = SLIDER_W + 12;
         frame_h = SLIDER_L + 10;  // Vertical travel direction
 
-        // Mounting frame (raised panel on right side)
+        // Mounting frame — left wall, right wall, front face, floor, ceiling
+        // Back face is OPEN for slider insertion and wiring access
         difference() {
-            // Frame body
-            hull() {
+            union() {
+                // Front face panel
+                cube([frame_w, WALL, frame_h + 3]);
+
+                // Left side wall
+                cube([WALL, WALL + SLIDER_H + 2, frame_h + 3]);
+
+                // Right side wall
+                translate([frame_w - WALL, 0, 0])
+                    cube([WALL, WALL + SLIDER_H + 2, frame_h + 3]);
+
+                // Floor
                 cube([frame_w, WALL + SLIDER_H + 2, 5]);
+
+                // Ceiling
                 translate([0, 0, frame_h])
                     cube([frame_w, WALL + SLIDER_H + 2, 3]);
             }
 
-            // Slider body cavity
+            // Slider body cavity (inside the U-channel)
             translate([(frame_w - SLIDER_W - CLEARANCE) / 2,
                        WALL,
                        5])
                 cube([SLIDER_W + CLEARANCE,
-                      SLIDER_H + CLEARANCE,
+                      SLIDER_H + CLEARANCE + 1,
                       SLIDER_L + CLEARANCE]);
 
             // Knob slot (through front face) — long vertical slot
@@ -391,7 +403,7 @@ module throttle_slot() {
                       SLIDER_L - 10]);
         }
 
-        // Retaining clips at top and bottom
+        // Retaining clips at top and bottom (inward lips)
         clip_w = 8;
         clip_depth = 1.5;
         for (z_off = [7, frame_h - 5])
@@ -790,15 +802,15 @@ module show_components() {
     rotate([-DISP_TILT, 0, 0])
         cube([DISP_W, DISP_H, DISP_D]);
 
-    // RPi 4B
+    // RPi 4B (rotated 90deg: 56mm along X, 85mm along Y)
     color("Green", 0.35)
     translate([rpi_x, rpi_y, rpi_z + 5])
-        cube([RPI_L, RPI_W, RPI_H]);
+        cube([RPI_W, RPI_L, RPI_H]);
 
     // RPi heatsink
     color("Silver", 0.3)
-    translate([rpi_x + 15, rpi_y + 10, rpi_z + 5 + RPI_H])
-        cube([40, 30, RPI_HEATSINK]);
+    translate([rpi_x + 8, rpi_y + 20, rpi_z + 5 + RPI_H])
+        cube([30, 40, RPI_HEATSINK]);
 
     // PS2 Joystick
     color("Blue", 0.35)

@@ -20,11 +20,16 @@ class SimulationClient:
         self.base_url = (base_url or config.SIMULATION_SERVER_URL).rstrip("/")
 
     def _auth_headers(self) -> dict:
-        """Return auth headers if API key is configured."""
+        """Return auth headers for simulation server."""
+        headers = {}
         api_key = getattr(config, 'SIM_API_KEY', '') or os.getenv('SIM_API_KEY', '')
         if api_key:
-            return {"X-API-Key": api_key}
-        return {}
+            headers["X-API-Key"] = api_key
+        # Cloud mode: add Worker secret for Cloud Run gate
+        worker_secret = os.getenv('CF_WORKER_SECRET', '').strip()
+        if worker_secret:
+            headers["X-Worker-Secret"] = worker_secret
+        return headers
 
     async def health_check(self) -> dict:
         """Check if the simulation server is healthy."""

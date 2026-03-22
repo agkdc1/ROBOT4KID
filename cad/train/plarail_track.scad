@@ -3,7 +3,7 @@
 // ROBOT4KID Project
 // =============================================================================
 // All dimensions in mm. Printable without supports on Bambu A1 Mini (180x180x180).
-// Rail gauge: 38mm center-to-center (Plarail standard).
+// Rail gauge: 27mm center-to-center (Plarail standard per hardware_specs.yaml).
 // =============================================================================
 
 $fn = 48;
@@ -21,7 +21,7 @@ bed_width       = 50;
 bed_thickness   = 3;
 
 // Rails
-rail_gauge      = 38;   // center-to-center
+rail_gauge      = 27;   // center-to-center (Plarail standard per hardware_specs.yaml)
 rail_width      = 3;
 rail_height     = 4;
 

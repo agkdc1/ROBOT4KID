@@ -24,6 +24,18 @@
       {
         "check": "Trace component port orientation: identify which face of the PCB the ports are on (Short vs Long edge) and ensure the corresponding wall cutout is on the correct console face (Side vs Rear).",
         "reason": "Previous stages saw a hole and a component and assumed they lined up, despite the RPi ports being 90 degrees offset from the hole."
+      },
+      {
+        "check": "Trace the insertion path for every component into its assigned cavity. A cavity MUST have at least one open face larger than the component. Also, trace a straight line from every screw head to the exterior of the model to strictly verify tool access.",
+        "reason": "Components were being trapped in 6-sided solid plastic walls, and fasteners were placed deep inside hollow grip shells where no screwdriver could reach."
+      },
+      {
+        "check": "Scan for floating Z-geometry. Any internal mount or component placed above Z=0 must have explicit vertical supports (legs, pillars, or wall extrusions) connecting it to the base structure.",
+        "reason": "Stage 2 missed a completely detached MT3608 mount floating 7.5mm in the air above the battery."
+      },
+      {
+        "check": "Scan for floating Z-geometry. Any internal mount or component placed above Z=0 must have explicit vertical supports (legs, pillars, or wall extrusions) connecting it to the base structure.",
+        "reason": "Stage 2 missed a completely detached MT3608 mount floating 7.5mm in the air above the battery."
       }
     ]
   },
@@ -60,6 +72,26 @@
       {
         "check": "Perform physics reality checks on actuators. Ensure slow mechanisms like servos are not used for high-velocity projectile launching, and verify component capabilities match target metrics.",
         "reason": "Stage 4 accepted a servo kicker for a 15m/s 3000 RPM projectile."
+      },
+      {
+        "check": "Perform physics reality checks on actuators. Ensure slow mechanisms like servos are not used for high-velocity projectile launching, and verify component capabilities match target metrics.",
+        "reason": "Stage 4 accepted a servo kicker for a 15m/s 3000 RPM projectile."
+      },
+      {
+        "check": "Perform physics reality checks on actuators. Ensure slow mechanisms like servos are not used for high-velocity projectile launching, and verify component capabilities match target metrics.",
+        "reason": "Stage 4 accepted a servo kicker for a 15m/s 3000 RPM projectile."
+      },
+      {
+        "check": "Perform physics reality checks on actuators. Ensure slow mechanisms like servos are not used for high-velocity projectile launching, and verify component capabilities match target metrics.",
+        "reason": "Stage 4 accepted a servo kicker for a 15m/s 3000 RPM projectile."
+      },
+      {
+        "check": "Explicitly trace the mechanical power path from actuator shafts to driven elements. Check exact XYZ coordinates to ensure shafts physically reach axles, and verify that required transmission gears are modeled. Confirm angular pitch signs match across separated mating parts.",
+        "reason": "Stage 4 failed to notice the motor shaft was 16mm away from the axle with zero modeled gears, and accepted inverted camera pitch angles between the chassis and shell."
+      },
+      {
+        "check": "Explicitly trace the mechanical power path from actuator shafts to driven elements. Check exact XYZ coordinates to ensure shafts physically reach axles, and verify that required transmission gears are modeled. Confirm angular pitch signs match across separated mating parts.",
+        "reason": "Stage 4 failed to notice the motor shaft was 16mm away from the axle with zero modeled gears, and accepted inverted camera pitch angles between the chassis and shell."
       }
     ]
   },
@@ -96,6 +128,30 @@
       {
         "check": "Add mandatory 2D bounding box calculations for diagonal placement: max(width*cos(45) + length*sin(45)) must be <= BUILD_X. Explicitly verify the longest dimension of EVERY generated part without trusting code comments.",
         "reason": "Stage 1 relied on a flawed code comment rather than evaluating the math, missing massive print volume violations on multiple files."
+      },
+      {
+        "check": "Add mandatory 2D bounding box calculations for diagonal placement: max(width*cos(45) + length*sin(45)) must be <= BUILD_X. Explicitly verify the longest dimension of EVERY generated part without trusting code comments.",
+        "reason": "Stage 1 relied on a flawed code comment rather than evaluating the math, missing massive print volume violations on multiple files."
+      },
+      {
+        "check": "Add mandatory 2D bounding box calculations for diagonal placement: max(width*cos(45) + length*sin(45)) must be <= BUILD_X. Explicitly verify the longest dimension of EVERY generated part without trusting code comments.",
+        "reason": "Stage 1 relied on a flawed code comment rather than evaluating the math, missing massive print volume violations on multiple files."
+      },
+      {
+        "check": "Add mandatory 2D bounding box calculations for diagonal placement: max(width*cos(45) + length*sin(45)) must be <= BUILD_X. Explicitly verify the longest dimension of EVERY generated part without trusting code comments.",
+        "reason": "Stage 1 relied on a flawed code comment rather than evaluating the math, missing massive print volume violations on multiple files."
+      },
+      {
+        "check": "Do not validate print bed fitness using diagonal hypotenuse length. You MUST evaluate the minimal rotated 2D bounding box size `max(W*cos(a) + H*sin(a), W*sin(a) + H*cos(a))` to mathematically prove a rectangular part fits in a square print envelope.",
+        "reason": "Previous audits falsely accepted 250mm bounding boxes on a 180mm bed simply because the bed's corner-to-corner diagonal was larger than the part length."
+      },
+      {
+        "check": "Strictly cross-reference domain-specific dimensions (e.g., Plarail 27mm track gauge) from the hardware specs against the CAD constants. Do not allow the CAD to arbitrarily widen standard interfaces to cover up component fit issues.",
+        "reason": "Stage 1 allowed the script to silently widen the standard track gauge to 38mm because the train body was modeled too wide to accommodate the correct 27mm gauge."
+      },
+      {
+        "check": "Strictly cross-reference domain-specific dimensions (e.g., Plarail 27mm track gauge) from the hardware specs against the CAD constants. Do not allow the CAD to arbitrarily widen standard interfaces to cover up component fit issues.",
+        "reason": "Stage 1 allowed the script to silently widen the standard track gauge to 38mm because the train body was modeled too wide to accommodate the correct 27mm gauge."
       }
     ]
   },
@@ -124,6 +180,30 @@
       {
         "check": "Perform cross-part Boolean intersection checks. Verify that mating tabs exist in solid space, and inward protrusions have corresponding cutouts. Check that directional sensors are oriented correctly toward their apertures.",
         "reason": "Stage 3 failed to notice bolt holes cutting through empty air, clashing brackets, and a blindly oriented sensor."
+      },
+      {
+        "check": "Perform cross-part Boolean intersection checks. Verify that mating tabs exist in solid space, and inward protrusions have corresponding cutouts. Check that directional sensors are oriented correctly toward their apertures.",
+        "reason": "Stage 3 failed to notice bolt holes cutting through empty air, clashing brackets, and a blindly oriented sensor."
+      },
+      {
+        "check": "Perform cross-part Boolean intersection checks. Verify that mating tabs exist in solid space, and inward protrusions have corresponding cutouts. Check that directional sensors are oriented correctly toward their apertures.",
+        "reason": "Stage 3 failed to notice bolt holes cutting through empty air, clashing brackets, and a blindly oriented sensor."
+      },
+      {
+        "check": "Perform cross-part Boolean intersection checks. Verify that mating tabs exist in solid space, and inward protrusions have corresponding cutouts. Check that directional sensors are oriented correctly toward their apertures.",
+        "reason": "Stage 3 failed to notice bolt holes cutting through empty air, clashing brackets, and a blindly oriented sensor."
+      },
+      {
+        "check": "Verify real-world connector locations on asymmetrical PCBs (like the RPi 4) against the orientation of the board in the CAD coordinate system. Ensure cutouts actually align with the specific board edge housing those physical ports.",
+        "reason": "The RPi4 was mounted perpendicularly to the intended port cutouts, rendering the network and USB interfaces completely blocked."
+      },
+      {
+        "check": "Verify connector orientations (e.g., knowing that a TP4056 USB port is on the short edge). Check for physical XY collisions between components placed in the same zone, and verify that rectangular boards fit inside tapering/aerodynamic shell constraints without clipping.",
+        "reason": "Stage 3 missed the USB port facing a solid wall, the switch impaling the LiPo, the motor/driver clipping into each other, and the camera smashing through the tapering nose walls."
+      },
+      {
+        "check": "Verify connector orientations (e.g., knowing that a TP4056 USB port is on the short edge). Check for physical XY collisions between components placed in the same zone, and verify that rectangular boards fit inside tapering/aerodynamic shell constraints without clipping.",
+        "reason": "Stage 3 missed the USB port facing a solid wall, the switch impaling the LiPo, the motor/driver clipping into each other, and the camera smashing through the tapering nose walls."
       }
     ]
   }

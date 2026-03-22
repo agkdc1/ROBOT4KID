@@ -87,7 +87,7 @@ tank:
     motor_to_driver: "N20 motor leads (pre-soldered wires) -> L9110S screw terminals"
     driver_to_mcu: "Dupont female-female jumpers -> ESP32-CAM pin headers"
     imu_to_mcu: "Dupont female-female jumpers (4 wires: VCC, GND, SCL, SDA)"
-    power: "WAGO 221-413 (3-way) for 7.4V (18650 2S) -> L9110S VCC + ESP32-CAM 5V"
+    power: "WAGO 221-413 (3-way) for 7.4V (18650 2S) -> L9110S VCC + LM2596 buck (set 5V) -> ESP32-CAM 5V"
   camera:
     frame_size: "VGA"               # 640x480
     jpeg_quality: 12                # 0-63, lower = better
@@ -312,7 +312,7 @@ hull_pin_map:
 solderless_connections:
   motor_to_driver: "2.8mm spade terminals on TT motor → L9110S screw terminals"
   driver_to_mcu: "Dupont female-female jumpers → ESP32-CAM pin headers"
-  power_distribution: "WAGO 221-413 (3-way) for 7.4V battery → L9110S VCC + ESP32-CAM 5V"
+  power_distribution: "WAGO 221-413 (3-way) for 7.4V battery → L9110S VCC + LM2596 buck (adjusted to 5V out) → ESP32-CAM 5V"
   signal_routing: "Separate channel from power wires (EMI reduction)"
 
 # ============================================================

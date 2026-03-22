@@ -136,9 +136,9 @@ module train_camera_mount() {
     // Tilted base wedge
     tilted_base();
 
-    // Camera cradle, tilted
+    // Camera cradle, tilted downward (lens end drops, -TILT_ANGLE around Y)
     translate([0, 0, tilt_rise + 1])
-        rotate([0, TILT_ANGLE, 0]) {
+        rotate([0, -TILT_ANGLE, 0]) {
             difference() {
                 camera_cradle();
                 antenna_clearance();
@@ -156,7 +156,7 @@ train_camera_mount();
 total_l_ref = INNER_L + 2*RAIL_W;
 tilt_rise_ref = total_l_ref * sin(TILT_ANGLE);
 %translate([0, 0, tilt_rise_ref + 1])
-    rotate([0, TILT_ANGLE, 0])
+    rotate([0, -TILT_ANGLE, 0])
         translate([RAIL_W + MOUNT_TOLERANCE, RAIL_W + MOUNT_TOLERANCE, BASE_THICKNESS])
             esp32cam_dummy();
 

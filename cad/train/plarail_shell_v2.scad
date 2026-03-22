@@ -21,9 +21,9 @@ WALL            = 1.60;
 CLEARANCE       = 1.50;
 
 // =====================================================================
-// Plarail Track Standard
+// Plarail Track Standard (27 mm gauge per hardware_specs.yaml)
 // =====================================================================
-TRACK_GAUGE     = 38;
+TRACK_GAUGE     = 27;
 WHEEL_DIA       = 10;
 WHEEL_WIDTH     = 3;
 AXLE_DIA        = 2.0;
@@ -277,7 +277,7 @@ module windshield_cutout() {
     // Lens aperture (cylindrical, aligned with camera tilt)
     cam_center_z = FLOOR_T + 12/2 + 1;  // Approximate camera center from chassis
     translate([BODY_RECT_LEN - 2, 0, cam_center_z])
-        rotate([0, CAM_TILT, 0])
+        rotate([0, -CAM_TILT, 0])
             rotate([0, 90, 0])
                 cylinder(h=NOSE_LEN + 5, d=CAM_LENS_DIA + 3);
 }
@@ -351,19 +351,21 @@ module vent_grills() {
 }
 
 // =====================================================================
-// USB-C Access Port (side cutout for TP4056 charging)
+// USB-C Access Port (rear wall cutout for TP4056 charging)
 // =====================================================================
 module usb_access_port() {
-    // Through the right side wall, aligned with TP4056 position
-    port_x = CHRG_X + (CHRG_L + CLEARANCE) / 2 - USB_PORT_W / 2 - 1;
+    // TP4056 USB-C port faces the rear wall (X=0)
+    chrg_y = BODY_WIDTH/2 - WALL - (CHRG_W + 1.5) - 0.5;
+    port_center_y = chrg_y + (CHRG_W + 1.5) / 2;
     port_z = SPLIT_Z + 0.5;
 
-    translate([port_x, BODY_WIDTH/2 - WALL - 0.5, port_z])
-        cube([USB_PORT_W + 2, WALL + 1, USB_PORT_H + 2]);
+    // Rear wall cutout
+    translate([-0.5, port_center_y - USB_PORT_W/2 - 1, port_z])
+        cube([WALL + 1, USB_PORT_W + 2, USB_PORT_H + 2]);
 
-    // Label recess (tiny "USB-C" indicator area)
-    translate([port_x - 1, BODY_WIDTH/2 - PANEL_LINE_D, port_z + USB_PORT_H + 3])
-        cube([USB_PORT_W + 4, PANEL_LINE_D + 0.1, 1.5]);
+    // Label recess on rear face
+    translate([-PANEL_LINE_D, port_center_y - USB_PORT_W/2 - 2, port_z + USB_PORT_H + 3])
+        cube([PANEL_LINE_D + 0.1, USB_PORT_W + 4, 1.5]);
 }
 
 // =====================================================================
@@ -502,7 +504,7 @@ module chassis_placeholder() {
         translate([0, -BODY_WIDTH/2, FLOOR_T])
             cube([WALL, BODY_WIDTH, SPLIT_Z - FLOOR_T]);
         // Wheel bosses
-        for (ax = [12, BODY_RECT_LEN - 12]) {
+        for (ax = [MOTOR_X + MOTOR_LEN, BODY_RECT_LEN - 12]) {
             for (side = [-1, 1]) {
                 translate([ax, side * TRACK_GAUGE/2, -WHEEL_BOSS_H])
                     cylinder(h=WHEEL_BOSS_H + FLOOR_T, d=WHEEL_BOSS_OD);
@@ -526,7 +528,7 @@ BOOST_L         = 36;  BOOST_W = 17; BOOST_H = 14;
 // Layout positions (must match chassis)
 BATT_X          = MOTOR_X + MOTOR_LEN + 2;  // X=30
 BOOST_X         = BATT_X + 6;               // X=36
-CAM_X           = BATT_X + BATT_L + 2 + CAM_L; // = 120
+CAM_X           = BODY_RECT_LEN - 2;  // =108, within rectangular section
 
 module ghost_components() {
     // ESP32-CAM
@@ -564,7 +566,7 @@ module ghost_components() {
 
     // Wheels
     color("DimGray", 0.5)
-    for (ax = [12, BODY_RECT_LEN - 12]) {
+    for (ax = [MOTOR_X + MOTOR_LEN, BODY_RECT_LEN - 12]) {
         for (side = [-1, 1]) {
             translate([ax, side * TRACK_GAUGE/2, -WHEEL_BOSS_H + WHEEL_DIA/2 - 2])
                 rotate([90, 0, 0])

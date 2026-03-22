@@ -7,10 +7,12 @@
 // 1/18 scale:       266mm        35mm         42mm
 // Side plate length matches hull length (440mm) minus front/rear overhang
 
-$fn = 48;
+$fn = 64;
 
 // --- Part Selector ---
-part = "assembly";  // "left", "right", "sprocket", "assembly"
+// "left", "right", "sprocket", "assembly"
+// "plate_front", "plate_mid", "plate_rear" — split side plate for 180mm bed
+part = "assembly";
 
 // =====================================================================
 // PARAMETERS (1:18 scale)
@@ -21,6 +23,17 @@ SIDE_PLATE_LENGTH = 400;    // Slightly shorter than hull (440mm) for overhang
 SIDE_PLATE_WIDTH  = 35;     // Real 635mm / 18
 SIDE_PLATE_HEIGHT = 42;     // Real 760mm / 18
 SIDE_PLATE_WALL   = 2.5;
+
+// --- Side plate split for 180mm bed ---
+// 3 segments: front (134mm) | mid (133mm) | rear (133mm)
+PLATE_FRONT_LEN   = 134;
+PLATE_MID_LEN     = 133;
+PLATE_REAR_LEN    = 133;
+// M4 bolt tabs at split seams
+PLATE_BOLT_TAB_W  = 16;
+PLATE_BOLT_TAB_H  = 12;
+PLATE_BOLT_TAB_D  = 12;
+PLATE_BOLT_DIA    = 4.4;
 
 // --- Road wheels (M1A1 has 7 per side) ---
 ROAD_WHEEL_COUNT    = 7;
@@ -301,6 +314,98 @@ module track_assembly_v2_right() {
 }
 
 // =====================================================================
+// SIDE PLATE BOLT TAB (solid material at split seams)
+// =====================================================================
+module plate_bolt_tab() {
+    difference() {
+        translate([-PLATE_BOLT_TAB_D/2, -PLATE_BOLT_TAB_W/2, -PLATE_BOLT_TAB_H/2])
+            cube([PLATE_BOLT_TAB_D, PLATE_BOLT_TAB_W, PLATE_BOLT_TAB_H]);
+        rotate([0, 90, 0])
+            cylinder(d=PLATE_BOLT_DIA, h=PLATE_BOLT_TAB_D + 2, center=true);
+    }
+}
+
+// =====================================================================
+// SPLIT SIDE PLATE SEGMENTS (each fits 180x180mm bed)
+// =====================================================================
+
+// Front segment: X = 0 to PLATE_FRONT_LEN (134mm)
+module side_plate_front() {
+    difference() {
+        intersection() {
+            side_plate_left();
+            cube([PLATE_FRONT_LEN, SIDE_PLATE_WIDTH + 50, SIDE_PLATE_HEIGHT + 50]);
+        }
+        // Bolt holes at rear seam
+        for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+            translate([PLATE_FRONT_LEN, SIDE_PLATE_WIDTH / 2, bz])
+                rotate([0, 90, 0])
+                    cylinder(d=PLATE_BOLT_DIA, h=PLATE_BOLT_TAB_D + 2, center=true);
+        }
+    }
+    // Bolt tabs at rear seam
+    for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+        translate([PLATE_FRONT_LEN, SIDE_PLATE_WIDTH / 2, bz])
+            plate_bolt_tab();
+    }
+}
+
+// Mid segment: X = PLATE_FRONT_LEN to PLATE_FRONT_LEN + PLATE_MID_LEN (134..267mm)
+module side_plate_mid() {
+    mid_start = PLATE_FRONT_LEN;
+    mid_end = PLATE_FRONT_LEN + PLATE_MID_LEN;
+    difference() {
+        intersection() {
+            side_plate_left();
+            translate([mid_start, 0, 0])
+                cube([PLATE_MID_LEN, SIDE_PLATE_WIDTH + 50, SIDE_PLATE_HEIGHT + 50]);
+        }
+        // Bolt holes at front seam
+        for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+            translate([mid_start, SIDE_PLATE_WIDTH / 2, bz])
+                rotate([0, 90, 0])
+                    cylinder(d=PLATE_BOLT_DIA, h=PLATE_BOLT_TAB_D + 2, center=true);
+        }
+        // Bolt holes at rear seam
+        for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+            translate([mid_end, SIDE_PLATE_WIDTH / 2, bz])
+                rotate([0, 90, 0])
+                    cylinder(d=PLATE_BOLT_DIA, h=PLATE_BOLT_TAB_D + 2, center=true);
+        }
+    }
+    // Bolt tabs at both seams
+    for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+        translate([mid_start, SIDE_PLATE_WIDTH / 2, bz])
+            plate_bolt_tab();
+        translate([mid_end, SIDE_PLATE_WIDTH / 2, bz])
+            plate_bolt_tab();
+    }
+}
+
+// Rear segment: X = PLATE_FRONT_LEN + PLATE_MID_LEN to SIDE_PLATE_LENGTH (267..400mm)
+module side_plate_rear() {
+    rear_start = PLATE_FRONT_LEN + PLATE_MID_LEN;
+    difference() {
+        intersection() {
+            side_plate_left();
+            translate([rear_start, 0, 0])
+                cube([PLATE_REAR_LEN, SIDE_PLATE_WIDTH + 50, SIDE_PLATE_HEIGHT + 50]);
+        }
+        // Bolt holes at front seam
+        for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+            translate([rear_start, SIDE_PLATE_WIDTH / 2, bz])
+                rotate([0, 90, 0])
+                    cylinder(d=PLATE_BOLT_DIA, h=PLATE_BOLT_TAB_D + 2, center=true);
+        }
+    }
+    // Bolt tabs at front seam
+    for (bz = [SIDE_PLATE_HEIGHT * 0.3, SIDE_PLATE_HEIGHT * 0.7]) {
+        translate([rear_start, SIDE_PLATE_WIDTH / 2, bz])
+            plate_bolt_tab();
+    }
+}
+
+// =====================================================================
 // PART SELECTOR
 // =====================================================================
 
@@ -311,6 +416,12 @@ if (part == "left") {
         track_assembly_v2_left();
 } else if (part == "sprocket") {
     drive_sprocket();
+} else if (part == "plate_front") {
+    side_plate_front();
+} else if (part == "plate_mid") {
+    side_plate_mid();
+} else if (part == "plate_rear") {
+    side_plate_rear();
 } else if (part == "assembly") {
     track_assembly_v2_left();
     track_assembly_v2_right();

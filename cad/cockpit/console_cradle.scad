@@ -14,7 +14,7 @@
 //   Circuit B (Joystick HID): Encoder USB → Hub USB-A → Tablet HID
 //   Circuit C (Isolated AP): PowerBank USB-A IQ → Toggle → Router
 //
-// Part selector: -D 'part="assembly"' / "left" / "center" / "right"
+// Part selector: -D 'part="assembly"' / "left" / "center_l" / "center_r" / "right"
 // =====================================================================
 
 use <../libs/common.scad>
@@ -23,7 +23,7 @@ use <../libs/m4_hardware.scad>
 // =====================================================================
 // Part Selector (override via CLI: -D 'part="left"')
 // =====================================================================
-part = "assembly";  // "left" | "center" | "right" | "assembly"
+part = "assembly";  // "left" | "center_l" | "center_r" | "right" | "assembly"
 
 $fn = 64;
 
@@ -139,30 +139,18 @@ bottom_h    = pbank_h + pbank_clr + floor_t + wall;  // ~19mm
 total_h     = 70.0;     // Total height of center section (tablet tilt adds height)
 
 // =====================================================================
-// Split Planes — 3 pieces for 180mm build volume
+// Split Planes — 4 pieces for 180mm build volume
 // =====================================================================
-// Split 1: left grip | center at x = grip_w
-// Split 2: center | right grip at x = grip_w + center_w
-// Left piece:  grip_w(40) x body_d(145) x total_h(70) — fits
-// Center piece: center_w(208.5) x body_d(145) x total_h(70) — 208.5 > 180!
-//   Solution: print center on its side: 145 x 70 x 208.5 — still 208.5 > 180!
-//   Alternative: print center standing up, 208.5 along Y → NO, same issue.
-//   Must split center further or reduce tablet clearance.
-//
-// REVISED: The center section is 208.5mm wide. We need it under 180mm when
-// printed in ANY orientation. The tablet is 201.5mm so we cannot shrink below
-// that. Solution: split center into TWO halves (left-center + right-center),
-// making 4 pieces total. OR accept that center prints diagonally (208 diagonal
-// on 180x180 bed = sqrt(180^2+180^2) = 254mm — fits!).
-//
-// FINAL: We keep 3 pieces. The center piece at 208.5mm can be printed
-// diagonally on the 180x180 bed (diagonal = 254mm). The depth is 145mm and
-// height is 70mm, both under 180mm. This works.
-//
-// If the user insists on axis-aligned printing, we add a 4th split at center
-// midpoint. For now, 3 pieces with diagonal print note.
+// Split 1: left grip | center-left at x = grip_w
+// Split 2: center-left | center-right at x = grip_w + center_w/2
+// Split 3: center-right | right grip at x = grip_w + center_w
+// Left piece:    grip_w(40) x body_d(145) x total_h(70) — fits
+// Center-Left:   center_w/2(104.25) x body_d(145) x total_h(70) — fits
+// Center-Right:  center_w/2(104.25) x body_d(145) x total_h(70) — fits
+// Right piece:   grip_w(40) x body_d(145) x total_h(70) — fits
 
 split_left_x  = grip_w;                    // Left grip ends here
+split_mid_x   = grip_w + center_w / 2;     // Center halves split here
 split_right_x = grip_w + center_w;         // Right grip starts here
 
 // M4 bolt joint parameters
@@ -642,6 +630,19 @@ module left_center_bolts() {
     }
 }
 
+module left_bolt_access() {
+    // M4 head access holes through left grip outer wall (X-direction)
+    bolt_positions = [
+        [split_left_x, body_d * 0.3, total_h * 0.5],
+        [split_left_x, body_d * 0.7, total_h * 0.5]
+    ];
+    for (bp = bolt_positions) {
+        translate([-0.1, bp[1], bp[2]])
+            rotate([0, 90, 0])
+                cylinder(h = split_left_x + 0.2, d = M4_HEAD_DIAMETER + 1);
+    }
+}
+
 // --- Center-Right Joint ---
 module center_right_keys() {
     for (jy = joint_y_positions) {
@@ -667,6 +668,52 @@ module center_right_bolts() {
     bolt_positions = [
         [split_right_x, body_d * 0.3, total_h * 0.5],
         [split_right_x, body_d * 0.7, total_h * 0.5]
+    ];
+    for (bp = bolt_positions) {
+        translate([bp[0] - bolt_depth / 2, bp[1], bp[2]])
+            rotate([0, 90, 0])
+                m4_hole(depth = bolt_depth);
+    }
+}
+
+module right_bolt_access() {
+    // M4 head access holes through right grip outer wall (X-direction)
+    bolt_positions = [
+        [split_right_x, body_d * 0.3, total_h * 0.5],
+        [split_right_x, body_d * 0.7, total_h * 0.5]
+    ];
+    for (bp = bolt_positions) {
+        translate([split_right_x - 0.1, bp[1], bp[2]])
+            rotate([0, 90, 0])
+                cylinder(h = grip_w + 0.2, d = M4_HEAD_DIAMETER + 1);
+    }
+}
+
+// --- Center-Mid Joint (between center-left and center-right) ---
+module center_mid_keys() {
+    for (jy = joint_y_positions) {
+        for (jz = joint_z_positions) {
+            translate([split_mid_x, jy, jz])
+                rotate([0, 90, 0])
+                    split_key(size = joint_key_size, height = joint_key_h);
+        }
+    }
+}
+
+module center_mid_sockets() {
+    for (jy = joint_y_positions) {
+        for (jz = joint_z_positions) {
+            translate([split_mid_x, jy, jz])
+                rotate([0, 90, 0])
+                    split_socket(size = joint_key_size, height = joint_key_h);
+        }
+    }
+}
+
+module center_mid_bolts() {
+    bolt_positions = [
+        [split_mid_x, body_d * 0.3, total_h * 0.5],
+        [split_mid_x, body_d * 0.7, total_h * 0.5]
     ];
     for (bp = bolt_positions) {
         translate([bp[0] - bolt_depth / 2, bp[1], bp[2]])
@@ -704,6 +751,9 @@ module left_grip() {
 
         // M4 bolt holes at seam
         left_center_bolts();
+
+        // Bolt head access through outer wall
+        left_bolt_access();
 
         // Fillet approximation: chamfer bottom edges
         translate([-0.1, -0.1, -0.1])
@@ -753,6 +803,9 @@ module right_grip() {
 
         // M4 bolt holes at seam
         center_right_bolts();
+
+        // Bolt head access through outer wall
+        right_bolt_access();
     }
 
     // Ghost volumes and labels
@@ -763,55 +816,86 @@ module right_grip() {
 }
 
 // =====================================================================
-// Module: Center Section — tablet + powerbank + hub + router
+// Module: Center body ventilation — through outer walls to open air
 // =====================================================================
-module center_section() {
-    // Local origin shifted so left seam face is at x=0
+module center_ventilation() {
+    vent_w = 1.5;
+    vent_n = 8;
+
+    // Bottom vents under powerbank area (through floor to open air)
+    pbank_vent_start = pbank_x + 10;
+    pbank_vent_spacing = (pbank_w - 20) / (vent_n + 1);
+    for (i = [0 : vent_n - 1]) {
+        translate([pbank_vent_start + i * pbank_vent_spacing,
+                   pbank_y + 5, -0.1])
+            cube([vent_w, pbank_d - 10, floor_t + 0.2]);
+    }
+
+    // Bottom vents under router area (through floor to open air)
+    router_vent_start = router_x + 5;
+    router_vent_sp = (router_w - 10) / 5;
+    for (i = [0 : 4]) {
+        translate([router_vent_start + i * router_vent_sp,
+                   router_y + 5, -0.1])
+            cube([vent_w, router_d - 10, floor_t + 0.2]);
+    }
+
+    // Rear wall vents behind router (through body rear wall to open air)
+    for (i = [0 : 4]) {
+        translate([router_x + 5 + i * 10,
+                   body_d - wall - 0.1, router_z + wall + 2])
+            cube([vent_w, wall + 0.2, router_h - 4]);
+    }
+
+    // Bottom vents under hub area (through floor to open air)
+    hub_vent_start = hub_x + 5;
+    hub_vent_sp = (hub_w - 10) / (vent_n + 1);
+    for (i = [0 : vent_n - 1]) {
+        translate([hub_vent_start + i * hub_vent_sp,
+                   hub_y + 3, -0.1])
+            cube([vent_w, hub_d - 6, floor_t + 0.2]);
+    }
+}
+
+// =====================================================================
+// Module: Center-Left Section — left half of center (tablet left + powerbank + hub)
+// =====================================================================
+module center_left_section() {
     translate([-split_left_x, 0, 0])
     difference() {
         union() {
-            // Center portion of body shell
             intersection() {
                 translate([split_left_x - 0.01, 0, 0])
-                    cube([center_w + 0.02, body_d + 1, total_h + 50]);
+                    cube([center_w / 2 + 0.02, body_d + 1, total_h + 50]);
                 union() {
                     body_shell();
                     tablet_lips();
                 }
             }
 
-            // Component mounts (center portion)
             intersection() {
                 translate([split_left_x - 0.01, 0, 0])
-                    cube([center_w + 0.02, body_d + 1, total_h + 1]);
+                    cube([center_w / 2 + 0.02, body_d + 1, total_h + 1]);
                 union() {
                     hub_mount();
                     router_slot();
                 }
             }
 
-            // Alignment keys toward right grip
-            center_right_keys();
+            center_mid_keys();
         }
 
-        // Alignment sockets (receive keys from left grip)
         left_center_sockets();
 
-        // Tablet slot cutout
         tablet_slot();
 
-        // Powerbank bay cutout (we cut cavity, bottom_bay adds cradle walls)
-        // Actually bottom_bay is additive; we just need the cavity for powerbank
-        // The cradle walls are part of the shell interior structure
-        // Cut powerbank cavity
         translate([pbank_x + wall, pbank_y, pbank_z])
             cube([pbank_w + 2 * pbank_clr, pbank_d + 2 * pbank_clr,
                   pbank_h + pbank_clr]);
 
-        // Cable routing (center portion)
         intersection() {
             translate([split_left_x - 0.1, 0, 0])
-                cube([center_w + 0.2, body_d + 1, total_h + 1]);
+                cube([center_w / 2 + 0.2, body_d + 1, total_h + 1]);
             cable_routing();
         }
 
@@ -823,35 +907,80 @@ module center_section() {
         translate([hub_x + hub_w / 2 - 20, hub_y + hub_d + hub_clr, hub_z + 2])
             cube([40, wall + 0.2, 10]);
 
-        // Router port cutout through body wall (if router is near wall)
-        // Micro-USB power cable entry
-        translate([router_x + router_w / 2 - 6,  -0.1, router_z + wall + 3])
-            cube([12, wall + 0.2, 8]);
-
-        // M4 bolt holes at both seams
         left_center_bolts();
-        center_right_bolts();
+        center_mid_bolts();
 
         // Powerbank port cutouts
-        // USB-C PD output (front)
         translate([pbank_x + pbank_w / 2 - 7, -0.1, pbank_z + 2])
             cube([14, wall + 0.2, 8]);
-        // USB-A IQ output (Circuit C, front)
         translate([pbank_x + pbank_w / 2 + 15, -0.1, pbank_z + 2])
             cube([14, wall + 0.2, 8]);
 
         // LED indicator window
         translate([pbank_x + pbank_w / 2 - 10, -0.1, pbank_z + pbank_h - 2])
             cube([20, wall + 0.2, 4]);
+
+        center_ventilation();
     }
 
-    // Ghost volumes
     translate([-split_left_x, 0, 0]) {
         tablet_dummy();
 
-        // Powerbank dummy
         translate([pbank_x + wall + pbank_clr, pbank_y + pbank_clr, pbank_z])
             %cube([pbank_w, pbank_d, pbank_h]);
+    }
+}
+
+// =====================================================================
+// Module: Center-Right Section — right half of center (tablet right + router)
+// =====================================================================
+module center_right_section() {
+    translate([-split_mid_x, 0, 0])
+    difference() {
+        union() {
+            intersection() {
+                translate([split_mid_x - 0.01, 0, 0])
+                    cube([center_w / 2 + 0.02, body_d + 1, total_h + 50]);
+                union() {
+                    body_shell();
+                    tablet_lips();
+                }
+            }
+
+            intersection() {
+                translate([split_mid_x - 0.01, 0, 0])
+                    cube([center_w / 2 + 0.02, body_d + 1, total_h + 1]);
+                union() {
+                    hub_mount();
+                    router_slot();
+                }
+            }
+
+            center_right_keys();
+        }
+
+        center_mid_sockets();
+
+        tablet_slot();
+
+        translate([pbank_x + wall, pbank_y, pbank_z])
+            cube([pbank_w + 2 * pbank_clr, pbank_d + 2 * pbank_clr,
+                  pbank_h + pbank_clr]);
+
+        intersection() {
+            translate([split_mid_x - 0.1, 0, 0])
+                cube([center_w / 2 + 0.2, body_d + 1, total_h + 1]);
+            cable_routing();
+        }
+
+        // Router port cutout through body wall
+        translate([router_x + router_w / 2 - 6,  -0.1, router_z + wall + 3])
+            cube([12, wall + 0.2, 8]);
+
+        center_mid_bolts();
+        center_right_bolts();
+
+        center_ventilation();
     }
 }
 
@@ -863,10 +992,17 @@ module cradle_left() {
 }
 
 // =====================================================================
-// Module: Cradle Center — printable center piece
+// Module: Cradle Center Left — printable center-left piece
 // =====================================================================
-module cradle_center() {
-    center_section();
+module cradle_center_left() {
+    center_left_section();
+}
+
+// =====================================================================
+// Module: Cradle Center Right — printable center-right piece
+// =====================================================================
+module cradle_center_right() {
+    center_right_section();
 }
 
 // =====================================================================
@@ -877,12 +1013,14 @@ module cradle_right() {
 }
 
 // =====================================================================
-// Module: Cradle Assembly — all three pieces joined
+// Module: Cradle Assembly — all four pieces joined
 // =====================================================================
 module cradle_assembly() {
     cradle_left();
     translate([split_left_x, 0, 0])
-        cradle_center();
+        cradle_center_left();
+    translate([split_mid_x, 0, 0])
+        cradle_center_right();
     translate([split_right_x, 0, 0])
         cradle_right();
 }
@@ -890,20 +1028,23 @@ module cradle_assembly() {
 // =====================================================================
 // Render Selected Part
 // =====================================================================
-if (part == "left")          cradle_left();
-else if (part == "center")   cradle_center();
-else if (part == "right")    cradle_right();
-else if (part == "assembly") cradle_assembly();
+if (part == "left")            cradle_left();
+else if (part == "center_l")   cradle_center_left();
+else if (part == "center_r")   cradle_center_right();
+else if (part == "right")      cradle_right();
+else if (part == "assembly")   cradle_assembly();
 
 // =====================================================================
 // Debug: Print computed dimensions
 // =====================================================================
-echo(str("=== Handheld Gamepad Console ==="));
+echo(str("=== Handheld Gamepad Console (4-piece split) ==="));
 echo(str("Total size: ", total_w, " x ", body_d, " x ", total_h, " mm"));
 echo(str("Left grip piece: ", split_left_x, " x ", body_d, " x ", total_h, " mm"));
-echo(str("Center piece: ", center_w, " x ", body_d, " x ", total_h, " mm"));
+echo(str("Center-Left piece: ", center_w / 2, " x ", body_d, " x ", total_h, " mm"));
+echo(str("Center-Right piece: ", center_w / 2, " x ", body_d, " x ", total_h, " mm"));
 echo(str("Right grip piece: ", grip_w, " x ", body_d, " x ", total_h, " mm"));
 echo(str("Split Left X: ", split_left_x));
+echo(str("Split Mid X: ", split_mid_x));
 echo(str("Split Right X: ", split_right_x));
 echo(str("Tablet pos: [", tablet_x, ", ", tablet_y, ", ", tablet_z, "]"));
 echo(str("PowerBank pos: [", pbank_x, ", ", pbank_y, ", ", pbank_z, "]"));
@@ -913,5 +1054,3 @@ echo(str("L-Joy pos: [", ljoy_x, ", ", ljoy_y, ", ", ljoy_z, "]"));
 echo(str("R-Joy pos: [", rjoy_x, ", ", rjoy_y, ", ", rjoy_z, "]"));
 echo(str("Encoder pos: [", enc_x, ", ", enc_y, ", ", enc_z, "]"));
 echo(str("Button grid center: [", btn_grid_x, ", ", btn_grid_y, "]"));
-echo(str("NOTE: Center piece (", center_w, "mm) exceeds 180mm axis-aligned."));
-echo(str("Print diagonally on bed (diagonal capacity = 254mm)."));
